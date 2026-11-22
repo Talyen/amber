@@ -45,13 +45,13 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
           <div>
             <div className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
               <Trophy className="h-3.5 w-3.5" />
-              VERIFIED PORTFOLIO ARENA
+              PORTFOLIO ARENA
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              Tamper-Proof Equity Leaderboards
+              Equity Portfolio Leaderboards
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-              Every portfolio is locked at official server-verified closing prices with an immutable timestamp—no backdating, no deleted calls. Compete against thematic strategy bots and other investors.
+              Track how thematic strategies and community portfolios perform over time—updated automatically after every market close.
             </p>
           </div>
 
@@ -161,8 +161,7 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]">
-                          <ShieldCheck className="h-3 w-3" />
-                          Verified
+                          Community
                         </span>
                       )}
                     </div>

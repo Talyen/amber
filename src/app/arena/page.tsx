@@ -5,9 +5,9 @@ import { ArenaLeaderboard } from "@/components/ArenaLeaderboard";
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "Portfolio Arena — Verified Leaderboards",
+  title: "Portfolio Arena — Equity Leaderboards",
   description:
-    "Tamper-proof equity portfolio leaderboards locked at official closing prices, competing alongside thematic strategy bots.",
+    "Track and compare thematic strategy bots and community equity portfolios over time.",
 };
 
 export default async function ArenaPage() {

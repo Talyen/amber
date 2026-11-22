@@ -55,12 +55,11 @@ export default async function ArenaDetailPage({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Tamper-Proof Receipt
+                  Community Portfolio
                 </span>
               )}
               <span className="font-mono-num text-xs text-[var(--text-muted)]">
-                @{portfolio.handle} · Locked {portfolio.lockedAt.slice(0, 10)}
+                @{portfolio.handle} · Started {portfolio.lockedAt.slice(0, 10)}
               </span>
             </div>
 
@@ -74,7 +73,7 @@ export default async function ArenaDetailPage({
 
           <div className="sm:text-right">
             <div className="text-xs text-[var(--text-muted)]">
-              Verified Return Since Lock
+              Total Return
             </div>
             <div
               className={`font-mono-num mt-0.5 text-4xl font-semibold tracking-[-0.03em] ${
@@ -102,7 +101,7 @@ export default async function ArenaDetailPage({
                 <tr>
                   <th scope="col">Holding</th>
                   <th scope="col">Weight</th>
-                  <th scope="col">Locked Entry</th>
+                  <th scope="col">Entry Price</th>
                   <th scope="col">Current Price</th>
                   <th scope="col">Position Return</th>
                 </tr>

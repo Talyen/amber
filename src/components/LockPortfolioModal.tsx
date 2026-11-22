@@ -121,15 +121,14 @@ export function LockPortfolioModal({
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="font-mono-num inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              TAMPER-PROOF ARENA ENTRY
+            <div className="font-mono-num text-[11px] font-semibold text-[var(--amber)]">
+              PORTFOLIO ARENA
             </div>
             <h2
               id="lock-arena-title"
               className="mt-0.5 text-base font-semibold text-[var(--text-primary)]"
             >
-              Lock your {positions.length}-stock portfolio
+              Publish your {positions.length}-stock portfolio
             </h2>
           </div>
           <button
@@ -143,7 +142,7 @@ export function LockPortfolioModal({
         </div>
 
         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-          Amber records today&apos;s official server-verified closing prices and timestamp so nobody can backdate or edit picks. Returns update automatically every night.
+          Enter the Arena leaderboard starting from today&apos;s closing prices. Returns update automatically after each market close.
         </p>
 
         <div className="mt-3 flex flex-wrap gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-2.5">
