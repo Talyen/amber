@@ -3,11 +3,18 @@
 import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   ArrowRight,
+  Compass,
+  Flame,
+  Gauge,
+  Landmark,
   Layers,
+  Rocket,
+  Sparkles,
   Star,
 } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
@@ -20,6 +27,14 @@ import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
 
 type SortKey = IndexSortKey;
+
+const LENS_ICONS: Record<string, typeof Landmark> = {
+  "cash-machines": Landmark,
+  "buyback-cannibals": Flame,
+  "priced-for-perfection": Gauge,
+  "hidden-dilution": AlertTriangle,
+  "modest-expectations": Compass,
+};
 
 export function SignalIndex({
   entries = SEARCH_INDEX,
@@ -172,14 +187,14 @@ export function SignalIndex({
         <section className="border-b border-[var(--border)] pb-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-1 text-[11px] font-medium text-[var(--amber)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--amber)]" />
-            Live SEC EDGAR 10-K XBRL · {entries.length} Companies Indexed
+            SEC EDGAR XBRL · {entries.length} Companies
           </div>
 
           <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
-            Understand any public business in 60 seconds—without Wall Street noise.
+            Understand any business in 60 seconds.
           </h1>
-          <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            Pick a curated lens below or search any company to see if it&apos;s growing, generating real cash, financially safe, and what growth the stock price already expects.
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
+            Real cash flow, dilution, and priced-in growth from SEC filings.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -200,14 +215,10 @@ export function SignalIndex({
         {/* Curated Discovery Lenses ("Start Exploring") */}
         <section aria-label="Curated discovery lenses" className="mt-8">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                Not sure where to start? Explore by lens
-              </h2>
-              <p className="text-xs text-[var(--text-secondary)]">
-                Click any theme to filter the market and see why it matters.
-              </p>
-            </div>
+            <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+              <Sparkles className="h-3.5 w-3.5 text-[var(--amber)]" />
+              Explore by Lens
+            </h2>
             {activeLens && (
               <button
                 type="button"
@@ -223,6 +234,7 @@ export function SignalIndex({
             {DISCOVERY_LENSES.map((lens) => {
               const isSelected = activeLensId === lens.id;
               const matchCount = entries.filter(lens.filter).length;
+              const LensIcon = LENS_ICONS[lens.id] ?? Compass;
               return (
                 <button
                   key={lens.id}
@@ -236,12 +248,18 @@ export function SignalIndex({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`text-xs font-semibold ${
+                      className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
                         isSelected
                           ? "text-[var(--amber)]"
                           : "text-[var(--text-primary)]"
                       }`}
                     >
+                      <LensIcon
+                        className={`h-3.5 w-3.5 shrink-0 ${
+                          isSelected ? "text-[var(--amber)]" : "text-[var(--text-muted)]"
+                        }`}
+                        aria-hidden="true"
+                      />
                       {lens.title}
                     </span>
                     <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
@@ -627,7 +645,8 @@ export function SignalIndex({
             {/* Card 1: Steepest SBC Burden */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  <AlertTriangle className="h-3.5 w-3.5 text-[var(--sbc)]" aria-hidden="true" />
                   Steepest SBC Burden
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--sbc)]">
@@ -661,7 +680,8 @@ export function SignalIndex({
             {/* Card 2: Cleanest True FCF Margins */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  <Landmark className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
                   Cleanest True FCF Margins
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--amber)]">
@@ -695,7 +715,8 @@ export function SignalIndex({
             {/* Card 3: Steepest Implied Growth */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  <Rocket className="h-3.5 w-3.5 text-[var(--amber)]" aria-hidden="true" />
                   Highest Implied 10Y Growth
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--text-muted)]">

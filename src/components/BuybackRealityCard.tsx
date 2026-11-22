@@ -39,7 +39,7 @@ export function BuybackRealityCard({
         ? {
             label: "Net Equity Diluter",
             tone: "text-[var(--sbc)] bg-[var(--amber-soft)] ring-[var(--amber-border)]",
-            detail: `SBC outpaced buybacks by ${formatCurrencyCompact(Math.abs(latestNetSpread))} in ${latest.fiscalYear}—repurchases did not fully offset employee grants.`,
+            detail: `SBC outpaced buybacks by ${formatCurrencyCompact(Math.abs(latestNetSpread))} in ${latest.fiscalYear}, so repurchases did not fully offset employee grants.`,
           }
         : {
             label: "Neutralized Issuance",

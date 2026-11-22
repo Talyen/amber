@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, GitCompareArrows, Star } from "lucide-react";
+import {
+  Banknote,
+  Calculator,
+  Check,
+  Copy,
+  FileDiff,
+  GitCompareArrows,
+  LayoutDashboard,
+  Star,
+  UserCheck,
+} from "lucide-react";
 import {
   type CompanySnapshot,
   computeAnnualMetrics,
@@ -149,18 +159,25 @@ export function CompanyWorkspace({
     [company, series, baselineDcf.impliedRevenueCagrPct, insiderTrades]
   );
 
-  const tabs: Array<{ id: ActiveTab; label: string; badge?: string }> = [
-    { id: "overview", label: "Overview" },
-    { id: "fcf", label: "Cash & Dilution" },
-    { id: "dcf", label: "Valuation" },
+  const tabs: Array<{
+    id: ActiveTab;
+    label: string;
+    icon: typeof LayoutDashboard;
+    badge?: string;
+  }> = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "fcf", label: "Cash & Dilution", icon: Banknote },
+    { id: "dcf", label: "Valuation", icon: Calculator },
     {
       id: "diffs",
-      label: "SEC Filing Diffs",
+      label: "Filing Diffs",
+      icon: FileDiff,
       badge: String(company.filingDiffs.length),
     },
     {
       id: "insiders",
-      label: "Insider Form 4",
+      label: "Insiders",
+      icon: UserCheck,
       badge: insiderTrades.length > 0 ? String(insiderTrades.length) : undefined,
     },
   ];
@@ -414,6 +431,7 @@ export function CompanyWorkspace({
           >
             {tabs.map((tab) => {
               const isSelected = activeTab === tab.id;
+              const TabIcon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -425,8 +443,9 @@ export function CompanyWorkspace({
                     ? ({ focusgroupstart: "" } as Record<string, string>)
                     : {})}
                   onClick={() => setActiveTab(tab.id)}
-                  className="amber-tab inline-flex items-center gap-2"
+                  className="amber-tab inline-flex items-center gap-1.5"
                 >
+                  <TabIcon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
                   <span>{tab.label}</span>
                   {tab.badge && (
                     <span className="font-mono-num rounded-full bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">

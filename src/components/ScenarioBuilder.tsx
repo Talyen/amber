@@ -349,7 +349,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <strong className="font-mono-num text-[var(--text-primary)]">{formatCurrencyCompact(projection.yr5Rev)}</strong> at a{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong> real cash margin and trades at{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in 5 years, shares reach{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">${projection.yr5TargetPrice.toFixed(2)}</strong>—worth{" "}
+            <strong className="font-mono-num text-[var(--text-primary)]">${projection.yr5TargetPrice.toFixed(2)}</strong>, worth{" "}
             <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today if you require a 10%/yr return.
           </p>
         </div>

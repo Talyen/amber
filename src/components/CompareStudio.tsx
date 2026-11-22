@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Download,
+  FileSpreadsheet,
+  GitCompareArrows,
+  Plus,
+  X,
+} from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { TopNav } from "@/components/TopNav";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
@@ -114,14 +122,15 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
         {/* Header */}
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-              AMBER COMPARISON STUDIO
+            <div className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
+              <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
+              COMPARISON STUDIO
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              Side-by-Side Fundamental Comparison
+              Side-by-Side Comparison
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Compare up to 4 companies on True FCF, SBC burden, dilution, and market-implied growth.
+              Compare up to 4 stocks on True FCF, dilution, and implied growth.
             </p>
           </div>
 

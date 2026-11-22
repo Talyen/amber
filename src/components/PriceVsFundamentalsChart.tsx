@@ -70,13 +70,13 @@ export function PriceVsFundamentalsChart({
     spread > 25
       ? {
           badge: "Multiple Expanded",
-          detail: `Share price (${formatPct(priceChangePct, true, 0)}) outran ${fundLabel} (${formatPct(fundChangePct, true, 0)})—investors are paying a richer multiple than in ${indexed[0].fiscalYear}.`,
+          detail: `Share price (${formatPct(priceChangePct, true, 0)}) outran ${fundLabel} (${formatPct(fundChangePct, true, 0)}). Investors are paying a richer multiple than in ${indexed[0].fiscalYear}.`,
           tone: "text-[var(--amber)] bg-[var(--amber-soft)] ring-[var(--amber-border)]",
         }
       : spread < -20
         ? {
             badge: "Multiple Compressed",
-            detail: `${fundLabel} (${formatPct(fundChangePct, true, 0)}) grew faster than the stock (${formatPct(priceChangePct, true, 0)})—valuation has gotten cheaper relative to fundamentals.`,
+            detail: `${fundLabel} (${formatPct(fundChangePct, true, 0)}) grew faster than the stock (${formatPct(priceChangePct, true, 0)}). Valuation has gotten cheaper relative to fundamentals.`,
             tone: "text-[var(--positive)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
           }
         : {
@@ -119,7 +119,7 @@ export function PriceVsFundamentalsChart({
             Price vs. {fundLabel} (Indexed to 100 in {indexed[0].fiscalYear})
           </h3>
           <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            See whether the stock rose because real fundamentals grew—or because the valuation multiple inflated.
+            See whether the stock rose on fundamental growth or multiple expansion.
           </p>
         </div>
 

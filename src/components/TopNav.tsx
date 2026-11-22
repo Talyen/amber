@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Check, Link2, Moon, Sun } from "lucide-react";
+import {
+  Check,
+  FileText,
+  GitCompareArrows,
+  LayoutGrid,
+  Link2,
+  Moon,
+  PieChart,
+  Sun,
+  Trophy,
+} from "lucide-react";
 import { AmberLogo } from "@/components/AmberLogo";
 import { AuthButton } from "@/components/AuthButton";
 import { CommandSearch } from "@/components/CommandSearch";
@@ -16,12 +26,13 @@ const NAV_LINKS: Array<{
   href: string;
   label: string;
   route: NonNullable<TopNavProps["activeRoute"]>;
+  icon: typeof LayoutGrid;
 }> = [
-  { href: "/", label: "Index", route: "index" },
-  { href: "/compare", label: "Compare", route: "compare" },
-  { href: "/portfolio", label: "Portfolio", route: "portfolio" },
-  { href: "/arena", label: "Arena", route: "arena" },
-  { href: "/filings", label: "Filings", route: "filings" },
+  { href: "/", label: "Index", route: "index", icon: LayoutGrid },
+  { href: "/compare", label: "Compare", route: "compare", icon: GitCompareArrows },
+  { href: "/portfolio", label: "Portfolio", route: "portfolio", icon: PieChart },
+  { href: "/arena", label: "Arena", route: "arena", icon: Trophy },
+  { href: "/filings", label: "Filings", route: "filings", icon: FileText },
 ];
 
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
@@ -88,17 +99,19 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           >
             {NAV_LINKS.map((item) => {
               const isActive = currentRoute === item.route;
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                     isActive
                       ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
                   }`}
                 >
+                  <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
                   {item.label}
                 </Link>
               );

@@ -21,7 +21,7 @@ const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Amber — High-Signal Fundamental Analysis",
+    default: "Amber | Fundamental Equity Analysis",
     template: "%s · Amber",
   },
   description:

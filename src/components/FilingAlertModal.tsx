@@ -144,7 +144,7 @@ export function FilingAlertModal({
         </div>
 
         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-          Receive a concise email digest whenever {ticker} files a new 10-K or 10-Q—highlighting True FCF changes, SBC shifts, and Risk Factor diffs. Zero spam.
+          Get a concise email whenever {ticker} files a new 10-K or 10-Q, covering True FCF changes, SBC shifts, and Risk Factor diffs. Zero spam.
         </p>
 
         {status === "done" ? (

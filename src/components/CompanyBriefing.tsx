@@ -109,7 +109,7 @@ export function CompanyBriefing({
             </h3>
           </div>
           <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Automatically surfaced from {ticker}&apos;s multi-year SEC filings—signals worth noticing even if you didn&apos;t know to look for them.
+            Key signals from {ticker}&apos;s multi-year SEC filings.
           </p>
 
           <div className="mt-4 space-y-3">

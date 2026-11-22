@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bot, Trophy, Medal, ArrowRight, Calendar } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Bot,
+  Calendar,
+  Globe,
+  Layers,
+  Trophy,
+  Users,
+} from "lucide-react";
 import type { ArenaPortfolioView } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -87,8 +96,17 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
           (!p.isBot && p.periodKey.startsWith(`${selectedYear}-`))
       );
     } else {
-      // All-Time: show active/latest non-archived entries (one per handle+title or all live)
-      scoped = byType.filter((p) => !p.isFinalized);
+      // All-Time: deduplicate by handle so each bot/user appears once (preferring longest-running live entry)
+      const liveOnly = byType.filter((p) => !p.isFinalized);
+      const byHandle = new Map<string, ArenaPortfolioView>();
+      for (const p of liveOnly) {
+        const key = p.handle.toLowerCase();
+        const existing = byHandle.get(key);
+        if (!existing || p.lockedAt < existing.lockedAt) {
+          byHandle.set(key, p);
+        }
+      }
+      scoped = [...byHandle.values()];
     }
 
     return [...scoped]
@@ -112,10 +130,10 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
               PORTFOLIO ARENA · TOP 10
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              Equity Portfolio Leaderboards
+              Portfolio Leaderboards
             </h1>
-            <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-              Track how thematic strategies and community portfolios perform over time—browse current rankings or past monthly and yearly winners.
+            <p className="mt-1 max-w-xl text-sm text-[var(--text-secondary)]">
+              Live rankings and archived winners across strategy bots and community portfolios.
             </p>
           </div>
 
@@ -123,7 +141,7 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
             href="/portfolio"
             className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90"
           >
-            Build &amp; Publish Portfolio
+            Enter Portfolio
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </section>
@@ -133,47 +151,55 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
           <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-xs">
             {(
               [
-                { id: "monthly", label: "Monthly" },
-                { id: "yearly", label: "Yearly" },
-                { id: "all", label: "All-Time" },
+                { id: "monthly", label: "Monthly", icon: Calendar },
+                { id: "yearly", label: "Yearly", icon: BarChart3 },
+                { id: "all", label: "All-Time", icon: Globe },
               ] as const
-            ).map((tf) => (
-              <button
-                key={tf.id}
-                type="button"
-                onClick={() => setTimeframe(tf.id)}
-                className={`rounded-md px-3 py-1.5 font-medium transition-colors cursor-pointer ${
-                  timeframe === tf.id
-                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                {tf.label}
-              </button>
-            ))}
+            ).map((tf) => {
+              const Icon = tf.icon;
+              return (
+                <button
+                  key={tf.id}
+                  type="button"
+                  onClick={() => setTimeframe(tf.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors cursor-pointer ${
+                    timeframe === tf.id
+                      ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+                  {tf.label}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex items-center gap-1.5">
             {(
               [
-                { id: "all", label: "All Entries" },
-                { id: "community", label: "Community" },
-                { id: "bots", label: "Strategy Bots" },
+                { id: "all", label: "All", icon: Layers },
+                { id: "community", label: "Community", icon: Users },
+                { id: "bots", label: "Strategy Bots", icon: Bot },
               ] as const
-            ).map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setTypeFilter(f.id)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                  typeFilter === f.id
-                    ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+            ).map((f) => {
+              const Icon = f.icon;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setTypeFilter(f.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                    typeFilter === f.id
+                      ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  <Icon className="h-3 w-3 opacity-80" aria-hidden="true" />
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -262,37 +288,38 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                     <div
                       title={
                         idx === 0
-                          ? "1st Place — Gold"
+                          ? "1st Place (Gold)"
                           : idx === 1
-                            ? "2nd Place — Silver"
+                            ? "2nd Place (Silver)"
                             : idx === 2
-                              ? "3rd Place — Bronze"
+                              ? "3rd Place (Bronze)"
                               : `Rank #${idx + 1}`
                       }
-                      className={`font-mono-num flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg text-xs font-bold leading-none ${
+                      className={`font-mono-num w-7 text-center text-sm font-bold ${
                         idx === 0
-                          ? "bg-yellow-500/15 text-yellow-600 ring-1 ring-inset ring-yellow-500/40 dark:text-yellow-400"
+                          ? "text-yellow-600 dark:text-yellow-400"
                           : idx === 1
-                            ? "bg-slate-400/15 text-slate-600 ring-1 ring-inset ring-slate-400/40 dark:text-slate-300"
+                            ? "text-slate-500 dark:text-slate-300"
                             : idx === 2
-                              ? "bg-orange-600/15 text-orange-700 ring-1 ring-inset ring-orange-500/40 dark:text-orange-400"
-                              : "bg-[var(--surface-subtle)] text-[var(--text-secondary)] text-sm"
+                              ? "text-orange-700 dark:text-orange-400"
+                              : "text-[var(--text-muted)]"
                       }`}
                     >
-                      {idx < 3 ? (
-                        <>
-                          {idx === 0 ? (
-                            <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
-                          ) : (
-                            <Medal className="h-3.5 w-3.5" aria-hidden="true" />
-                          )}
-                          <span className="mt-0.5 text-[10px]">#{idx + 1}</span>
-                        </>
-                      ) : (
-                        <>#{idx + 1}</>
-                      )}
+                      #{idx + 1}
                     </div>
-                    <ProfileAvatar icon={p.avatarIcon} size="md" />
+                    <ProfileAvatar
+                      icon={p.avatarIcon}
+                      size="md"
+                      className={
+                        idx === 0
+                          ? "!ring-2 !ring-yellow-500/70"
+                          : idx === 1
+                            ? "!ring-2 !ring-slate-400/70"
+                            : idx === 2
+                              ? "!ring-2 !ring-orange-500/70"
+                              : ""
+                      }
+                    />
                   </div>
 
                   <div className="min-w-0">

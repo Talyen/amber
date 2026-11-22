@@ -6,10 +6,16 @@ import {
   Plus,
   X,
   AlertTriangle,
+  Banknote,
   CheckCircle2,
+  ClipboardPaste,
   Download,
   DollarSign,
+  Flame,
   Percent,
+  PieChart,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
@@ -274,7 +280,8 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono-num text-xs font-semibold text-[var(--amber)]">
+              <span className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
+                <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
                 PORTFOLIO ANALYZER
               </span>
               <span
@@ -284,12 +291,12 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               </span>
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              See what your portfolio is really betting on
+              What your portfolio is really betting on
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {usingStarter
-                ? "Showing a sample 5-stock portfolio. Star any company across Amber (or add/paste tickers on the right) to analyze your own holdings—or lock it into the Arena leaderboard."
-                : `Analyzing your ${holdings.length} holdings with weighted expectations, cash quality, and sector concentration.`}
+                ? "Sample 5-stock basket. Add or paste your tickers, or publish to the Arena."
+                : `${holdings.length} holdings analyzed for real cash flow, dilution, and priced-in growth.`}
             </p>
           </div>
 
@@ -341,6 +348,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               onClick={() => setPasteOpen((prev) => !prev)}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
             >
+              <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
               Quick Paste
             </button>
 
@@ -387,44 +395,48 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
         {/* 4 Weighted Portfolio KPIs */}
         <section className="mt-6 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              Weighted Implied 10Y Growth
+            <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <span>Implied 10Y Growth</span>
+              <TrendingUp className="h-3.5 w-3.5 text-[var(--amber)]" aria-hidden="true" />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--amber)]">
               {formatPct(metrics.wImplied)}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-              Avg growth priced into your holdings
+              Priced into your holdings
             </div>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              Weighted True FCF Margin
+            <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <span>True FCF Margin</span>
+              <Banknote className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--text-primary)]">
               {formatPct(metrics.wTrueMargin)}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-              Real cash after CapEx &amp; SBC
+              Cash after CapEx &amp; SBC
             </div>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              Weighted SBC Burden
+            <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <span>SBC Burden</span>
+              <Flame className="h-3.5 w-3.5 text-[var(--sbc)]" aria-hidden="true" />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--sbc)]">
               {formatPct(metrics.wSbcPct)}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-              Stock comp as % of revenue
+              Stock comp % of revenue
             </div>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              Weighted Net Dilution
+            <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <span>Net Dilution</span>
+              <Users className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
             </div>
             <div
               className={`font-mono-num mt-1.5 text-2xl font-semibold ${

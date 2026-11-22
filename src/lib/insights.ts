@@ -168,7 +168,7 @@ export function buildCompanyBriefing(
             ? "Conservative Bar"
             : "In Line With History",
     headlineStat: `${formatPct(impliedCagr)} / yr`,
-    explanation: `Today's price implies ${formatPct(impliedCagr)} annual revenue growth for the next 10 years—compared to ${formatPct(revenueCagr)}/yr historically.`,
+    explanation: `Today's price implies ${formatPct(impliedCagr)} annual revenue growth for the next 10 years, compared to ${formatPct(revenueCagr)}/yr historically.`,
     tone:
       impliedCagr >= 22 || growthGap > 6
         ? "amber"
@@ -221,7 +221,7 @@ export function buildCompanyBriefing(
       id: "dilution-headwind",
       tag: "Ownership Dilution",
       title: `Diluted shares expanded +${dilutionCagr.toFixed(1)}%/yr`,
-      detail: `Share count grew from ${series[0].dilutedShares.toLocaleString()}M to ${latest.dilutedShares.toLocaleString()}M—meaning business growth has to outrun ~${dilutionCagr.toFixed(1)}%/yr of dilution just to keep per-share value flat.`,
+      detail: `Share count grew from ${series[0].dilutedShares.toLocaleString()}M to ${latest.dilutedShares.toLocaleString()}M, so business growth has to outrun ~${dilutionCagr.toFixed(1)}%/yr of dilution just to keep per-share value flat.`,
       tone: "negative",
     });
   }
@@ -232,7 +232,7 @@ export function buildCompanyBriefing(
       id: "capex-surge",
       tag: "Capital Cycle",
       title: `Capital spending surged +${capexJump.toFixed(0)}% to ${formatCurrencyCompact(latest.capex)}`,
-      detail: `CapEx now equals ${formatPct(capexPctRev)} of revenue—temporarily depressing near-term Free Cash Flow while building capacity for future demand.`,
+      detail: `CapEx now equals ${formatPct(capexPctRev)} of revenue, temporarily depressing near-term Free Cash Flow while building capacity for future demand.`,
       tone: "amber",
     });
   }
@@ -245,7 +245,7 @@ export function buildCompanyBriefing(
       id: "insider-buy",
       tag: "Insider Signal",
       title: `Insiders bought ${formatCurrencyCompact(buyTotal)} on the open market`,
-      detail: `${buyTrades.length} recent SEC Form 4 open-market purchase(s) recorded—an uncommon signal of management conviction.`,
+      detail: `${buyTrades.length} recent SEC Form 4 open-market purchase(s) recorded, a notable signal of management conviction.`,
       tone: "positive",
     });
   } else if (sellTrades.length >= 3) {
@@ -320,7 +320,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     title: "Buyback Cannibals",
     subtitle: "Steadily shrinking their share count",
     whyItMatters:
-      "Companies that retire 2%+ of their shares every year increase your ownership stake automatically—even when revenue grows modestly.",
+      "Companies that retire 2%+ of their shares every year increase your ownership stake automatically, even when revenue grows modestly.",
     defaultSortKey: "netDilutionCagr",
     defaultSortDir: "asc",
     filter: (c) =>
@@ -348,7 +348,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     title: "Hidden Dilution",
     subtitle: "Headline FCF masked by heavy stock comp",
     whyItMatters:
-      "Standard screeners ignore stock-based compensation—these companies look much more profitable before you count what employees are paid in equity.",
+      "Standard screeners ignore stock-based compensation. These companies look much more profitable before you count what employees are paid in equity.",
     defaultSortKey: "sbcPctRevenue",
     defaultSortDir: "desc",
     filter: (c) =>
@@ -362,7 +362,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     title: "Modest Expectations",
     subtitle: "Cash-generative stocks with a low bar",
     whyItMatters:
-      "Profitable businesses where the market is only pricing in single-digit long-term growth—leaving room for upside surprises.",
+      "Profitable businesses where the market is only pricing in single-digit long-term growth, leaving room for upside surprises.",
     defaultSortKey: "impliedCagr",
     defaultSortDir: "asc",
     filter: (c) =>

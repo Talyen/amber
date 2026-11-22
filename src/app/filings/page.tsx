@@ -5,9 +5,9 @@ import { SignalFeed } from "@/components/SignalFeed";
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: "SEC Filings — Live 10-K, 10-Q & Form 4 Stream",
+  title: "SEC Filings | Live 10-K, 10-Q & Form 4 Stream",
   description:
-    "Live stream of newly filed SEC 10-K, 10-Q, and Form 4 open-market insider signals—filterable to your personal watchlist.",
+    "Live stream of newly filed SEC 10-K, 10-Q, and Form 4 open-market insider signals, filterable to your personal watchlist.",
 };
 
 export default async function FilingsPage() {

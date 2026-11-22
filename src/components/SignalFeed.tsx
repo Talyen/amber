@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, FileText, Star, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  FileText,
+  Layers,
+  Star,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import type { MarketInsiderFeedItem } from "@/data/repository";
 import { useWatchlist } from "@/lib/watchlist";
@@ -60,14 +67,15 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
         <section className="border-b border-[var(--border)] pb-6">
-          <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-            LIVE SEC EDGAR STREAM
+          <div className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            SEC EDGAR STREAM
           </div>
           <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-            SEC Filings &amp; Insider Activity
+            Filings &amp; Insider Activity
           </h1>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Updated automatically every night from SEC EDGAR—toggle your Watchlist below to track only the companies you follow.
+            Nightly 10-K/10-Q filings and Form 4 insider trades. Filter by your Watchlist anytime.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-1.5">
@@ -84,7 +92,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                 className="h-3 w-3"
                 fill={watchlistOnly ? "currentColor" : "none"}
               />
-              My Watchlist
+              Watchlist
               {watchlist.tickers.length > 0 && (
                 <span className="font-mono-num opacity-75">
                   ({watchlist.tickers.length})
@@ -93,24 +101,26 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
             </button>
             {(
               [
-                { id: "all", label: "All Signals" },
-                { id: "filings", label: "Latest 10-K / 10-Q" },
-                { id: "insider-buys", label: "Insider Buys (Form 4)" },
-                { id: "insider-sells", label: "Insider Sales (Form 4)" },
+                { id: "all", label: "All", icon: Layers },
+                { id: "filings", label: "10-K / 10-Q", icon: FileText },
+                { id: "insider-buys", label: "Insider Buys", icon: TrendingUp },
+                { id: "insider-sells", label: "Insider Sales", icon: TrendingDown },
               ] as const
             ).map((tab) => {
               const active = filter === tab.id;
+              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setFilter(tab.id)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                     active
                       ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
                       : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   }`}
                 >
+                  <Icon className="h-3 w-3 opacity-80" aria-hidden="true" />
                   {tab.label}
                 </button>
               );

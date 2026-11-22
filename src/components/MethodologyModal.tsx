@@ -100,7 +100,7 @@ export function MethodologyModal() {
               </code>
             </p>
             <p className="mt-1">
-              Standard screeners treat SBC as a non-cash add-back. Because employee equity grants dilute owners—or require cash buybacks to offset—Amber deducts SBC directly to approximate economic cash flow.
+              Standard screeners treat SBC as a non-cash add-back. Because employee equity grants dilute owners (or require cash buybacks to offset), Amber deducts SBC directly to approximate economic cash flow.
             </p>
           </div>
 
