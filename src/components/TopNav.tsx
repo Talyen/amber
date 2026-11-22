@@ -82,7 +82,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
         <div className="flex items-center gap-4 min-w-0">
           <Link
             href="/"
-            className="shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--amber)] rounded-sm"
+            className="inline-flex h-8 shrink-0 items-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--amber)] rounded-sm"
             aria-label="Amber Home"
           >
             <AmberLogo />

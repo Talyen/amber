@@ -84,7 +84,7 @@ export function AmberLogo({ className = "" }: { className?: string }) {
         />
       </svg>
 
-      <span className="text-[16px] font-bold tracking-[-0.035em] text-[var(--text-primary)]">
+      <span className="text-[16px] font-bold leading-none tracking-[-0.035em] text-[var(--text-primary)]">
         Amber
       </span>
     </span>
