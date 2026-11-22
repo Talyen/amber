@@ -729,14 +729,9 @@ export function SignalIndex({
         </section>
 
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <p>
-            Amber · Deterministic fundamental analysis from SEC EDGAR 10-K/10-Q XBRL filings. Not investment advice.
-          </p>
+          <p>© {new Date().getFullYear()} Amber · Not investment advice.</p>
           <div className="flex flex-wrap items-center gap-4">
             <MethodologyModal />
-            <span className="font-mono-num">
-              {entries.length} tickers · Neon Postgres + Vercel ISR
-            </span>
           </div>
         </footer>
       </main>

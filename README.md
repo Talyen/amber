@@ -22,4 +22,8 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to explore the 6-ticker pilot (`PLTR`, `NVDA`, `MSFT`, `SNOW`, `SHOP`, `COST`).
+Open [http://localhost:3000](http://localhost:3000) to explore Amber locally.
+
+## License
+
+Source-available for personal and educational use only. Commercial use, redistribution, or operating a competing hosted service is prohibited without written permission. See [LICENSE](./LICENSE).
