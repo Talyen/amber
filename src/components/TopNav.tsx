@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Check, Link2, Moon, Sun } from "lucide-react";
 import { AmberLogo } from "@/components/AmberLogo";
-import { PILOT_TICKERS } from "@/data/pilot-tickers";
+import { CommandSearch } from "@/components/CommandSearch";
+import { FEATURED_TICKERS } from "@/data/universe";
 
 interface TopNavProps {
-  activeTicker: string;
+  activeTicker?: string;
 }
 
 export function TopNav({ activeTicker }: TopNavProps) {
@@ -40,24 +41,26 @@ export function TopNav({ activeTicker }: TopNavProps) {
   }
 
   async function handleCopyLink() {
-    const url = `${window.location.origin}/t/${activeTicker}`;
+    const url = activeTicker
+      ? `${window.location.origin}/t/${activeTicker}`
+      : window.location.origin;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Fallback ignored silently if clipboard is restricted
+      // Clipboard may be unavailable in restricted contexts
     }
   }
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--bg)]/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <div className="flex items-center gap-5 min-w-0">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+        <div className="flex items-center gap-4 min-w-0">
           <Link
             href="/"
             className="shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--amber)] rounded-sm"
-            aria-label="Amber Home"
+            aria-label="Amber Signal Index"
           >
             <AmberLogo />
           </Link>
@@ -68,23 +71,35 @@ export function TopNav({ activeTicker }: TopNavProps) {
           />
 
           <nav
-            aria-label="Pilot companies"
+            aria-label="Quick navigation"
             className="flex items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {PILOT_TICKERS.map((company) => {
-              const isActive = company.ticker === activeTicker;
+            <Link
+              href="/"
+              aria-current={!activeTicker ? "page" : undefined}
+              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                !activeTicker
+                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              Index
+            </Link>
+
+            {FEATURED_TICKERS.map((ticker) => {
+              const isActive = ticker === activeTicker;
               return (
                 <Link
-                  key={company.ticker}
-                  href={`/t/${company.ticker}`}
+                  key={ticker}
+                  href={`/t/${ticker}`}
                   aria-current={isActive ? "page" : undefined}
-                  className={`font-mono-num shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`font-mono-num hidden shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors lg:inline-block ${
                     isActive
                       ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  {company.ticker}
+                  {ticker}
                 </Link>
               );
             })}
@@ -92,6 +107,8 @@ export function TopNav({ activeTicker }: TopNavProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <CommandSearch variant="nav" />
+
           <button
             type="button"
             onClick={handleCopyLink}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PILOT_TICKERS, getCompanyByTicker } from "@/data/pilot-tickers";
+import { ALL_COMPANIES, getCompany } from "@/data/universe";
 import { CompanyWorkspace } from "@/components/CompanyWorkspace";
 
 interface TickerPageProps {
@@ -8,7 +8,7 @@ interface TickerPageProps {
 }
 
 export function generateStaticParams() {
-  return PILOT_TICKERS.map((company) => ({
+  return ALL_COMPANIES.map((company) => ({
     ticker: company.ticker,
   }));
 }
@@ -17,7 +17,7 @@ export async function generateMetadata({
   params,
 }: TickerPageProps): Promise<Metadata> {
   const { ticker } = await params;
-  const company = getCompanyByTicker(ticker);
+  const company = getCompany(ticker);
   if (!company) {
     return { title: "Ticker Not Found" };
   }
@@ -30,7 +30,7 @@ export async function generateMetadata({
 
 export default async function TickerPage({ params }: TickerPageProps) {
   const { ticker } = await params;
-  const company = getCompanyByTicker(ticker);
+  const company = getCompany(ticker);
 
   if (!company) {
     notFound();

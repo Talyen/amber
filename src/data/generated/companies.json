@@ -1,0 +1,4061 @@
+[
+  {
+    "ticker": "PLTR",
+    "cik": "0001321655",
+    "name": "Palantir Technologies",
+    "exchange": "NASDAQ",
+    "sector": "Enterprise AI & Defense Software",
+    "tagline": "High-margin FCF inflection vs. persistent SBC & share count expansion",
+    "price": 78.4,
+    "marketCap": 201096,
+    "cashAndEquiv": 10562,
+    "totalDebt": 0,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-17",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001321655-26-000011"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 1542,
+        "operatingCashFlow": 334,
+        "capex": 13,
+        "sbc": 778,
+        "buybacks": 0,
+        "dilutedShares": 1924
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 1906,
+        "operatingCashFlow": 224,
+        "capex": 40,
+        "sbc": 565,
+        "buybacks": 0,
+        "dilutedShares": 2064
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 2225,
+        "operatingCashFlow": 712,
+        "capex": 15,
+        "sbc": 476,
+        "buybacks": 0,
+        "dilutedShares": 2298
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 2866,
+        "operatingCashFlow": 1154,
+        "capex": 13,
+        "sbc": 692,
+        "buybacks": 64,
+        "dilutedShares": 2451
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 4475,
+        "operatingCashFlow": 2134,
+        "capex": 34,
+        "sbc": 684,
+        "buybacks": 75,
+        "dilutedShares": 2565
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 10.5,
+      "terminalMultiple": 28,
+      "targetFcfMargin": 36,
+      "sbcDragPct": 12
+    },
+    "filingDiffs": [
+      {
+        "id": "pltr-sbc-sar",
+        "filingType": "10-K",
+        "filingDate": "2025-02-18",
+        "accessionNumber": "0001321655-25-000018",
+        "section": "Note 12 — Stock-Based Compensation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SAR acceleration lifted FY24 SBC by +45% YoY to $692M",
+        "summary": "Market-price vesting triggers on Stock Appreciation Rights (SARs) caused SBC to re-accelerate from 21.4% to 24.1% of revenue, absorbing 60.6% of reported Free Cash Flow.",
+        "priorExcerpt": "We expect stock-based compensation expense as a percentage of revenue to continue moderating as legacy direct-listing grants roll off.",
+        "currentExcerpt": "During the fourth quarter, stock price appreciation triggered accelerated recognition of $131.5M in SAR expense; additional tranches vest at $50 and $70 thresholds.",
+        "signalNote": "True FCF ($449M) is 61% lower than headline Adjusted FCF ($1,141M). Watch SAR overhang in FY25."
+      },
+      {
+        "id": "pltr-gov-concentration",
+        "filingType": "10-K",
+        "filingDate": "2025-02-18",
+        "accessionNumber": "0001321655-25-000018",
+        "section": "Item 1A — Risk Factors",
+        "category": "Customer Concentration",
+        "materiality": "Medium",
+        "headline": "Top-3 customer concentration edged down from 18% to 16% of revenue",
+        "summary": "US Commercial AIP adoption broadened the customer base, reducing reliance on top three government contracts, though federal budget appropriations remain a highlighted risk.",
+        "priorExcerpt": "Our top three customers together accounted for 18% of our revenue for the year ended December 31, 2023.",
+        "currentExcerpt": "Our top three customers together accounted for 16% of our revenue for the year ended December 31, 2024; federal procurement efficiency reviews may delay renewals.",
+        "signalNote": "Diversification trend is constructive; newly added language around federal procurement reviews warrants monitoring."
+      },
+      {
+        "id": "pltr-buyback-pace",
+        "filingType": "10-K",
+        "filingDate": "2025-02-18",
+        "accessionNumber": "0001321655-25-000018",
+        "section": "Item 7 — Liquidity & Capital Resources",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "$1B buyback authorization remains 93% unspent despite $5.2B cash pile",
+        "summary": "Only $64M was deployed toward repurchases in FY24 while diluted share count expanded 5.1% YoY.",
+        "priorExcerpt": "In August 2023, our Board of Directors authorized a stock repurchase program of up to $1.0 billion.",
+        "currentExcerpt": "As of December 31, 2024, $935.8 million remained available under the repurchase authorization.",
+        "signalNote": "Buybacks are not yet offsetting employee equity issuance; net dilution remains a ~5% annual headwind."
+      }
+    ]
+  },
+  {
+    "ticker": "NVDA",
+    "cik": "0001045810",
+    "name": "NVIDIA Corporation",
+    "exchange": "NASDAQ",
+    "sector": "Semiconductors & AI Compute",
+    "tagline": "Extraordinary cash conversion with rising hyperscaler concentration",
+    "price": 134.2,
+    "marketCap": 3289779,
+    "cashAndEquiv": 71565,
+    "totalDebt": 33366,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-25",
+      "periodEnd": "2026-01-25",
+      "accessionNumber": "0001045810-26-000021"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 26914,
+        "operatingCashFlow": 9108,
+        "capex": 976,
+        "sbc": 2004,
+        "buybacks": 0,
+        "dilutedShares": 2535
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 26974,
+        "operatingCashFlow": 5641,
+        "capex": 1833,
+        "sbc": 2709,
+        "buybacks": 10039,
+        "dilutedShares": 25070
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 60922,
+        "operatingCashFlow": 28090,
+        "capex": 1069,
+        "sbc": 3549,
+        "buybacks": 9533,
+        "dilutedShares": 24940
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 130497,
+        "operatingCashFlow": 64089,
+        "capex": 3236,
+        "sbc": 4737,
+        "buybacks": 33706,
+        "dilutedShares": 24804
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 215938,
+        "operatingCashFlow": 102718,
+        "capex": 6042,
+        "sbc": 6386,
+        "buybacks": 40086,
+        "dilutedShares": 24514
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 10,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 42,
+      "sbcDragPct": 4
+    },
+    "filingDiffs": [
+      {
+        "id": "nvda-customer-conc",
+        "filingType": "10-K",
+        "filingDate": "2025-02-26",
+        "accessionNumber": "0001045810-25-000023",
+        "section": "Note 17 — Segment & Customer Concentration",
+        "category": "Customer Concentration",
+        "materiality": "High",
+        "headline": "Three direct customers now represent 34% of total revenue (up from 13%)",
+        "summary": "Customer A (12%), Customer B (11%), and Customer C (11%) each crossed the 10% disclosure threshold in FY25, highlighting acute dependence on hyperscaler CapEx cycles.",
+        "priorExcerpt": "One customer represented 13% of total revenue for fiscal year 2024; no other direct customer exceeded 10%.",
+        "currentExcerpt": "Sales to three direct customers represented 12%, 11%, and 11% of total revenue in fiscal year 2025, primarily attributable to the Compute & Networking segment.",
+        "signalNote": "Highest direct customer concentration in NVIDIA's public history—model sensitivity to hyperscaler CapEx digestion."
+      },
+      {
+        "id": "nvda-export-controls",
+        "filingType": "10-K",
+        "filingDate": "2025-02-26",
+        "accessionNumber": "0001045810-25-000023",
+        "section": "Item 1A — Risk Factors",
+        "category": "Risk Factors",
+        "materiality": "High",
+        "headline": "Added AI Diffusion framework & Singapore billing-location scrutiny",
+        "summary": "Expanded risk language detailing US AI Diffusion tiering rules and clarifying that Singapore represents 18% of billed revenue though physical shipments go elsewhere.",
+        "priorExcerpt": "Export controls on China have reduced our Data Center revenue in the region to mid-single-digit percentages.",
+        "currentExcerpt": "Interim Final Rules on AI Diffusion impose tiered compute caps across non-allied jurisdictions; Singapore accounted for 18% of FY25 revenue by billing location.",
+        "signalNote": "Explicitly separates billing vs. ship-to geography in response to regulatory focus on transshipment."
+      },
+      {
+        "id": "nvda-buyback-machine",
+        "filingType": "10-K",
+        "filingDate": "2025-02-26",
+        "accessionNumber": "0001045810-25-000023",
+        "section": "Item 7 — Capital Return",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "$33.7B in FY25 buybacks fully absorbed SBC and shrank share count by 1.3%",
+        "summary": "SBC fell to just 3.6% of revenue (7.8% of FCF), making NVIDIA's True FCF ($56.1B) nearly identical to reported FCF.",
+        "priorExcerpt": "We repurchased $9.5 billion of common stock during fiscal year 2024.",
+        "currentExcerpt": "We repurchased $33.7 billion of common stock during fiscal year 2025, reducing weighted-average diluted shares by 320 million.",
+        "signalNote": "Cleanest cash-flow quality among mega-cap AI leaders; SBC drag is minimal relative to operating cash flow."
+      }
+    ]
+  },
+  {
+    "ticker": "MSFT",
+    "cik": "0000789019",
+    "name": "Microsoft Corporation",
+    "exchange": "NASDAQ",
+    "sector": "Cloud Infrastructure & Software",
+    "tagline": "AI datacenter CapEx surge compressing near-term FCF conversion",
+    "price": 416.8,
+    "marketCap": 3106410,
+    "cashAndEquiv": 64509,
+    "totalDebt": 35481,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-07-29",
+      "periodEnd": "2026-06-30",
+      "accessionNumber": "0001193125-26-323660"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 198270,
+        "operatingCashFlow": 89035,
+        "capex": 23886,
+        "sbc": 7502,
+        "buybacks": 32696,
+        "dilutedShares": 7540
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 211915,
+        "operatingCashFlow": 87582,
+        "capex": 28107,
+        "sbc": 9611,
+        "buybacks": 22245,
+        "dilutedShares": 7472
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 245122,
+        "operatingCashFlow": 118548,
+        "capex": 44477,
+        "sbc": 10734,
+        "buybacks": 17254,
+        "dilutedShares": 7469
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 281724,
+        "operatingCashFlow": 136162,
+        "capex": 64551,
+        "sbc": 11974,
+        "buybacks": 18420,
+        "dilutedShares": 7465
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 331839,
+        "operatingCashFlow": 182935,
+        "capex": 115948,
+        "sbc": 12405,
+        "buybacks": 22271,
+        "dilutedShares": 7453
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9,
+      "terminalMultiple": 24,
+      "targetFcfMargin": 31,
+      "sbcDragPct": 4.5
+    },
+    "filingDiffs": [
+      {
+        "id": "msft-capex-leases",
+        "filingType": "10-K",
+        "filingDate": "2024-07-30",
+        "accessionNumber": "0000950170-24-087843",
+        "section": "Note 14 — Leases & Datacenter Commitments",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Uncommenced datacenter lease obligations jumped to $108.4B",
+        "summary": "Beyond $44.5B in cash CapEx, Microsoft disclosed $108.4B of additional finance leases for AI datacenters that have not yet commenced (up from $44.2B a year ago).",
+        "priorExcerpt": "We have additional operating and finance leases, primarily for datacenters, that have not yet commenced of $44.2 billion.",
+        "currentExcerpt": "We have additional operating and finance leases, primarily for datacenters, that have not yet commenced of $108.4 billion, with terms of 1 to 20 years.",
+        "signalNote": "Off-balance-sheet datacenter commitments more than doubled; depreciation drag will weigh on GAAP margins through FY28."
+      },
+      {
+        "id": "msft-openai-risk",
+        "filingType": "10-K",
+        "filingDate": "2024-07-30",
+        "accessionNumber": "0000950170-24-087843",
+        "section": "Item 1 — Competition",
+        "category": "Risk Factors",
+        "materiality": "Medium",
+        "headline": "Added OpenAI explicitly to list of competitive AI & search rivals",
+        "summary": "For the first time, Microsoft named its strategic partner OpenAI as a direct competitor in AI offerings and search/news advertising.",
+        "priorExcerpt": "Our competitors include Amazon, Apple, Google, Meta, Oracle, and Salesforce across cloud and productivity.",
+        "currentExcerpt": "In AI and search, we compete with Google, Meta, Anthropic, and OpenAI, including in commercial AI assistants and developer APIs.",
+        "signalNote": "Subtle but notable governance and strategic alignment shift in the partnership disclosure."
+      }
+    ]
+  },
+  {
+    "ticker": "SNOW",
+    "cik": "0001640147",
+    "name": "Snowflake Inc.",
+    "exchange": "NYSE",
+    "sector": "Cloud Data Platform",
+    "tagline": "Classic SBC-to-FCF gap: strong headline cash flow vs. negative True FCF",
+    "price": 168.5,
+    "marketCap": 56785,
+    "cashAndEquiv": 1707,
+    "totalDebt": 0,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-20",
+      "periodEnd": "2026-01-31",
+      "accessionNumber": "0001640147-26-000008"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 1219,
+        "operatingCashFlow": 110,
+        "capex": 16,
+        "sbc": 605,
+        "buybacks": 0,
+        "dilutedShares": 300
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 2066,
+        "operatingCashFlow": 546,
+        "capex": 25,
+        "sbc": 862,
+        "buybacks": 0,
+        "dilutedShares": 319
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 2806,
+        "operatingCashFlow": 848,
+        "capex": 35,
+        "sbc": 1168,
+        "buybacks": 592,
+        "dilutedShares": 328
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 3626,
+        "operatingCashFlow": 960,
+        "capex": 46,
+        "sbc": 1479,
+        "buybacks": 1932,
+        "dilutedShares": 333
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 4684,
+        "operatingCashFlow": 1222,
+        "capex": 102,
+        "sbc": 1600,
+        "buybacks": 874,
+        "dilutedShares": 337
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 10.5,
+      "terminalMultiple": 24,
+      "targetFcfMargin": 24,
+      "sbcDragPct": 18
+    },
+    "filingDiffs": [
+      {
+        "id": "snow-sbc-40pct",
+        "filingType": "10-K",
+        "filingDate": "2025-03-26",
+        "accessionNumber": "0001640147-25-000031",
+        "section": "Item 7 — Non-GAAP Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC rose to 40.6% of revenue ($1.47B), exceeding total Operating Cash Flow",
+        "summary": "While Snowflake reported $884M in headline FCF (24.4% margin), deducting $1.47B of SBC leaves True FCF deeply negative at -$587M (-16.2% margin).",
+        "priorExcerpt": "Stock-based compensation expense was $1,170.2 million, or 41.7% of revenue, for fiscal 2024.",
+        "currentExcerpt": "Stock-based compensation expense was $1,471.4 million, or 40.6% of revenue, for fiscal 2025; we issued $2.3B in convertible notes partly to fund share repurchases.",
+        "signalNote": "Debt-funded buybacks kept share count flat, but economic cash generation after SBC remains negative."
+      },
+      {
+        "id": "snow-iceberg-risk",
+        "filingType": "10-K",
+        "filingDate": "2025-03-26",
+        "accessionNumber": "0001640147-25-000031",
+        "section": "Item 1A — Risk Factors",
+        "category": "Risk Factors",
+        "materiality": "Medium",
+        "headline": "Flagged open table formats (Apache Iceberg) as potential storage revenue headwind",
+        "summary": "Management acknowledged that customer adoption of open Iceberg tables allows storage outside Snowflake's proprietary tier, shifting monetization toward compute.",
+        "priorExcerpt": "Customers store large volumes of structured and semi-structured data natively within our platform.",
+        "currentExcerpt": "Growing adoption of Apache Iceberg open table formats may reduce our storage revenue and lower switching costs to competing compute engines.",
+        "signalNote": "Key moat watchpoint—track compute consumption growth vs. storage attach rates in FY26."
+      }
+    ]
+  },
+  {
+    "ticker": "SHOP",
+    "cik": "0001594805",
+    "name": "Shopify Inc.",
+    "exchange": "NYSE",
+    "sector": "Commerce Infrastructure",
+    "tagline": "Post-logistics operating leverage with disciplined SBC compression",
+    "price": 109.6,
+    "marketCap": 143028,
+    "cashAndEquiv": 4727,
+    "totalDebt": 0,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-11",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001594805-26-000007"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 5600,
+        "operatingCashFlow": -136,
+        "capex": 50,
+        "sbc": 549,
+        "buybacks": 0,
+        "dilutedShares": 1266
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 7060,
+        "operatingCashFlow": 944,
+        "capex": 39,
+        "sbc": 615,
+        "buybacks": 0,
+        "dilutedShares": 1296
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 8880,
+        "operatingCashFlow": 1616,
+        "capex": 19,
+        "sbc": 430,
+        "buybacks": 0,
+        "dilutedShares": 1302
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 11556,
+        "operatingCashFlow": 2033,
+        "capex": 26,
+        "sbc": 449,
+        "buybacks": 0,
+        "dilutedShares": 1305
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 10,
+      "terminalMultiple": 26,
+      "targetFcfMargin": 26,
+      "sbcDragPct": 5
+    },
+    "filingDiffs": [
+      {
+        "id": "shop-sbc-drop",
+        "filingType": "10-K",
+        "filingDate": "2025-02-11",
+        "accessionNumber": "0001594805-25-000012",
+        "section": "Item 7 — Operating Expenses",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC dropped 29% YoY to 4.9% of revenue — inflection in True FCF",
+        "summary": "Following headcount discipline and Flex Comp restructuring, SBC fell from 8.7% to 4.9% of revenue, propelling True FCF nearly 4x YoY from $290M to $1,159M.",
+        "priorExcerpt": "Stock-based compensation was $615 million, representing 8.7% of total revenue in fiscal 2023.",
+        "currentExcerpt": "Stock-based compensation declined to $438 million, or 4.9% of total revenue, as employees elected higher cash mixes under our Flex Comp framework.",
+        "signalNote": "Rare SaaS example of genuine SBC discipline; True FCF margin expanded +890 bps YoY to 13.1%."
+      },
+      {
+        "id": "shop-payments-take",
+        "filingType": "10-K",
+        "filingDate": "2025-02-11",
+        "accessionNumber": "0001594805-25-000012",
+        "section": "Item 7 — Merchant Solutions",
+        "category": "Customer Concentration",
+        "materiality": "Watch",
+        "headline": "Shopify Payments penetration reached 62% of GMV; enterprise mix rising",
+        "summary": "Merchant Solutions gross margin compressed slightly from enterprise onboarding but drove durable gross profit dollar expansion.",
+        "priorExcerpt": "Gross Payments Volume accounted for 58% of GMV in fiscal 2023.",
+        "currentExcerpt": "Gross Payments Volume accounted for 62% of GMV in fiscal 2024, led by Shop Pay and international enterprise merchants.",
+        "signalNote": "Higher payment attach strengthens retention, though payment processing carries lower incremental gross margin than subscriptions."
+      }
+    ]
+  },
+  {
+    "ticker": "COST",
+    "cik": "0000909832",
+    "name": "Costco Wholesale",
+    "exchange": "NASDAQ",
+    "sector": "Membership Warehouse Retail",
+    "tagline": "Ultra-clean cash flow & minimal SBC — stress-test the 50x+ valuation",
+    "price": 964.5,
+    "marketCap": 428238,
+    "cashAndEquiv": 21301,
+    "totalDebt": 6162,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-10-07",
+      "periodEnd": "2026-08-30",
+      "accessionNumber": "0000909832-26-000093"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 226954,
+        "operatingCashFlow": 7392,
+        "capex": 3891,
+        "sbc": 724,
+        "buybacks": 439,
+        "dilutedShares": 445
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 242290,
+        "operatingCashFlow": 11068,
+        "capex": 4323,
+        "sbc": 774,
+        "buybacks": 676,
+        "dilutedShares": 444
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 254453,
+        "operatingCashFlow": 11339,
+        "capex": 4710,
+        "sbc": 818,
+        "buybacks": 700,
+        "dilutedShares": 445
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 275235,
+        "operatingCashFlow": 13335,
+        "capex": 5498,
+        "sbc": 860,
+        "buybacks": 903,
+        "dilutedShares": 445
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 303154,
+        "operatingCashFlow": 15817,
+        "capex": 6435,
+        "sbc": 924,
+        "buybacks": 848,
+        "dilutedShares": 444
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 8.5,
+      "terminalMultiple": 26,
+      "targetFcfMargin": 3.1,
+      "sbcDragPct": 0.3
+    },
+    "filingDiffs": [
+      {
+        "id": "cost-membership-hike",
+        "filingType": "10-K",
+        "filingDate": "2024-10-09",
+        "accessionNumber": "0000909832-24-000049",
+        "section": "Item 7 — Membership Fees",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "First membership fee hike since 2017 takes effect Sept 2024 (+8.3%)",
+        "summary": "Gold Star rose from $60 to $65 and Executive from $120 to $130, flowing directly to high-margin operating income over the next 18 months.",
+        "priorExcerpt": "Membership fees were $4.58 billion in fiscal 2023, with US & Canada renewal rates at 92.7%.",
+        "currentExcerpt": "Effective September 1, 2024, US and Canada annual membership fees increased by $5 for Gold Star and $10 for Executive; renewal rates reached 92.9%.",
+        "signalNote": "Pure margin tailwind—yet Reverse DCF shows the market already prices in double-digit 10Y revenue growth."
+      },
+      {
+        "id": "cost-zero-dilution",
+        "filingType": "10-K",
+        "filingDate": "2024-10-09",
+        "accessionNumber": "0000909832-24-000049",
+        "section": "Item 8 — Shareholders' Equity",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "Zero net dilution over 5 years: SBC sits at just 0.32% of revenue",
+        "summary": "Costco serves as the gold-standard baseline for cash-flow cleanliness: diluted shares have held steady at 444M since FY20.",
+        "priorExcerpt": "Weighted-average diluted shares outstanding were 444.5 million for fiscal 2023.",
+        "currentExcerpt": "Weighted-average diluted shares outstanding were 444.4 million for fiscal 2024.",
+        "signalNote": "Benchmark contrast: pristine earnings quality, leaving valuation multiple risk as the primary debate."
+      }
+    ]
+  },
+  {
+    "ticker": "AAPL",
+    "cik": "0000320193",
+    "name": "Apple Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Consumer Hardware & Services",
+    "tagline": "Massive buyback engine offsetting modest SBC with steady share retirement",
+    "price": 228.5,
+    "marketCap": 3363520,
+    "cashAndEquiv": 56722,
+    "totalDebt": 78114,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-11-03",
+      "periodEnd": "2026-09-26",
+      "accessionNumber": "0000320193-26-000026"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 394328,
+        "operatingCashFlow": 122151,
+        "capex": 10708,
+        "sbc": 9038,
+        "buybacks": 89402,
+        "dilutedShares": 16326
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 383285,
+        "operatingCashFlow": 110543,
+        "capex": 10959,
+        "sbc": 10833,
+        "buybacks": 77550,
+        "dilutedShares": 15813
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 391035,
+        "operatingCashFlow": 118254,
+        "capex": 9447,
+        "sbc": 11688,
+        "buybacks": 94949,
+        "dilutedShares": 15408
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 416161,
+        "operatingCashFlow": 111482,
+        "capex": 12715,
+        "sbc": 12863,
+        "buybacks": 90711,
+        "dilutedShares": 15005
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 478834,
+        "operatingCashFlow": 145097,
+        "capex": 9041,
+        "sbc": 13789,
+        "buybacks": 86390,
+        "dilutedShares": 14720
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 28,
+      "sbcDragPct": 1.9
+    },
+    "filingDiffs": [
+      {
+        "id": "aapl-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-11-03",
+        "accessionNumber": "0000320193-26-000026",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 10.1% of Reported FCF (2.9% of revenue)",
+        "summary": "In FY26, Apple Inc. generated $136.06B in Reported FCF against $13.79B in Stock-Based Compensation, yielding $122.27B in True FCF (25.5% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $98.77B · SBC $12.86B (3.1% of revenue) · True FCF $85.90B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $136.06B · SBC $13.79B (2.9% of revenue) · True FCF $122.27B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "aapl-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-11-03",
+        "accessionNumber": "0000320193-26-000026",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 2.6%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 16,326M in FY22 to 14,720M in FY26, with $86.39B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 16,326M diluted shares · CapEx $10.71B.",
+        "currentExcerpt": "FY26 10-K: 14,720M diluted shares · CapEx $9.04B · Buybacks $86.39B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "GOOGL",
+    "cik": "0001652044",
+    "name": "Alphabet Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Search, Cloud & AI",
+    "tagline": "Heavy AI CapEx cycle paired with $20B+ annual SBC and aggressive buybacks",
+    "price": 176.4,
+    "marketCap": 2157372,
+    "cashAndEquiv": 265098,
+    "totalDebt": 126118,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-05",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001652044-26-000018"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 257637,
+        "operatingCashFlow": 91652,
+        "capex": 24640,
+        "sbc": 15376,
+        "buybacks": 50274,
+        "dilutedShares": 12294
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 282836,
+        "operatingCashFlow": 91495,
+        "capex": 31485,
+        "sbc": 19362,
+        "buybacks": 59296,
+        "dilutedShares": 13159
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 307394,
+        "operatingCashFlow": 101746,
+        "capex": 32251,
+        "sbc": 22460,
+        "buybacks": 61504,
+        "dilutedShares": 12722
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 350018,
+        "operatingCashFlow": 125299,
+        "capex": 52535,
+        "sbc": 22785,
+        "buybacks": 62222,
+        "dilutedShares": 12447
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 402836,
+        "operatingCashFlow": 164713,
+        "capex": 91447,
+        "sbc": 24953,
+        "buybacks": 45709,
+        "dilutedShares": 12230
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 4
+    },
+    "filingDiffs": [
+      {
+        "id": "googl-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-05",
+        "accessionNumber": "0001652044-26-000018",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 34.1% of Reported FCF (6.2% of revenue)",
+        "summary": "In FY25, Alphabet Inc. generated $73.27B in Reported FCF against $24.95B in Stock-Based Compensation, yielding $48.31B in True FCF (12.0% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $72.76B · SBC $22.79B (6.5% of revenue) · True FCF $49.98B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $73.27B · SBC $24.95B (6.2% of revenue) · True FCF $48.31B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "googl-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-05",
+        "accessionNumber": "0001652044-26-000018",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted share count held flat (-0.1%/yr)",
+        "summary": "Weighted-average diluted shares moved from 12,294M in FY21 to 12,230M in FY25, with $45.71B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 12,294M diluted shares · CapEx $24.64B.",
+        "currentExcerpt": "FY25 10-K: 12,230M diluted shares · CapEx $91.45B · Buybacks $45.71B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "AMZN",
+    "cik": "0001018724",
+    "name": "Amazon.com Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Cloud & E-Commerce",
+    "tagline": "AWS operating leverage vs. massive logistics & AI infrastructure CapEx",
+    "price": 208.2,
+    "marketCap": 2254181,
+    "cashAndEquiv": 114226,
+    "totalDebt": 179952,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-06",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001018724-26-000004"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 469822,
+        "operatingCashFlow": 46327,
+        "capex": 61053,
+        "sbc": 12757,
+        "buybacks": 0,
+        "dilutedShares": 10296
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 513983,
+        "operatingCashFlow": 46752,
+        "capex": 63645,
+        "sbc": 19621,
+        "buybacks": 6000,
+        "dilutedShares": 10189
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 574785,
+        "operatingCashFlow": 84946,
+        "capex": 52729,
+        "sbc": 24023,
+        "buybacks": 0,
+        "dilutedShares": 10492
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 637959,
+        "operatingCashFlow": 115877,
+        "capex": 82999,
+        "sbc": 22011,
+        "buybacks": 0,
+        "dilutedShares": 10721
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 716924,
+        "operatingCashFlow": 139514,
+        "capex": 131819,
+        "sbc": 19467,
+        "buybacks": 0,
+        "dilutedShares": 10827
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 1.8
+    },
+    "filingDiffs": [
+      {
+        "id": "amzn-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-06",
+        "accessionNumber": "0001018724-26-000004",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC ($19.47B) exceeded Reported FCF, leaving True FCF negative",
+        "summary": "In FY25, Amazon.com Inc. generated $7.70B in Reported FCF against $19.47B in Stock-Based Compensation, yielding $-11.77B in True FCF (-1.6% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $32.88B · SBC $22.01B (3.5% of revenue) · True FCF $10.87B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $7.70B · SBC $19.47B (2.7% of revenue) · True FCF $-11.77B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "amzn-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-06",
+        "accessionNumber": "0001018724-26-000004",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted shares expanded +1.3%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 10,296M in FY21 to 10,827M in FY25, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 10,296M diluted shares · CapEx $61.05B.",
+        "currentExcerpt": "FY25 10-K: 10,827M diluted shares · CapEx $131.82B · Buybacks $0.00B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "META",
+    "cik": "0001326801",
+    "name": "Meta Platforms Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Social & AI Infrastructure",
+    "tagline": "Year-of-efficiency FCF surge funding record AI datacenter buildout",
+    "price": 612,
+    "marketCap": 1575288,
+    "cashAndEquiv": 82449,
+    "totalDebt": 83669,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-01-29",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001628280-26-003942"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 117929,
+        "operatingCashFlow": 57683,
+        "capex": 18690,
+        "sbc": 9164,
+        "buybacks": 44537,
+        "dilutedShares": 2859
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 116609,
+        "operatingCashFlow": 50475,
+        "capex": 31186,
+        "sbc": 11992,
+        "buybacks": 27956,
+        "dilutedShares": 2702
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 134902,
+        "operatingCashFlow": 71113,
+        "capex": 27045,
+        "sbc": 14027,
+        "buybacks": 19774,
+        "dilutedShares": 2629
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 164501,
+        "operatingCashFlow": 91328,
+        "capex": 37256,
+        "sbc": 16690,
+        "buybacks": 30125,
+        "dilutedShares": 2614
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 200966,
+        "operatingCashFlow": 115800,
+        "capex": 69691,
+        "sbc": 20427,
+        "buybacks": 26248,
+        "dilutedShares": 2574
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 23,
+      "sbcDragPct": 6.6
+    },
+    "filingDiffs": [
+      {
+        "id": "meta-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-01-29",
+        "accessionNumber": "0001628280-26-003942",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 44.3% of Reported FCF (10.2% of revenue)",
+        "summary": "In FY25, Meta Platforms Inc. generated $46.11B in Reported FCF against $20.43B in Stock-Based Compensation, yielding $25.68B in True FCF (12.8% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $54.07B · SBC $16.69B (10.1% of revenue) · True FCF $37.38B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $46.11B · SBC $20.43B (10.2% of revenue) · True FCF $25.68B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "meta-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-01-29",
+        "accessionNumber": "0001628280-26-003942",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 2.6%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 2,859M in FY21 to 2,574M in FY25, with $26.25B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 2,859M diluted shares · CapEx $18.69B.",
+        "currentExcerpt": "FY25 10-K: 2,574M diluted shares · CapEx $69.69B · Buybacks $26.25B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "ORCL",
+    "cik": "0001341439",
+    "name": "Oracle Corporation",
+    "exchange": "NYSE",
+    "sector": "Enterprise Database & Cloud",
+    "tagline": "OCI backlog acceleration driving a sharp step-up in CapEx intensity",
+    "price": 172.5,
+    "marketCap": 502665,
+    "cashAndEquiv": 36369,
+    "totalDebt": 7199,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-06-22",
+      "periodEnd": "2026-05-31",
+      "accessionNumber": "0001193125-26-277521"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 42440,
+        "operatingCashFlow": 9539,
+        "capex": 4511,
+        "sbc": 2613,
+        "buybacks": 16248,
+        "dilutedShares": 2786
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 49954,
+        "operatingCashFlow": 17165,
+        "capex": 8695,
+        "sbc": 3547,
+        "buybacks": 1300,
+        "dilutedShares": 2766
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 52961,
+        "operatingCashFlow": 18673,
+        "capex": 6866,
+        "sbc": 3974,
+        "buybacks": 1202,
+        "dilutedShares": 2823
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 57399,
+        "operatingCashFlow": 20821,
+        "capex": 21215,
+        "sbc": 4674,
+        "buybacks": 600,
+        "dilutedShares": 2866
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 67357,
+        "operatingCashFlow": 31977,
+        "capex": 55663,
+        "sbc": 4811,
+        "buybacks": 95,
+        "dilutedShares": 2914
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 4.6
+    },
+    "filingDiffs": [
+      {
+        "id": "orcl-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-06-22",
+        "accessionNumber": "0001193125-26-277521",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC ($4.81B) exceeded Reported FCF, leaving True FCF negative",
+        "summary": "In FY26, Oracle Corporation generated $-23.69B in Reported FCF against $4.81B in Stock-Based Compensation, yielding $-28.50B in True FCF (-42.3% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $-0.39B · SBC $4.67B (8.1% of revenue) · True FCF $-5.07B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $-23.69B · SBC $4.81B (7.1% of revenue) · True FCF $-28.50B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "orcl-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-06-22",
+        "accessionNumber": "0001193125-26-277521",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted shares expanded +1.1%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 2,786M in FY22 to 2,914M in FY26, with $0.10B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 2,786M diluted shares · CapEx $4.51B.",
+        "currentExcerpt": "FY26 10-K: 2,914M diluted shares · CapEx $55.66B · Buybacks $0.10B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "AMD",
+    "cik": "0000002488",
+    "name": "Advanced Micro Devices",
+    "exchange": "NASDAQ",
+    "sector": "Semiconductors",
+    "tagline": "Datacenter GPU ramp vs. rising R&D equity compensation",
+    "price": 118.4,
+    "marketCap": 193702,
+    "cashAndEquiv": 7404,
+    "totalDebt": 7079,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-04",
+      "periodEnd": "2025-12-27",
+      "accessionNumber": "0000002488-26-000018"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 16434,
+        "operatingCashFlow": 3521,
+        "capex": 301,
+        "sbc": 379,
+        "buybacks": 1762,
+        "dilutedShares": 1229
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 23601,
+        "operatingCashFlow": 3565,
+        "capex": 450,
+        "sbc": 1081,
+        "buybacks": 3702,
+        "dilutedShares": 1571
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 22680,
+        "operatingCashFlow": 1667,
+        "capex": 546,
+        "sbc": 1384,
+        "buybacks": 985,
+        "dilutedShares": 1625
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 25785,
+        "operatingCashFlow": 3041,
+        "capex": 636,
+        "sbc": 1407,
+        "buybacks": 862,
+        "dilutedShares": 1637
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 34639,
+        "operatingCashFlow": 7709,
+        "capex": 974,
+        "sbc": 1638,
+        "buybacks": 1316,
+        "dilutedShares": 1636
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 19,
+      "sbcDragPct": 3.1
+    },
+    "filingDiffs": [
+      {
+        "id": "amd-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-04",
+        "accessionNumber": "0000002488-26-000018",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 24.3% of Reported FCF (4.7% of revenue)",
+        "summary": "In FY25, Advanced Micro Devices generated $6.74B in Reported FCF against $1.64B in Stock-Based Compensation, yielding $5.10B in True FCF (14.7% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $2.40B · SBC $1.41B (5.5% of revenue) · True FCF $1.00B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $6.74B · SBC $1.64B (4.7% of revenue) · True FCF $5.10B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "amd-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-04",
+        "accessionNumber": "0000002488-26-000018",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +7.4%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 1,229M in FY21 to 1,636M in FY25, with $1.32B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 1,229M diluted shares · CapEx $0.30B.",
+        "currentExcerpt": "FY25 10-K: 1,636M diluted shares · CapEx $0.97B · Buybacks $1.32B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "AVGO",
+    "cik": "0001730168",
+    "name": "Broadcom Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Semiconductors & Infrastructure Software",
+    "tagline": "VMware integration and custom AI ASICs driving elite FCF margins",
+    "price": 224,
+    "marketCap": 1087072,
+    "cashAndEquiv": 23975,
+    "totalDebt": 59419,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2025-12-18",
+      "periodEnd": "2025-11-02",
+      "accessionNumber": "0001730168-25-000121"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 27450,
+        "operatingCashFlow": 13764,
+        "capex": 443,
+        "sbc": 1704,
+        "buybacks": 0,
+        "dilutedShares": 429
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 33203,
+        "operatingCashFlow": 16736,
+        "capex": 424,
+        "sbc": 1533,
+        "buybacks": 7000,
+        "dilutedShares": 4232
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 35819,
+        "operatingCashFlow": 18085,
+        "capex": 452,
+        "sbc": 2171,
+        "buybacks": 5824,
+        "dilutedShares": 4272
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 51574,
+        "operatingCashFlow": 19962,
+        "capex": 548,
+        "sbc": 5741,
+        "buybacks": 7176,
+        "dilutedShares": 4778
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 63887,
+        "operatingCashFlow": 27537,
+        "capex": 623,
+        "sbc": 7568,
+        "buybacks": 2450,
+        "dilutedShares": 4853
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 42,
+      "sbcDragPct": 7.7
+    },
+    "filingDiffs": [
+      {
+        "id": "avgo-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2025-12-18",
+        "accessionNumber": "0001730168-25-000121",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 28.1% of Reported FCF (11.8% of revenue)",
+        "summary": "In FY25, Broadcom Inc. generated $26.91B in Reported FCF against $7.57B in Stock-Based Compensation, yielding $19.35B in True FCF (30.3% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $19.41B · SBC $5.74B (11.1% of revenue) · True FCF $13.67B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $26.91B · SBC $7.57B (11.8% of revenue) · True FCF $19.35B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "avgo-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2025-12-18",
+        "accessionNumber": "0001730168-25-000121",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +83.4%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 429M in FY21 to 4,853M in FY25, with $2.45B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 429M diluted shares · CapEx $0.44B.",
+        "currentExcerpt": "FY25 10-K: 4,853M diluted shares · CapEx $0.62B · Buybacks $2.45B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "QCOM",
+    "cik": "0000804328",
+    "name": "Qualcomm Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Semiconductors",
+    "tagline": "High cash conversion semiconductor leader returning capital via buybacks",
+    "price": 164.2,
+    "marketCap": 176187,
+    "cashAndEquiv": 7681,
+    "totalDebt": 14613,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-11-04",
+      "periodEnd": "2026-09-27",
+      "accessionNumber": "0000804328-26-000128"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 44200,
+        "operatingCashFlow": 9096,
+        "capex": 2262,
+        "sbc": 2031,
+        "buybacks": 3129,
+        "dilutedShares": 1137
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 35820,
+        "operatingCashFlow": 11299,
+        "capex": 1450,
+        "sbc": 2484,
+        "buybacks": 2973,
+        "dilutedShares": 1126
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 38962,
+        "operatingCashFlow": 12202,
+        "capex": 1041,
+        "sbc": 2648,
+        "buybacks": 4121,
+        "dilutedShares": 1130
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 44284,
+        "operatingCashFlow": 14012,
+        "capex": 1192,
+        "sbc": 2783,
+        "buybacks": 8791,
+        "dilutedShares": 1105
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 43120,
+        "operatingCashFlow": 11145,
+        "capex": 2494,
+        "sbc": 3452,
+        "buybacks": 7817,
+        "dilutedShares": 1073
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 20,
+      "sbcDragPct": 5.2
+    },
+    "filingDiffs": [
+      {
+        "id": "qcom-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-11-04",
+        "accessionNumber": "0000804328-26-000128",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 39.9% of Reported FCF (8.0% of revenue)",
+        "summary": "In FY26, Qualcomm Inc. generated $8.65B in Reported FCF against $3.45B in Stock-Based Compensation, yielding $5.20B in True FCF (12.1% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $12.82B · SBC $2.78B (6.3% of revenue) · True FCF $10.04B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $8.65B · SBC $3.45B (8.0% of revenue) · True FCF $5.20B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "qcom-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-11-04",
+        "accessionNumber": "0000804328-26-000128",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Share count shrank 1.4%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 1,137M in FY22 to 1,073M in FY26, with $7.82B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 1,137M diluted shares · CapEx $2.26B.",
+        "currentExcerpt": "FY26 10-K: 1,073M diluted shares · CapEx $2.49B · Buybacks $7.82B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "TXN",
+    "cik": "0000097476",
+    "name": "Texas Instruments",
+    "exchange": "NASDAQ",
+    "sector": "Analog Semiconductors",
+    "tagline": "Multi-year 300mm fab CapEx cycle temporarily depressing headline FCF",
+    "price": 192.6,
+    "marketCap": 175844,
+    "cashAndEquiv": 8142,
+    "totalDebt": 13555,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-06",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0000097476-26-000059"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 18344,
+        "operatingCashFlow": 8756,
+        "capex": 2462,
+        "sbc": 230,
+        "buybacks": 527,
+        "dilutedShares": 936
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 20028,
+        "operatingCashFlow": 8720,
+        "capex": 2797,
+        "sbc": 289,
+        "buybacks": 3615,
+        "dilutedShares": 926
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 17519,
+        "operatingCashFlow": 6420,
+        "capex": 5071,
+        "sbc": 362,
+        "buybacks": 293,
+        "dilutedShares": 916
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 15641,
+        "operatingCashFlow": 6318,
+        "capex": 4820,
+        "sbc": 387,
+        "buybacks": 929,
+        "dilutedShares": 919
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 17682,
+        "operatingCashFlow": 7153,
+        "capex": 4550,
+        "sbc": 419,
+        "buybacks": 1477,
+        "dilutedShares": 913
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 1.5
+    },
+    "filingDiffs": [
+      {
+        "id": "txn-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-06",
+        "accessionNumber": "0000097476-26-000059",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 16.1% of Reported FCF (2.4% of revenue)",
+        "summary": "In FY25, Texas Instruments generated $2.60B in Reported FCF against $0.42B in Stock-Based Compensation, yielding $2.18B in True FCF (12.4% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $1.50B · SBC $0.39B (2.5% of revenue) · True FCF $1.11B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $2.60B · SBC $0.42B (2.4% of revenue) · True FCF $2.18B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "txn-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-06",
+        "accessionNumber": "0000097476-26-000059",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Share count shrank 0.6%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 936M in FY21 to 913M in FY25, with $1.48B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 936M diluted shares · CapEx $2.46B.",
+        "currentExcerpt": "FY25 10-K: 913M diluted shares · CapEx $4.55B · Buybacks $1.48B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "ANET",
+    "cik": "0001596532",
+    "name": "Arista Networks",
+    "exchange": "NYSE",
+    "sector": "AI & Cloud Networking",
+    "tagline": "Asset-light networking compounder with ultra-clean True FCF conversion",
+    "price": 108.5,
+    "marketCap": 138446,
+    "cashAndEquiv": 2288,
+    "totalDebt": 0,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-17",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001596532-26-000013"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 2948,
+        "operatingCashFlow": 1016,
+        "capex": 65,
+        "sbc": 187,
+        "buybacks": 412,
+        "dilutedShares": 319
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 4381,
+        "operatingCashFlow": 493,
+        "capex": 45,
+        "sbc": 231,
+        "buybacks": 670,
+        "dilutedShares": 1266
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 5860,
+        "operatingCashFlow": 2034,
+        "capex": 34,
+        "sbc": 297,
+        "buybacks": 112,
+        "dilutedShares": 1269
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 7003,
+        "operatingCashFlow": 3708,
+        "capex": 32,
+        "sbc": 355,
+        "buybacks": 424,
+        "dilutedShares": 1281
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 9006,
+        "operatingCashFlow": 4372,
+        "capex": 120,
+        "sbc": 439,
+        "buybacks": 1603,
+        "dilutedShares": 1276
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 47,
+      "sbcDragPct": 3.2
+    },
+    "filingDiffs": [
+      {
+        "id": "anet-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-17",
+        "accessionNumber": "0001596532-26-000013",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 10.3% of Reported FCF (4.9% of revenue)",
+        "summary": "In FY25, Arista Networks generated $4.25B in Reported FCF against $0.44B in Stock-Based Compensation, yielding $3.81B in True FCF (42.3% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $3.68B · SBC $0.35B (5.1% of revenue) · True FCF $3.32B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $4.25B · SBC $0.44B (4.9% of revenue) · True FCF $3.81B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "anet-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-17",
+        "accessionNumber": "0001596532-26-000013",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +41.4%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 319M in FY21 to 1,276M in FY25, with $1.60B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 319M diluted shares · CapEx $0.07B.",
+        "currentExcerpt": "FY25 10-K: 1,276M diluted shares · CapEx $0.12B · Buybacks $1.60B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "CRWD",
+    "cik": "0001535527",
+    "name": "CrowdStrike Holdings",
+    "exchange": "NASDAQ",
+    "sector": "Cybersecurity",
+    "tagline": "Best-in-class headline FCF margin weighed against steep SBC expense",
+    "price": 382,
+    "marketCap": 95882,
+    "cashAndEquiv": 5661,
+    "totalDebt": 746,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-05",
+      "periodEnd": "2026-01-31",
+      "accessionNumber": "0001535527-26-000010"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 1452,
+        "operatingCashFlow": 575,
+        "capex": 112,
+        "sbc": 310,
+        "buybacks": 0,
+        "dilutedShares": 227
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 2241,
+        "operatingCashFlow": 941,
+        "capex": 235,
+        "sbc": 527,
+        "buybacks": 0,
+        "dilutedShares": 233
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 3056,
+        "operatingCashFlow": 1166,
+        "capex": 177,
+        "sbc": 649,
+        "buybacks": 0,
+        "dilutedShares": 244
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 3954,
+        "operatingCashFlow": 1382,
+        "capex": 255,
+        "sbc": 861,
+        "buybacks": 0,
+        "dilutedShares": 245
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 4812,
+        "operatingCashFlow": 1612,
+        "capex": 302,
+        "sbc": 1097,
+        "buybacks": 0,
+        "dilutedShares": 251
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 27,
+      "sbcDragPct": 14.8
+    },
+    "filingDiffs": [
+      {
+        "id": "crwd-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-05",
+        "accessionNumber": "0001535527-26-000010",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 83.7% of Reported FCF (22.8% of revenue)",
+        "summary": "In FY26, CrowdStrike Holdings generated $1.31B in Reported FCF against $1.10B in Stock-Based Compensation, yielding $0.21B in True FCF (4.4% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $1.13B · SBC $0.86B (21.8% of revenue) · True FCF $0.27B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $1.31B · SBC $1.10B (22.8% of revenue) · True FCF $0.21B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "crwd-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-05",
+        "accessionNumber": "0001535527-26-000010",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +2.5%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 227M in FY22 to 251M in FY26, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 227M diluted shares · CapEx $0.11B.",
+        "currentExcerpt": "FY26 10-K: 251M diluted shares · CapEx $0.30B · Buybacks $0.00B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "DDOG",
+    "cik": "0001561550",
+    "name": "Datadog Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Cloud Observability",
+    "tagline": "Strong GAAP profitability inflection while SBC remains a major FCF drag",
+    "price": 142.8,
+    "marketCap": 51836,
+    "cashAndEquiv": 881,
+    "totalDebt": 0,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-18",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001628280-26-008819"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 1029,
+        "operatingCashFlow": 287,
+        "capex": 10,
+        "sbc": 164,
+        "buybacks": 0,
+        "dilutedShares": 309
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 1675,
+        "operatingCashFlow": 418,
+        "capex": 35,
+        "sbc": 363,
+        "buybacks": 0,
+        "dilutedShares": 315
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 2128,
+        "operatingCashFlow": 660,
+        "capex": 28,
+        "sbc": 482,
+        "buybacks": 0,
+        "dilutedShares": 350
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 2684,
+        "operatingCashFlow": 871,
+        "capex": 35,
+        "sbc": 570,
+        "buybacks": 0,
+        "dilutedShares": 359
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 3427,
+        "operatingCashFlow": 1050,
+        "capex": 50,
+        "sbc": 751,
+        "buybacks": 0,
+        "dilutedShares": 363
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 29,
+      "sbcDragPct": 14.2
+    },
+    "filingDiffs": [
+      {
+        "id": "ddog-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-18",
+        "accessionNumber": "0001628280-26-008819",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 75.1% of Reported FCF (21.9% of revenue)",
+        "summary": "In FY25, Datadog Inc. generated $1.00B in Reported FCF against $0.75B in Stock-Based Compensation, yielding $0.25B in True FCF (7.3% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $0.84B · SBC $0.57B (21.2% of revenue) · True FCF $0.27B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $1.00B · SBC $0.75B (21.9% of revenue) · True FCF $0.25B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "ddog-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-18",
+        "accessionNumber": "0001628280-26-008819",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +4.1%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 309M in FY21 to 363M in FY25, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 309M diluted shares · CapEx $0.01B.",
+        "currentExcerpt": "FY25 10-K: 363M diluted shares · CapEx $0.05B · Buybacks $0.00B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "NET",
+    "cik": "0001477333",
+    "name": "Cloudflare Inc.",
+    "exchange": "NYSE",
+    "sector": "Edge Network & Security",
+    "tagline": "Edge infrastructure scale-up with high SBC relative to reported FCF",
+    "price": 138.4,
+    "marketCap": 48163,
+    "cashAndEquiv": 1970,
+    "totalDebt": 0,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-26",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001477333-26-000016"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 656,
+        "operatingCashFlow": 65,
+        "capex": 93,
+        "sbc": 90,
+        "buybacks": 0,
+        "dilutedShares": 312
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 975,
+        "operatingCashFlow": 124,
+        "capex": 144,
+        "sbc": 203,
+        "buybacks": 0,
+        "dilutedShares": 326
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 1297,
+        "operatingCashFlow": 254,
+        "capex": 114,
+        "sbc": 274,
+        "buybacks": 0,
+        "dilutedShares": 334
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 1670,
+        "operatingCashFlow": 380,
+        "capex": 185,
+        "sbc": 338,
+        "buybacks": 0,
+        "dilutedShares": 341
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 2168,
+        "operatingCashFlow": 603,
+        "capex": 316,
+        "sbc": 451,
+        "buybacks": 0,
+        "dilutedShares": 348
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 13.5
+    },
+    "filingDiffs": [
+      {
+        "id": "net-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-26",
+        "accessionNumber": "0001477333-26-000016",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC ($0.45B) exceeded Reported FCF, leaving True FCF negative",
+        "summary": "In FY25, Cloudflare Inc. generated $0.29B in Reported FCF against $0.45B in Stock-Based Compensation, yielding $-0.16B in True FCF (-7.6% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $0.20B · SBC $0.34B (20.2% of revenue) · True FCF $-0.14B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $0.29B · SBC $0.45B (20.8% of revenue) · True FCF $-0.16B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "net-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-26",
+        "accessionNumber": "0001477333-26-000016",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +2.8%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 312M in FY21 to 348M in FY25, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 312M diluted shares · CapEx $0.09B.",
+        "currentExcerpt": "FY25 10-K: 348M diluted shares · CapEx $0.32B · Buybacks $0.00B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "PANW",
+    "cik": "0001327567",
+    "name": "Palo Alto Networks",
+    "exchange": "NASDAQ",
+    "sector": "Cybersecurity",
+    "tagline": "Platformization billings shift paired with $1B+ annual SBC",
+    "price": 192,
+    "marketCap": 146688,
+    "cashAndEquiv": 3055,
+    "totalDebt": 1992,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-09-10",
+      "periodEnd": "2026-07-31",
+      "accessionNumber": "0001327567-26-000023"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 5502,
+        "operatingCashFlow": 1985,
+        "capex": 193,
+        "sbc": 1011,
+        "buybacks": 892,
+        "dilutedShares": 296
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 6893,
+        "operatingCashFlow": 2778,
+        "capex": 146,
+        "sbc": 1075,
+        "buybacks": 273,
+        "dilutedShares": 685
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 8027,
+        "operatingCashFlow": 3258,
+        "capex": 157,
+        "sbc": 1076,
+        "buybacks": 567,
+        "dilutedShares": 708
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 9221,
+        "operatingCashFlow": 3716,
+        "capex": 247,
+        "sbc": 1295,
+        "buybacks": 0,
+        "dilutedShares": 709
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 11480,
+        "operatingCashFlow": 4553,
+        "capex": 440,
+        "sbc": 1774,
+        "buybacks": 1000,
+        "dilutedShares": 764
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 36,
+      "sbcDragPct": 10
+    },
+    "filingDiffs": [
+      {
+        "id": "panw-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-09-10",
+        "accessionNumber": "0001327567-26-000023",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 43.1% of Reported FCF (15.5% of revenue)",
+        "summary": "In FY26, Palo Alto Networks generated $4.11B in Reported FCF against $1.77B in Stock-Based Compensation, yielding $2.34B in True FCF (20.4% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $3.47B · SBC $1.29B (14.0% of revenue) · True FCF $2.17B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $4.11B · SBC $1.77B (15.5% of revenue) · True FCF $2.34B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "panw-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-09-10",
+        "accessionNumber": "0001327567-26-000023",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +26.8%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 296M in FY22 to 764M in FY26, with $1.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 296M diluted shares · CapEx $0.19B.",
+        "currentExcerpt": "FY26 10-K: 764M diluted shares · CapEx $0.44B · Buybacks $1.00B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "NOW",
+    "cik": "0001373715",
+    "name": "ServiceNow Inc.",
+    "exchange": "NYSE",
+    "sector": "Enterprise Workflow SaaS",
+    "tagline": "Durable 20%+ compounder with steady SBC compression toward True FCF",
+    "price": 985,
+    "marketCap": 1031295,
+    "cashAndEquiv": 2393,
+    "totalDebt": 1484,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-01-29",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001373715-26-000007"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 5896,
+        "operatingCashFlow": 2191,
+        "capex": 392,
+        "sbc": 1131,
+        "buybacks": 0,
+        "dilutedShares": 203
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 7245,
+        "operatingCashFlow": 2723,
+        "capex": 550,
+        "sbc": 1401,
+        "buybacks": 0,
+        "dilutedShares": 204
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 8971,
+        "operatingCashFlow": 3398,
+        "capex": 694,
+        "sbc": 1604,
+        "buybacks": 538,
+        "dilutedShares": 1028
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 10984,
+        "operatingCashFlow": 4267,
+        "capex": 852,
+        "sbc": 1746,
+        "buybacks": 696,
+        "dilutedShares": 1042
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 13278,
+        "operatingCashFlow": 5444,
+        "capex": 868,
+        "sbc": 1955,
+        "buybacks": 1840,
+        "dilutedShares": 1047
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 34,
+      "sbcDragPct": 9.6
+    },
+    "filingDiffs": [
+      {
+        "id": "now-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-01-29",
+        "accessionNumber": "0001373715-26-000007",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 42.7% of Reported FCF (14.7% of revenue)",
+        "summary": "In FY25, ServiceNow Inc. generated $4.58B in Reported FCF against $1.96B in Stock-Based Compensation, yielding $2.62B in True FCF (19.7% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $3.42B · SBC $1.75B (15.9% of revenue) · True FCF $1.67B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $4.58B · SBC $1.96B (14.7% of revenue) · True FCF $2.62B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "now-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-01-29",
+        "accessionNumber": "0001373715-26-000007",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +50.7%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 203M in FY21 to 1,047M in FY25, with $1.84B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 203M diluted shares · CapEx $0.39B.",
+        "currentExcerpt": "FY25 10-K: 1,047M diluted shares · CapEx $0.87B · Buybacks $1.84B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "CRM",
+    "cik": "0001108524",
+    "name": "Salesforce Inc.",
+    "exchange": "NYSE",
+    "sector": "Enterprise CRM",
+    "tagline": "Activist-era margin discipline turning massive FCF into net share reduction",
+    "price": 326.5,
+    "marketCap": 312134,
+    "cashAndEquiv": 8390,
+    "totalDebt": 39288,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-02",
+      "periodEnd": "2026-01-31",
+      "accessionNumber": "0001108524-26-000060"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 26492,
+        "operatingCashFlow": 6000,
+        "capex": 717,
+        "sbc": 2779,
+        "buybacks": 0,
+        "dilutedShares": 974
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 31352,
+        "operatingCashFlow": 7111,
+        "capex": 798,
+        "sbc": 3279,
+        "buybacks": 4000,
+        "dilutedShares": 997
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 34857,
+        "operatingCashFlow": 10234,
+        "capex": 736,
+        "sbc": 2787,
+        "buybacks": 7620,
+        "dilutedShares": 984
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 37895,
+        "operatingCashFlow": 13092,
+        "capex": 658,
+        "sbc": 3183,
+        "buybacks": 7829,
+        "dilutedShares": 974
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 41525,
+        "operatingCashFlow": 14996,
+        "capex": 594,
+        "sbc": 3509,
+        "buybacks": 12596,
+        "dilutedShares": 956
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 35,
+      "sbcDragPct": 5.5
+    },
+    "filingDiffs": [
+      {
+        "id": "crm-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-02",
+        "accessionNumber": "0001108524-26-000060",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 24.4% of Reported FCF (8.5% of revenue)",
+        "summary": "In FY26, Salesforce Inc. generated $14.40B in Reported FCF against $3.51B in Stock-Based Compensation, yielding $10.89B in True FCF (26.2% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $12.43B · SBC $3.18B (8.4% of revenue) · True FCF $9.25B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $14.40B · SBC $3.51B (8.5% of revenue) · True FCF $10.89B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "crm-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-02",
+        "accessionNumber": "0001108524-26-000060",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted share count held flat (-0.5%/yr)",
+        "summary": "Weighted-average diluted shares moved from 974M in FY22 to 956M in FY26, with $12.60B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 974M diluted shares · CapEx $0.72B.",
+        "currentExcerpt": "FY26 10-K: 956M diluted shares · CapEx $0.59B · Buybacks $12.60B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "ADBE",
+    "cik": "0000796343",
+    "name": "Adobe Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Creative & Document Software",
+    "tagline": "High-margin recurring cash flow funding consistent share count shrinkage",
+    "price": 448.2,
+    "marketCap": 191381,
+    "cashAndEquiv": 5639,
+    "totalDebt": 2750,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-01-15",
+      "periodEnd": "2025-11-28",
+      "accessionNumber": "0000796343-26-000003"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 15785,
+        "operatingCashFlow": 7230,
+        "capex": 348,
+        "sbc": 1069,
+        "buybacks": 3950,
+        "dilutedShares": 481
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 17606,
+        "operatingCashFlow": 7838,
+        "capex": 442,
+        "sbc": 1440,
+        "buybacks": 6550,
+        "dilutedShares": 471
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 19409,
+        "operatingCashFlow": 7302,
+        "capex": 360,
+        "sbc": 1718,
+        "buybacks": 4400,
+        "dilutedShares": 459
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 21505,
+        "operatingCashFlow": 8056,
+        "capex": 183,
+        "sbc": 1833,
+        "buybacks": 9500,
+        "dilutedShares": 450
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 23769,
+        "operatingCashFlow": 10031,
+        "capex": 179,
+        "sbc": 1942,
+        "buybacks": 11281,
+        "dilutedShares": 427
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 41,
+      "sbcDragPct": 5.3
+    },
+    "filingDiffs": [
+      {
+        "id": "adbe-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-01-15",
+        "accessionNumber": "0000796343-26-000003",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 19.7% of Reported FCF (8.2% of revenue)",
+        "summary": "In FY25, Adobe Inc. generated $9.85B in Reported FCF against $1.94B in Stock-Based Compensation, yielding $7.91B in True FCF (33.3% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $7.87B · SBC $1.83B (8.5% of revenue) · True FCF $6.04B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $9.85B · SBC $1.94B (8.2% of revenue) · True FCF $7.91B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "adbe-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-01-15",
+        "accessionNumber": "0000796343-26-000003",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 2.9%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 481M in FY21 to 427M in FY25, with $11.28B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 481M diluted shares · CapEx $0.35B.",
+        "currentExcerpt": "FY25 10-K: 427M diluted shares · CapEx $0.18B · Buybacks $11.28B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "INTU",
+    "cik": "0000896878",
+    "name": "Intuit Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Financial Software",
+    "tagline": "Small-business and tax moat with rising SBC offset by steady repurchases",
+    "price": 618.4,
+    "marketCap": 171297,
+    "cashAndEquiv": 4042,
+    "totalDebt": 6922,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-09-09",
+      "periodEnd": "2026-07-31",
+      "accessionNumber": "0000896878-26-000037"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 12726,
+        "operatingCashFlow": 3889,
+        "capex": 157,
+        "sbc": 1308,
+        "buybacks": 1861,
+        "dilutedShares": 284
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 14368,
+        "operatingCashFlow": 5046,
+        "capex": 210,
+        "sbc": 1712,
+        "buybacks": 1967,
+        "dilutedShares": 283
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 16285,
+        "operatingCashFlow": 4884,
+        "capex": 191,
+        "sbc": 1940,
+        "buybacks": 1988,
+        "dilutedShares": 284
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 18831,
+        "operatingCashFlow": 6207,
+        "capex": 84,
+        "sbc": 1968,
+        "buybacks": 2772,
+        "dilutedShares": 283
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 21448,
+        "operatingCashFlow": 8838,
+        "capex": 175,
+        "sbc": 2056,
+        "buybacks": 5412,
+        "dilutedShares": 277
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 40,
+      "sbcDragPct": 6.2
+    },
+    "filingDiffs": [
+      {
+        "id": "intu-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-09-09",
+        "accessionNumber": "0000896878-26-000037",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 23.7% of Reported FCF (9.6% of revenue)",
+        "summary": "In FY26, Intuit Inc. generated $8.66B in Reported FCF against $2.06B in Stock-Based Compensation, yielding $6.61B in True FCF (30.8% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $6.12B · SBC $1.97B (10.5% of revenue) · True FCF $4.16B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $8.66B · SBC $2.06B (9.6% of revenue) · True FCF $6.61B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "intu-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-09-09",
+        "accessionNumber": "0000896878-26-000037",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Share count shrank 0.6%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 284M in FY22 to 277M in FY26, with $5.41B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 284M diluted shares · CapEx $0.16B.",
+        "currentExcerpt": "FY26 10-K: 277M diluted shares · CapEx $0.17B · Buybacks $5.41B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "WDAY",
+    "cik": "0001327811",
+    "name": "Workday Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Enterprise HCM & Finance",
+    "tagline": "Mature enterprise SaaS where SBC still absorbs over half of reported FCF",
+    "price": 262,
+    "marketCap": 70216,
+    "cashAndEquiv": 3403,
+    "totalDebt": 2989,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-06",
+      "periodEnd": "2026-01-31",
+      "accessionNumber": "0001327811-26-000014"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 5139,
+        "operatingCashFlow": 1651,
+        "capex": 0,
+        "sbc": 1101,
+        "buybacks": 0,
+        "dilutedShares": 254
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 6216,
+        "operatingCashFlow": 1657,
+        "capex": 364,
+        "sbc": 1295,
+        "buybacks": 75,
+        "dilutedShares": 255
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 7259,
+        "operatingCashFlow": 2149,
+        "capex": 232,
+        "sbc": 1416,
+        "buybacks": 423,
+        "dilutedShares": 265
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 8446,
+        "operatingCashFlow": 2461,
+        "capex": 269,
+        "sbc": 1519,
+        "buybacks": 700,
+        "dilutedShares": 269
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 9552,
+        "operatingCashFlow": 2939,
+        "capex": 162,
+        "sbc": 1626,
+        "buybacks": 2895,
+        "dilutedShares": 268
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 29,
+      "sbcDragPct": 11.1
+    },
+    "filingDiffs": [
+      {
+        "id": "wday-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-06",
+        "accessionNumber": "0001327811-26-000014",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 58.6% of Reported FCF (17.0% of revenue)",
+        "summary": "In FY26, Workday Inc. generated $2.78B in Reported FCF against $1.63B in Stock-Based Compensation, yielding $1.15B in True FCF (12.0% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $2.19B · SBC $1.52B (18.0% of revenue) · True FCF $0.67B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $2.78B · SBC $1.63B (17.0% of revenue) · True FCF $1.15B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "wday-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-06",
+        "accessionNumber": "0001327811-26-000014",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted shares expanded +1.4%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 254M in FY22 to 268M in FY26, with $2.90B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 254M diluted shares · CapEx $0.00B.",
+        "currentExcerpt": "FY26 10-K: 268M diluted shares · CapEx $0.16B · Buybacks $2.90B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "MDB",
+    "cik": "0001441816",
+    "name": "MongoDB Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Developer Data Platform",
+    "tagline": "Atlas consumption growth vs. heavy equity compensation drag",
+    "price": 248.5,
+    "marketCap": 20129,
+    "cashAndEquiv": 1002,
+    "totalDebt": 217,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-11",
+      "periodEnd": "2026-01-31",
+      "accessionNumber": "0001628280-26-016799"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 874,
+        "operatingCashFlow": 7,
+        "capex": 8,
+        "sbc": 251,
+        "buybacks": 0,
+        "dilutedShares": 65
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 1284,
+        "operatingCashFlow": -13,
+        "capex": 7,
+        "sbc": 381,
+        "buybacks": 0,
+        "dilutedShares": 69
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 1683,
+        "operatingCashFlow": 121,
+        "capex": 6,
+        "sbc": 457,
+        "buybacks": 0,
+        "dilutedShares": 71
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 2006,
+        "operatingCashFlow": 150,
+        "capex": 30,
+        "sbc": 494,
+        "buybacks": 0,
+        "dilutedShares": 75
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 2464,
+        "operatingCashFlow": 505,
+        "capex": 5,
+        "sbc": 550,
+        "buybacks": 400,
+        "dilutedShares": 81
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 20,
+      "sbcDragPct": 14.5
+    },
+    "filingDiffs": [
+      {
+        "id": "mdb-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-11",
+        "accessionNumber": "0001628280-26-016799",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC ($0.55B) exceeded Reported FCF, leaving True FCF negative",
+        "summary": "In FY26, MongoDB Inc. generated $0.50B in Reported FCF against $0.55B in Stock-Based Compensation, yielding $-0.05B in True FCF (-2.0% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $0.12B · SBC $0.49B (24.6% of revenue) · True FCF $-0.37B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $0.50B · SBC $0.55B (22.3% of revenue) · True FCF $-0.05B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "mdb-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-11",
+        "accessionNumber": "0001628280-26-016799",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +5.7%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 65M in FY22 to 81M in FY26, with $0.40B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 65M diluted shares · CapEx $0.01B.",
+        "currentExcerpt": "FY26 10-K: 81M diluted shares · CapEx $0.01B · Buybacks $0.40B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "ZS",
+    "cik": "0001713683",
+    "name": "Zscaler Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Zero-Trust Security",
+    "tagline": "Strong operating cash flow masked by high SBC-to-revenue intensity",
+    "price": 204.2,
+    "marketCap": 32672,
+    "cashAndEquiv": 928,
+    "totalDebt": 1149,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-09-03",
+      "periodEnd": "2026-07-31",
+      "accessionNumber": "0001713683-26-000157"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 1091,
+        "operatingCashFlow": 322,
+        "capex": 69,
+        "sbc": 410,
+        "buybacks": 0,
+        "dilutedShares": 141
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 1617,
+        "operatingCashFlow": 462,
+        "capex": 97,
+        "sbc": 445,
+        "buybacks": 0,
+        "dilutedShares": 145
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 2168,
+        "operatingCashFlow": 780,
+        "capex": 145,
+        "sbc": 528,
+        "buybacks": 0,
+        "dilutedShares": 150
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 2673,
+        "operatingCashFlow": 972,
+        "capex": 164,
+        "sbc": 661,
+        "buybacks": 0,
+        "dilutedShares": 154
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 3353,
+        "operatingCashFlow": 1130,
+        "capex": 277,
+        "sbc": 822,
+        "buybacks": 0,
+        "dilutedShares": 160
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 25,
+      "sbcDragPct": 15.9
+    },
+    "filingDiffs": [
+      {
+        "id": "zs-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-09-03",
+        "accessionNumber": "0001713683-26-000157",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 96.4% of Reported FCF (24.5% of revenue)",
+        "summary": "In FY26, Zscaler Inc. generated $0.85B in Reported FCF against $0.82B in Stock-Based Compensation, yielding $0.03B in True FCF (0.9% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $0.81B · SBC $0.66B (24.7% of revenue) · True FCF $0.15B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $0.85B · SBC $0.82B (24.5% of revenue) · True FCF $0.03B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "zs-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-09-03",
+        "accessionNumber": "0001713683-26-000157",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +3.2%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 141M in FY22 to 160M in FY26, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 141M diluted shares · CapEx $0.07B.",
+        "currentExcerpt": "FY26 10-K: 160M diluted shares · CapEx $0.28B · Buybacks $0.00B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "NFLX",
+    "cik": "0001065280",
+    "name": "Netflix Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Streaming & Media",
+    "tagline": "Post-password-sharing FCF breakout with minimal SBC dilution",
+    "price": 968,
+    "marketCap": 4204992,
+    "cashAndEquiv": 8223,
+    "totalDebt": 15132,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-01-23",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001065280-26-000034"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 29698,
+        "operatingCashFlow": 393,
+        "capex": 525,
+        "sbc": 403,
+        "buybacks": 600,
+        "dilutedShares": 455
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 31616,
+        "operatingCashFlow": 2026,
+        "capex": 408,
+        "sbc": 575,
+        "buybacks": 0,
+        "dilutedShares": 451
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 33723,
+        "operatingCashFlow": 7274,
+        "capex": 349,
+        "sbc": 339,
+        "buybacks": 6045,
+        "dilutedShares": 4495
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 39001,
+        "operatingCashFlow": 7361,
+        "capex": 440,
+        "sbc": 273,
+        "buybacks": 6264,
+        "dilutedShares": 4393
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 45183,
+        "operatingCashFlow": 10149,
+        "capex": 688,
+        "sbc": 368,
+        "buybacks": 9127,
+        "dilutedShares": 4344
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 21,
+      "sbcDragPct": 0.5
+    },
+    "filingDiffs": [
+      {
+        "id": "nflx-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-01-23",
+        "accessionNumber": "0001065280-26-000034",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 3.9% of Reported FCF (0.8% of revenue)",
+        "summary": "In FY25, Netflix Inc. generated $9.46B in Reported FCF against $0.37B in Stock-Based Compensation, yielding $9.09B in True FCF (20.1% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $6.92B · SBC $0.27B (0.7% of revenue) · True FCF $6.65B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $9.46B · SBC $0.37B (0.8% of revenue) · True FCF $9.09B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "nflx-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-01-23",
+        "accessionNumber": "0001065280-26-000034",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +75.8%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 455M in FY21 to 4,344M in FY25, with $9.13B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 455M diluted shares · CapEx $0.53B.",
+        "currentExcerpt": "FY25 10-K: 4,344M diluted shares · CapEx $0.69B · Buybacks $9.13B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "UBER",
+    "cik": "0001543151",
+    "name": "Uber Technologies",
+    "exchange": "NYSE",
+    "sector": "Mobility & Delivery",
+    "tagline": "From cash burn to multi-billion True FCF with moderating SBC",
+    "price": 76.8,
+    "marketCap": 162816,
+    "cashAndEquiv": 10068,
+    "totalDebt": 15664,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-13",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001543151-26-000015"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 17455,
+        "operatingCashFlow": -445,
+        "capex": 298,
+        "sbc": 1168,
+        "buybacks": 0,
+        "dilutedShares": 1896
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 31877,
+        "operatingCashFlow": 642,
+        "capex": 252,
+        "sbc": 1793,
+        "buybacks": 0,
+        "dilutedShares": 1975
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 37281,
+        "operatingCashFlow": 3585,
+        "capex": 223,
+        "sbc": 1935,
+        "buybacks": 0,
+        "dilutedShares": 2092
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 43978,
+        "operatingCashFlow": 7137,
+        "capex": 242,
+        "sbc": 1796,
+        "buybacks": 1252,
+        "dilutedShares": 2151
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 52017,
+        "operatingCashFlow": 10099,
+        "capex": 336,
+        "sbc": 1826,
+        "buybacks": 6523,
+        "dilutedShares": 2120
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 19,
+      "sbcDragPct": 2.3
+    },
+    "filingDiffs": [
+      {
+        "id": "uber-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-13",
+        "accessionNumber": "0001543151-26-000015",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 18.7% of Reported FCF (3.5% of revenue)",
+        "summary": "In FY25, Uber Technologies generated $9.76B in Reported FCF against $1.83B in Stock-Based Compensation, yielding $7.94B in True FCF (15.3% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $6.89B · SBC $1.80B (4.1% of revenue) · True FCF $5.10B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $9.76B · SBC $1.83B (3.5% of revenue) · True FCF $7.94B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "uber-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-13",
+        "accessionNumber": "0001543151-26-000015",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Diluted shares expanded +2.8%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 1,896M in FY21 to 2,120M in FY25, with $6.52B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 1,896M diluted shares · CapEx $0.30B.",
+        "currentExcerpt": "FY25 10-K: 2,120M diluted shares · CapEx $0.34B · Buybacks $6.52B.",
+        "signalNote": "Persistent net dilution acts as a recurring tax on per-share intrinsic value."
+      }
+    ]
+  },
+  {
+    "ticker": "ABNB",
+    "cik": "0001559720",
+    "name": "Airbnb Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Travel Marketplace",
+    "tagline": "Negative working capital float boosting FCF vs. ~12% SBC burden",
+    "price": 142.4,
+    "marketCap": 88715,
+    "cashAndEquiv": 12590,
+    "totalDebt": 2371,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-12",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001559720-26-000004"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 5992,
+        "operatingCashFlow": 2313,
+        "capex": 25,
+        "sbc": 899,
+        "buybacks": 0,
+        "dilutedShares": 616
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 8399,
+        "operatingCashFlow": 3430,
+        "capex": 25,
+        "sbc": 930,
+        "buybacks": 1500,
+        "dilutedShares": 680
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 9917,
+        "operatingCashFlow": 3884,
+        "capex": 0,
+        "sbc": 1120,
+        "buybacks": 2252,
+        "dilutedShares": 662
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 11102,
+        "operatingCashFlow": 4518,
+        "capex": 0,
+        "sbc": 1407,
+        "buybacks": 3430,
+        "dilutedShares": 645
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 12241,
+        "operatingCashFlow": 4646,
+        "capex": 0,
+        "sbc": 1592,
+        "buybacks": 3789,
+        "dilutedShares": 623
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 38,
+      "sbcDragPct": 8.5
+    },
+    "filingDiffs": [
+      {
+        "id": "abnb-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-12",
+        "accessionNumber": "0001559720-26-000004",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 34.3% of Reported FCF (13.0% of revenue)",
+        "summary": "In FY25, Airbnb Inc. generated $4.65B in Reported FCF against $1.59B in Stock-Based Compensation, yielding $3.05B in True FCF (24.9% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $4.52B · SBC $1.41B (12.7% of revenue) · True FCF $3.11B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $4.65B · SBC $1.59B (13.0% of revenue) · True FCF $3.05B.",
+        "signalNote": "High SBC intensity materially widens the gap between headline FCF and owner earnings."
+      },
+      {
+        "id": "abnb-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-12",
+        "accessionNumber": "0001559720-26-000004",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted share count held flat (+0.3%/yr)",
+        "summary": "Weighted-average diluted shares moved from 616M in FY21 to 623M in FY25, with $3.79B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 616M diluted shares · CapEx $0.03B.",
+        "currentExcerpt": "FY25 10-K: 623M diluted shares · CapEx $0.00B · Buybacks $3.79B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "V",
+    "cik": "0001403161",
+    "name": "Visa Inc.",
+    "exchange": "NYSE",
+    "sector": "Payments Network",
+    "tagline": "Gold-standard 55%+ True FCF margin tollbooth with relentless buybacks",
+    "price": 342.6,
+    "marketCap": 160679,
+    "cashAndEquiv": 12938,
+    "totalDebt": 22071,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-11-05",
+      "periodEnd": "2026-09-30",
+      "accessionNumber": "0001403161-26-000134"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 29310,
+        "operatingCashFlow": 18849,
+        "capex": 970,
+        "sbc": 602,
+        "buybacks": 11589,
+        "dilutedShares": 469
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 32653,
+        "operatingCashFlow": 20755,
+        "capex": 1059,
+        "sbc": 765,
+        "buybacks": 12101,
+        "dilutedShares": 469
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 35926,
+        "operatingCashFlow": 19950,
+        "capex": 1257,
+        "sbc": 850,
+        "buybacks": 16713,
+        "dilutedShares": 469
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 40000,
+        "operatingCashFlow": 23059,
+        "capex": 1482,
+        "sbc": 897,
+        "buybacks": 18316,
+        "dilutedShares": 469
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 45903,
+        "operatingCashFlow": 23728,
+        "capex": 1671,
+        "sbc": 928,
+        "buybacks": 20451,
+        "dilutedShares": 469
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 48,
+      "sbcDragPct": 1.3
+    },
+    "filingDiffs": [
+      {
+        "id": "v-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-11-05",
+        "accessionNumber": "0001403161-26-000134",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 4.2% of Reported FCF (2.0% of revenue)",
+        "summary": "In FY26, Visa Inc. generated $22.06B in Reported FCF against $0.93B in Stock-Based Compensation, yielding $21.13B in True FCF (46.0% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $21.58B · SBC $0.90B (2.2% of revenue) · True FCF $20.68B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $22.06B · SBC $0.93B (2.0% of revenue) · True FCF $21.13B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "v-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-11-05",
+        "accessionNumber": "0001403161-26-000134",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted share count held flat (+0.0%/yr)",
+        "summary": "Weighted-average diluted shares moved from 469M in FY22 to 469M in FY26, with $20.45B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 469M diluted shares · CapEx $0.97B.",
+        "currentExcerpt": "FY26 10-K: 469M diluted shares · CapEx $1.67B · Buybacks $20.45B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "MA",
+    "cik": "0001141391",
+    "name": "Mastercard Inc.",
+    "exchange": "NYSE",
+    "sector": "Payments Network",
+    "tagline": "Elite capital efficiency, minimal SBC, and consistent share reduction",
+    "price": 548.2,
+    "marketCap": 496669,
+    "cashAndEquiv": 10147,
+    "totalDebt": 23938,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-11",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001141391-26-000013"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 29845,
+        "operatingCashFlow": 9463,
+        "capex": 407,
+        "sbc": 273,
+        "buybacks": 5904,
+        "dilutedShares": 992
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 22237,
+        "operatingCashFlow": 11195,
+        "capex": 442,
+        "sbc": 295,
+        "buybacks": 8753,
+        "dilutedShares": 971
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 25098,
+        "operatingCashFlow": 11980,
+        "capex": 371,
+        "sbc": 460,
+        "buybacks": 9032,
+        "dilutedShares": 946
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 28167,
+        "operatingCashFlow": 14780,
+        "capex": 474,
+        "sbc": 526,
+        "buybacks": 10954,
+        "dilutedShares": 927
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 32791,
+        "operatingCashFlow": 17648,
+        "capex": 489,
+        "sbc": 597,
+        "buybacks": 11727,
+        "dilutedShares": 906
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 50,
+      "sbcDragPct": 1.2
+    },
+    "filingDiffs": [
+      {
+        "id": "ma-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-11",
+        "accessionNumber": "0001141391-26-000013",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 3.5% of Reported FCF (1.8% of revenue)",
+        "summary": "In FY25, Mastercard Inc. generated $17.16B in Reported FCF against $0.60B in Stock-Based Compensation, yielding $16.56B in True FCF (50.5% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $14.31B · SBC $0.53B (1.9% of revenue) · True FCF $13.78B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $17.16B · SBC $0.60B (1.8% of revenue) · True FCF $16.56B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "ma-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-11",
+        "accessionNumber": "0001141391-26-000013",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 2.2%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 992M in FY21 to 906M in FY25, with $11.73B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 992M diluted shares · CapEx $0.41B.",
+        "currentExcerpt": "FY25 10-K: 906M diluted shares · CapEx $0.49B · Buybacks $11.73B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "PYPL",
+    "cik": "0001633917",
+    "name": "PayPal Holdings",
+    "exchange": "NASDAQ",
+    "sector": "Digital Payments",
+    "tagline": "Aggressive buyback shrink vs. low-growth valuation stress test",
+    "price": 78.9,
+    "marketCap": 76375,
+    "cashAndEquiv": 10280,
+    "totalDebt": 13272,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-03",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001633917-26-000024"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 25371,
+        "operatingCashFlow": 5797,
+        "capex": 908,
+        "sbc": 1376,
+        "buybacks": 3373,
+        "dilutedShares": 1186
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 27518,
+        "operatingCashFlow": 5813,
+        "capex": 706,
+        "sbc": 1261,
+        "buybacks": 4199,
+        "dilutedShares": 1158
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 29771,
+        "operatingCashFlow": 4843,
+        "capex": 623,
+        "sbc": 1475,
+        "buybacks": 5002,
+        "dilutedShares": 1107
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 31797,
+        "operatingCashFlow": 7450,
+        "capex": 683,
+        "sbc": 1230,
+        "buybacks": 6047,
+        "dilutedShares": 1039
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 33172,
+        "operatingCashFlow": 6416,
+        "capex": 852,
+        "sbc": 1002,
+        "buybacks": 6052,
+        "dilutedShares": 968
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 2
+    },
+    "filingDiffs": [
+      {
+        "id": "pypl-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-03",
+        "accessionNumber": "0001633917-26-000024",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 18.0% of Reported FCF (3.0% of revenue)",
+        "summary": "In FY25, PayPal Holdings generated $5.56B in Reported FCF against $1.00B in Stock-Based Compensation, yielding $4.56B in True FCF (13.8% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $6.77B · SBC $1.23B (3.9% of revenue) · True FCF $5.54B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $5.56B · SBC $1.00B (3.0% of revenue) · True FCF $4.56B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "pypl-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-03",
+        "accessionNumber": "0001633917-26-000024",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 5.0%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 1,186M in FY21 to 968M in FY25, with $6.05B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 1,186M diluted shares · CapEx $0.91B.",
+        "currentExcerpt": "FY25 10-K: 968M diluted shares · CapEx $0.85B · Buybacks $6.05B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "TSLA",
+    "cik": "0001318605",
+    "name": "Tesla Inc.",
+    "exchange": "NASDAQ",
+    "sector": "EV, Energy & Autonomy",
+    "tagline": "Heavy AI/factory CapEx vs. ambitious Reverse DCF growth expectations",
+    "price": 348,
+    "marketCap": 1227744,
+    "cashAndEquiv": 19428,
+    "totalDebt": 648,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-01-29",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001628280-26-003952"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 53823,
+        "operatingCashFlow": 11497,
+        "capex": 6482,
+        "sbc": 2121,
+        "buybacks": 0,
+        "dilutedShares": 3386
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 81462,
+        "operatingCashFlow": 14724,
+        "capex": 7158,
+        "sbc": 1560,
+        "buybacks": 0,
+        "dilutedShares": 3475
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 96773,
+        "operatingCashFlow": 13256,
+        "capex": 8899,
+        "sbc": 1812,
+        "buybacks": 0,
+        "dilutedShares": 3485
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 97690,
+        "operatingCashFlow": 14923,
+        "capex": 11342,
+        "sbc": 1999,
+        "buybacks": 0,
+        "dilutedShares": 3498
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 94827,
+        "operatingCashFlow": 14747,
+        "capex": 8527,
+        "sbc": 2825,
+        "buybacks": 0,
+        "dilutedShares": 3528
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 1.9
+    },
+    "filingDiffs": [
+      {
+        "id": "tsla-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-01-29",
+        "accessionNumber": "0001628280-26-003952",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "High",
+        "headline": "SBC consumed 45.4% of Reported FCF (3.0% of revenue)",
+        "summary": "In FY25, Tesla Inc. generated $6.22B in Reported FCF against $2.83B in Stock-Based Compensation, yielding $3.40B in True FCF (3.6% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $3.58B · SBC $2.00B (2.0% of revenue) · True FCF $1.58B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $6.22B · SBC $2.83B (3.0% of revenue) · True FCF $3.40B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "tsla-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-01-29",
+        "accessionNumber": "0001628280-26-003952",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted shares expanded +1.0%/yr despite cash generation",
+        "summary": "Weighted-average diluted shares moved from 3,386M in FY21 to 3,528M in FY25, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 3,386M diluted shares · CapEx $6.48B.",
+        "currentExcerpt": "FY25 10-K: 3,528M diluted shares · CapEx $8.53B · Buybacks $0.00B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "WMT",
+    "cik": "0000104169",
+    "name": "Walmart Inc.",
+    "exchange": "NYSE",
+    "sector": "Omnichannel Retail",
+    "tagline": "Scale retail & ad-margin inflection trading at a premium multiple",
+    "price": 96.4,
+    "marketCap": 773321,
+    "cashAndEquiv": 11529,
+    "totalDebt": 39932,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-13",
+      "periodEnd": "2026-01-31",
+      "accessionNumber": "0000104169-26-000055"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 567762,
+        "operatingCashFlow": 24181,
+        "capex": 13106,
+        "sbc": 1163,
+        "buybacks": 9787,
+        "dilutedShares": 8415
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 605881,
+        "operatingCashFlow": 28841,
+        "capex": 16857,
+        "sbc": 1578,
+        "buybacks": 9920,
+        "dilutedShares": 8202
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 642637,
+        "operatingCashFlow": 35726,
+        "capex": 20606,
+        "sbc": 2093,
+        "buybacks": 2779,
+        "dilutedShares": 8108
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 674538,
+        "operatingCashFlow": 36443,
+        "capex": 23783,
+        "sbc": 2769,
+        "buybacks": 4494,
+        "dilutedShares": 8081
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 706413,
+        "operatingCashFlow": 41565,
+        "capex": 26642,
+        "sbc": 3603,
+        "buybacks": 8088,
+        "dilutedShares": 8022
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 0.5
+    },
+    "filingDiffs": [
+      {
+        "id": "wmt-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-13",
+        "accessionNumber": "0000104169-26-000055",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 24.1% of Reported FCF (0.5% of revenue)",
+        "summary": "In FY26, Walmart Inc. generated $14.92B in Reported FCF against $3.60B in Stock-Based Compensation, yielding $11.32B in True FCF (1.6% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $12.66B · SBC $2.77B (0.4% of revenue) · True FCF $9.89B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $14.92B · SBC $3.60B (0.5% of revenue) · True FCF $11.32B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "wmt-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-13",
+        "accessionNumber": "0000104169-26-000055",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Share count shrank 1.2%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 8,415M in FY22 to 8,022M in FY26, with $8.09B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 8,415M diluted shares · CapEx $13.11B.",
+        "currentExcerpt": "FY26 10-K: 8,022M diluted shares · CapEx $26.64B · Buybacks $8.09B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "HD",
+    "cik": "0000354950",
+    "name": "The Home Depot",
+    "exchange": "NYSE",
+    "sector": "Home Improvement Retail",
+    "tagline": "Disciplined ROIC compounder with ultra-low SBC and steady cash returns",
+    "price": 408.2,
+    "marketCap": 406159,
+    "cashAndEquiv": 1968,
+    "totalDebt": 9749,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-18",
+      "periodEnd": "2026-02-01",
+      "accessionNumber": "0001628280-26-019436"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 151157,
+        "operatingCashFlow": 16571,
+        "capex": 2566,
+        "sbc": 399,
+        "buybacks": 14809,
+        "dilutedShares": 1058
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 157403,
+        "operatingCashFlow": 14615,
+        "capex": 3119,
+        "sbc": 366,
+        "buybacks": 6696,
+        "dilutedShares": 1025
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 152669,
+        "operatingCashFlow": 21172,
+        "capex": 3226,
+        "sbc": 380,
+        "buybacks": 7951,
+        "dilutedShares": 1002
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 159514,
+        "operatingCashFlow": 19810,
+        "capex": 3485,
+        "sbc": 442,
+        "buybacks": 649,
+        "dilutedShares": 993
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 164683,
+        "operatingCashFlow": 16325,
+        "capex": 3679,
+        "sbc": 522,
+        "buybacks": 0,
+        "dilutedShares": 995
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 0.5
+    },
+    "filingDiffs": [
+      {
+        "id": "hd-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-18",
+        "accessionNumber": "0001628280-26-019436",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 4.1% of Reported FCF (0.3% of revenue)",
+        "summary": "In FY26, The Home Depot generated $12.65B in Reported FCF against $0.52B in Stock-Based Compensation, yielding $12.12B in True FCF (7.4% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $16.32B · SBC $0.44B (0.3% of revenue) · True FCF $15.88B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $12.65B · SBC $0.52B (0.3% of revenue) · True FCF $12.12B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "hd-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-18",
+        "accessionNumber": "0001628280-26-019436",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Share count shrank 1.5%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 1,058M in FY22 to 995M in FY26, with $0.00B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 1,058M diluted shares · CapEx $2.57B.",
+        "currentExcerpt": "FY26 10-K: 995M diluted shares · CapEx $3.68B · Buybacks $0.00B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "LLY",
+    "cik": "0000059478",
+    "name": "Eli Lilly and Company",
+    "exchange": "NYSE",
+    "sector": "Biopharmaceuticals",
+    "tagline": "GLP-1 capacity CapEx surge vs. steep market-implied 10Y growth",
+    "price": 862,
+    "marketCap": 774938,
+    "cashAndEquiv": 5007,
+    "totalDebt": 47999,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-12",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0000059478-26-000013"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 28318,
+        "operatingCashFlow": 7366,
+        "capex": 0,
+        "sbc": 343,
+        "buybacks": 1250,
+        "dilutedShares": 912
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 28541,
+        "operatingCashFlow": 7586,
+        "capex": 0,
+        "sbc": 371,
+        "buybacks": 1500,
+        "dilutedShares": 905
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 34124,
+        "operatingCashFlow": 4240,
+        "capex": 0,
+        "sbc": 629,
+        "buybacks": 750,
+        "dilutedShares": 903
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 45043,
+        "operatingCashFlow": 8818,
+        "capex": 0,
+        "sbc": 646,
+        "buybacks": 2500,
+        "dilutedShares": 904
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 65179,
+        "operatingCashFlow": 16813,
+        "capex": 0,
+        "sbc": 626,
+        "buybacks": 4108,
+        "dilutedShares": 899
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 26,
+      "sbcDragPct": 0.6
+    },
+    "filingDiffs": [
+      {
+        "id": "lly-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-12",
+        "accessionNumber": "0000059478-26-000013",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 3.7% of Reported FCF (1.0% of revenue)",
+        "summary": "In FY25, Eli Lilly and Company generated $16.81B in Reported FCF against $0.63B in Stock-Based Compensation, yielding $16.19B in True FCF (24.8% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $8.82B · SBC $0.65B (1.4% of revenue) · True FCF $8.17B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $16.81B · SBC $0.63B (1.0% of revenue) · True FCF $16.19B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "lly-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-12",
+        "accessionNumber": "0000059478-26-000013",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Diluted share count held flat (-0.4%/yr)",
+        "summary": "Weighted-average diluted shares moved from 912M in FY21 to 899M in FY25, with $4.11B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 912M diluted shares · CapEx $0.00B.",
+        "currentExcerpt": "FY25 10-K: 899M diluted shares · CapEx $0.00B · Buybacks $4.11B.",
+        "signalNote": "Buybacks roughly neutralize ongoing employee equity issuance."
+      }
+    ]
+  },
+  {
+    "ticker": "UNH",
+    "cik": "0000731766",
+    "name": "UnitedHealth Group",
+    "exchange": "NYSE",
+    "sector": "Managed Healthcare",
+    "tagline": "Massive cash generation with minimal equity dilution",
+    "price": 512.4,
+    "marketCap": 466796,
+    "cashAndEquiv": 28549,
+    "totalDebt": 72334,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-03-02",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0000731766-26-000062"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 287597,
+        "operatingCashFlow": 22343,
+        "capex": 2454,
+        "sbc": 800,
+        "buybacks": 5000,
+        "dilutedShares": 956
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 324162,
+        "operatingCashFlow": 26206,
+        "capex": 2802,
+        "sbc": 925,
+        "buybacks": 7000,
+        "dilutedShares": 950
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 371622,
+        "operatingCashFlow": 29068,
+        "capex": 3386,
+        "sbc": 1059,
+        "buybacks": 8000,
+        "dilutedShares": 938
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 400278,
+        "operatingCashFlow": 24204,
+        "capex": 3499,
+        "sbc": 1018,
+        "buybacks": 9000,
+        "dilutedShares": 929
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 447567,
+        "operatingCashFlow": 19697,
+        "capex": 3622,
+        "sbc": 971,
+        "buybacks": 5545,
+        "dilutedShares": 911
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 18,
+      "sbcDragPct": 0.5
+    },
+    "filingDiffs": [
+      {
+        "id": "unh-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-03-02",
+        "accessionNumber": "0000731766-26-000062",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 6.0% of Reported FCF (0.2% of revenue)",
+        "summary": "In FY25, UnitedHealth Group generated $16.07B in Reported FCF against $0.97B in Stock-Based Compensation, yielding $15.10B in True FCF (3.4% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $20.70B · SBC $1.02B (0.3% of revenue) · True FCF $19.69B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $16.07B · SBC $0.97B (0.2% of revenue) · True FCF $15.10B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "unh-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-03-02",
+        "accessionNumber": "0000731766-26-000062",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "Watch",
+        "headline": "Share count shrank 1.2%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 956M in FY21 to 911M in FY25, with $5.54B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 956M diluted shares · CapEx $2.45B.",
+        "currentExcerpt": "FY25 10-K: 911M diluted shares · CapEx $3.62B · Buybacks $5.54B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "VRSK",
+    "cik": "0001442145",
+    "name": "Verisk Analytics",
+    "exchange": "NASDAQ",
+    "sector": "Insurance Data & Analytics",
+    "tagline": "Proprietary data moat with clean True FCF and disciplined buybacks",
+    "price": 288.5,
+    "marketCap": 40390,
+    "cashAndEquiv": 557,
+    "totalDebt": 5273,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-02-18",
+      "periodEnd": "2025-12-31",
+      "accessionNumber": "0001437749-26-004452"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY21",
+        "revenue": 2463,
+        "operatingCashFlow": 1156,
+        "capex": 268,
+        "sbc": 56,
+        "buybacks": 475,
+        "dilutedShares": 163
+      },
+      {
+        "fiscalYear": "FY22",
+        "revenue": 2497,
+        "operatingCashFlow": 1059,
+        "capex": 275,
+        "sbc": 57,
+        "buybacks": 1663,
+        "dilutedShares": 159
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 2681,
+        "operatingCashFlow": 1061,
+        "capex": 230,
+        "sbc": 54,
+        "buybacks": 2762,
+        "dilutedShares": 147
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 2882,
+        "operatingCashFlow": 1144,
+        "capex": 224,
+        "sbc": 48,
+        "buybacks": 1005,
+        "dilutedShares": 143
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 3073,
+        "operatingCashFlow": 1436,
+        "capex": 244,
+        "sbc": 54,
+        "buybacks": 624,
+        "dilutedShares": 140
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 39,
+      "sbcDragPct": 1.1
+    },
+    "filingDiffs": [
+      {
+        "id": "vrsk-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-02-18",
+        "accessionNumber": "0001437749-26-004452",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Watch",
+        "headline": "SBC consumed 4.5% of Reported FCF (1.8% of revenue)",
+        "summary": "In FY25, Verisk Analytics generated $1.19B in Reported FCF against $0.05B in Stock-Based Compensation, yielding $1.14B in True FCF (37.0% margin).",
+        "priorExcerpt": "FY24 SEC 10-K: Reported FCF $0.92B · SBC $0.05B (1.7% of revenue) · True FCF $0.87B.",
+        "currentExcerpt": "FY25 SEC 10-K: Reported FCF $1.19B · SBC $0.05B (1.8% of revenue) · True FCF $1.14B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "vrsk-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-02-18",
+        "accessionNumber": "0001437749-26-004452",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 3.7%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 163M in FY21 to 140M in FY25, with $0.62B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY21 10-K: 163M diluted shares · CapEx $0.27B.",
+        "currentExcerpt": "FY25 10-K: 140M diluted shares · CapEx $0.24B · Buybacks $0.62B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  },
+  {
+    "ticker": "FICO",
+    "cik": "0000814547",
+    "name": "Fair Isaac Corporation",
+    "exchange": "NYSE",
+    "sector": "Credit Scoring & Analytics",
+    "tagline": "Pricing power & buybacks driving one of the cleanest FCF profiles in S&P 500",
+    "price": 1845,
+    "marketCap": 42435,
+    "cashAndEquiv": 218,
+    "totalDebt": 5259,
+    "lastFiling": {
+      "type": "10-K",
+      "date": "2026-11-06",
+      "periodEnd": "2026-09-30",
+      "accessionNumber": "0000814547-26-000042"
+    },
+    "annuals": [
+      {
+        "fiscalYear": "FY22",
+        "revenue": 1377,
+        "operatingCashFlow": 509,
+        "capex": 6,
+        "sbc": 115,
+        "buybacks": 1104,
+        "dilutedShares": 26
+      },
+      {
+        "fiscalYear": "FY23",
+        "revenue": 1514,
+        "operatingCashFlow": 469,
+        "capex": 4,
+        "sbc": 124,
+        "buybacks": 406,
+        "dilutedShares": 25
+      },
+      {
+        "fiscalYear": "FY24",
+        "revenue": 1718,
+        "operatingCashFlow": 633,
+        "capex": 9,
+        "sbc": 149,
+        "buybacks": 822,
+        "dilutedShares": 25
+      },
+      {
+        "fiscalYear": "FY25",
+        "revenue": 1991,
+        "operatingCashFlow": 779,
+        "capex": 9,
+        "sbc": 157,
+        "buybacks": 1415,
+        "dilutedShares": 25
+      },
+      {
+        "fiscalYear": "FY26",
+        "revenue": 2535,
+        "operatingCashFlow": 1072,
+        "capex": 2,
+        "sbc": 185,
+        "buybacks": 3046,
+        "dilutedShares": 23
+      }
+    ],
+    "defaultDcf": {
+      "wacc": 9.5,
+      "terminalMultiple": 22,
+      "targetFcfMargin": 42,
+      "sbcDragPct": 4.7
+    },
+    "filingDiffs": [
+      {
+        "id": "fico-xbrl-sbc",
+        "filingType": "10-K",
+        "filingDate": "2026-11-06",
+        "accessionNumber": "0000814547-26-000042",
+        "section": "XBRL Cash Flow Statement — SBC Reconciliation",
+        "category": "Executive Comp",
+        "materiality": "Medium",
+        "headline": "SBC consumed 17.3% of Reported FCF (7.3% of revenue)",
+        "summary": "In FY26, Fair Isaac Corporation generated $1.07B in Reported FCF against $0.18B in Stock-Based Compensation, yielding $0.89B in True FCF (34.9% margin).",
+        "priorExcerpt": "FY25 SEC 10-K: Reported FCF $0.77B · SBC $0.16B (7.9% of revenue) · True FCF $0.61B.",
+        "currentExcerpt": "FY26 SEC 10-K: Reported FCF $1.07B · SBC $0.18B (7.3% of revenue) · True FCF $0.89B.",
+        "signalNote": "Disciplined SBC load keeps True FCF closely aligned with reported cash flow."
+      },
+      {
+        "id": "fico-xbrl-dilution",
+        "filingType": "10-K",
+        "filingDate": "2026-11-06",
+        "accessionNumber": "0000814547-26-000042",
+        "section": "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+        "category": "Capital Allocation",
+        "materiality": "High",
+        "headline": "Share count shrank 3.0%/yr over 4 years",
+        "summary": "Weighted-average diluted shares moved from 26M in FY22 to 23M in FY26, with $3.05B deployed into share repurchases in the latest fiscal year.",
+        "priorExcerpt": "FY22 10-K: 26M diluted shares · CapEx $0.01B.",
+        "currentExcerpt": "FY26 10-K: 23M diluted shares · CapEx $0.00B · Buybacks $3.05B.",
+        "signalNote": "Net share retirement provides a durable per-share FCF compounding tailwind."
+      }
+    ]
+  }
+]

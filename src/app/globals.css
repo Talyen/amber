@@ -424,6 +424,18 @@ input[type="range"].amber-range {
   }
 }
 
+/* Native modal <dialog> scroll containment & backdrop */
+dialog.amber-dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog.amber-dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(4px);
+}
+
 /* Legacy scrollbar fallback */
 @supports not (scrollbar-color: auto) {
   .amber-table-wrapper::-webkit-scrollbar {
