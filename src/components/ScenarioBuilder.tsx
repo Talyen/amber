@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
-  computeNetDilutionCagr,
+  computeFiveYearScenario,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -38,11 +38,6 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
 
-  const dilutionCagr = useMemo(
-    () => computeNetDilutionCagr(company.annuals),
-    [company.annuals]
-  );
-
   function applyPreset(kind: "bear" | "base" | "bull") {
     setActivePreset(kind);
     if (kind === "bear") {
@@ -64,51 +59,31 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     }
   }
 
-  const projection = useMemo(() => {
-    const years = 5;
-    const hurdleRate = 0.1; // 10%/yr equity hurdle rate to discount back to today's fair value
-    const yr5Rev = latest.revenue * Math.pow(1 + revGrowth / 100, years);
-    const yr5TrueFcf = yr5Rev * (targetMargin / 100);
-    const yr5Ev = yr5TrueFcf * exitMultiple;
-    // Approximate net cash accumulation over 5 years + current net cash
-    const currentNetCash = company.cashAndEquiv - company.totalDebt;
-    const avgFcf = (Math.max(0, latest.trueFcf) + yr5TrueFcf) / 2;
-    const yr5MarketCap = Math.max(1, yr5Ev + currentNetCash + avgFcf * 3.5);
-
-    // Adjust share count modestly by historical net dilution (clamped to [-4%, +4%]/yr)
-    const clampedDilution = Math.max(-4, Math.min(4, dilutionCagr));
-    const yr5Shares =
-      latest.dilutedShares * Math.pow(1 + clampedDilution / 100, years);
-
-    const targetPrice = yr5MarketCap / Math.max(1, yr5Shares);
-    const fairValueToday = targetPrice / Math.pow(1 + hurdleRate, years);
-    const upsidePct =
-      ((fairValueToday - company.price) / Math.max(0.01, company.price)) * 100;
-    const totalMultiple = targetPrice / Math.max(0.01, company.price);
-    const irrPct = (Math.pow(Math.max(0.05, totalMultiple), 1 / years) - 1) * 100;
-
-    return {
-      yr5Rev,
-      yr5TrueFcf,
-      yr5MarketCap,
-      targetPrice,
-      fairValueToday,
-      upsidePct,
-      totalMultiple,
-      irrPct,
-    };
-  }, [
-    latest.revenue,
-    latest.trueFcf,
-    latest.dilutedShares,
-    revGrowth,
-    targetMargin,
-    exitMultiple,
-    company.cashAndEquiv,
-    company.totalDebt,
-    company.price,
-    dilutionCagr,
-  ]);
+  const projection = useMemo(
+    () =>
+      computeFiveYearScenario({
+        currentPrice: company.price,
+        dilutedShares: latest.dilutedShares,
+        baseRevenue: latest.revenue,
+        currentTrueFcfMarginPct: latest.trueFcfMargin,
+        netCash: company.cashAndEquiv - company.totalDebt,
+        revGrowthPct: revGrowth,
+        targetTrueFcfMarginPct: targetMargin,
+        exitMultiple,
+        hurdleRatePct: 10,
+      }),
+    [
+      company.price,
+      company.cashAndEquiv,
+      company.totalDebt,
+      latest.dilutedShares,
+      latest.revenue,
+      latest.trueFcfMargin,
+      revGrowth,
+      targetMargin,
+      exitMultiple,
+    ]
+  );
 
   const verdict =
     projection.upsidePct >= 12
@@ -374,7 +349,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <strong className="font-mono-num text-[var(--text-primary)]">{formatCurrencyCompact(projection.yr5Rev)}</strong> at a{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong> real cash margin and trades at{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in 5 years, shares reach{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">${projection.targetPrice.toFixed(2)}</strong>—worth{" "}
+            <strong className="font-mono-num text-[var(--text-primary)]">${projection.yr5TargetPrice.toFixed(2)}</strong>—worth{" "}
             <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today if you require a 10%/yr return.
           </p>
         </div>
@@ -389,7 +364,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           <div>
             <div className="text-[11px] text-[var(--text-muted)]">Year-5 Share Price</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--amber)]">
-              ${projection.targetPrice.toFixed(2)}
+              ${projection.yr5TargetPrice.toFixed(2)}
             </div>
           </div>
           <div>

@@ -788,7 +788,12 @@ async function ingestCandidate(
     const debtRaw =
       extractLatestInstant(
         facts,
-        ["LongTermDebtNoncurrent", "LongTermDebt"],
+        [
+          "LongTermDebtAndCapitalLeaseObligations",
+          "DebtAndCapitalLeaseObligations",
+          "LongTermDebtNoncurrent",
+          "LongTermDebt",
+        ],
         "USD"
       ) +
       extractLatestInstant(

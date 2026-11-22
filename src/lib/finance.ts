@@ -129,6 +129,12 @@ export function computeGroundedDefaultDcf(
   const computed = computeAnnualMetrics(annuals);
   const latest = computed[computed.length - 1];
 
+  const fy = annuals.filter((a) => a.fiscalYear !== "TTM");
+  const revCagr =
+    fy.length >= 2 && fy[0].revenue > 0
+      ? (Math.pow(fy[fy.length - 1].revenue / fy[0].revenue, 1 / (fy.length - 1)) - 1) * 100
+      : 6;
+
   const repMargins = computed
     .map((c) => c.reportedFcfMargin)
     .filter((m) => Number.isFinite(m))
@@ -160,11 +166,99 @@ export function computeGroundedDefaultDcf(
     ).toFixed(1)
   );
 
+  // Ground terminal multiple in business quality & growth (don't give a 22x SaaS exit to low-growth cyclicals)
+  const netTargetMargin = targetFcfMargin - sbcDragPct;
+  const terminalMultiple =
+    revCagr >= 12 && netTargetMargin >= 15
+      ? 22
+      : revCagr >= 6 || netTargetMargin >= 12
+        ? 18
+        : 13;
+
   return {
     wacc: 9.5,
-    terminalMultiple: 22,
+    terminalMultiple,
     targetFcfMargin,
     sbcDragPct,
+  };
+}
+
+export interface FiveYearScenarioInputs {
+  currentPrice: number;
+  dilutedShares: number; // Millions
+  baseRevenue: number; // $M
+  currentTrueFcfMarginPct: number;
+  netCash: number; // cashAndEquiv - totalDebt ($M)
+  revGrowthPct: number; // Annual %
+  targetTrueFcfMarginPct: number; // Year-5 %
+  exitMultiple: number; // EV / Year-5 True FCF
+  hurdleRatePct?: number; // Default 10%
+}
+
+export interface FiveYearScenarioResult {
+  yr5Rev: number;
+  yr5TrueFcf: number;
+  yr5TargetPrice: number;
+  fairValueToday: number;
+  upsidePct: number;
+  totalMultiple: number;
+  irrPct: number;
+}
+
+/**
+ * Exact 5-year DCF scenario valuation (zero double-counting of buybacks/dividends).
+ * Glides True FCF margin smoothly from current to target over 5 years, discounts
+ * interim cash flows + Year-5 terminal EV to today, and adds current Net Cash.
+ */
+export function computeFiveYearScenario(
+  inputs: FiveYearScenarioInputs
+): FiveYearScenarioResult {
+  const years = 5;
+  const r = (inputs.hurdleRatePct ?? 10) / 100;
+  const g = inputs.revGrowthPct / 100;
+  const startMargin = Math.max(-0.15, Math.min(0.6, inputs.currentTrueFcfMarginPct / 100));
+  const endMargin = Math.max(0.01, Math.min(0.65, inputs.targetTrueFcfMarginPct / 100));
+
+  let rev = inputs.baseRevenue;
+  let pvCashFlows = 0;
+  let cumCashFlows = 0;
+  let yr5TrueFcf = 0;
+
+  for (let t = 1; t <= years; t++) {
+    rev = rev * (1 + g);
+    const margin = startMargin + (endMargin - startMargin) * (t / years);
+    const fcf = rev * margin;
+    pvCashFlows += fcf / Math.pow(1 + r, t);
+    cumCashFlows += fcf;
+    yr5TrueFcf = fcf;
+  }
+
+  const yr5Ev = Math.max(0, yr5TrueFcf * inputs.exitMultiple);
+  const pvTerminal = yr5Ev / Math.pow(1 + r, years);
+
+  const fairEquityToday = Math.max(
+    1,
+    pvCashFlows + pvTerminal + inputs.netCash
+  );
+  const shares = Math.max(1, inputs.dilutedShares);
+  const fairValueToday = fairEquityToday / shares;
+  const upsidePct =
+    ((fairValueToday - inputs.currentPrice) / Math.max(0.01, inputs.currentPrice)) * 100;
+
+  // Undiscounted Year-5 equity value (Terminal EV + current Net Cash + cumulative 5Y FCFs)
+  const yr5EquityValue = Math.max(1, yr5Ev + inputs.netCash + cumCashFlows);
+  const yr5TargetPrice = yr5EquityValue / shares;
+  const totalMultiple = yr5TargetPrice / Math.max(0.01, inputs.currentPrice);
+  const irrPct = (Math.pow(Math.max(0.05, totalMultiple), 1 / years) - 1) * 100;
+
+  return {
+    yr5Rev: rev,
+    yr5TrueFcf,
+    yr5TargetPrice,
+    fairValueToday,
+    upsidePct,
+    totalMultiple,
+    irrPct,
   };
 }
 
