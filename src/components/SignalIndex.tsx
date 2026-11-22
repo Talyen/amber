@@ -6,6 +6,7 @@ import { ArrowUpDown, ArrowRight } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
+import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
 type SortKey =
@@ -50,29 +51,44 @@ export function SignalIndex({
     }
   }
 
+  // Guardrails: exclude extreme XBRL anomalies & banks from FCF margin leaderboards
+  const leaderboardEligible = useMemo(
+    () =>
+      entries.filter(
+        (c) =>
+          c.revenue >= 250 &&
+          c.trueFcfMargin <= 75 &&
+          c.trueFcfMargin >= -120 &&
+          c.sbcPctRevenue <= 85
+      ),
+    [entries]
+  );
+
   const steepestSbc = useMemo(
     () =>
-      [...entries]
+      [...leaderboardEligible]
+        .filter((c) => c.sbcPctRevenue > 0)
         .sort((a, b) => b.sbcPctRevenue - a.sbcPctRevenue)
         .slice(0, 5),
-    [entries]
+    [leaderboardEligible]
   );
 
   const cleanestCash = useMemo(
     () =>
-      [...entries]
-        .filter((c) => c.trueFcfMargin > 0)
+      [...leaderboardEligible]
+        .filter((c) => c.trueFcfMargin > 0 && c.sbcPctRevenue <= 10)
         .sort((a, b) => b.trueFcfMargin - a.trueFcfMargin)
         .slice(0, 5),
-    [entries]
+    [leaderboardEligible]
   );
 
   const steepestImplied = useMemo(
     () =>
-      [...entries]
+      [...leaderboardEligible]
+        .filter((c) => c.impliedCagr > 0 && c.impliedCagr < 60)
         .sort((a, b) => b.impliedCagr - a.impliedCagr)
         .slice(0, 5),
-    [entries]
+    [leaderboardEligible]
   );
 
   const rows = useMemo<SearchIndexEntry[]>(() => {
@@ -435,11 +451,14 @@ export function SignalIndex({
 
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
           <p>
-            Amber · Deterministic fundamental analysis from SEC EDGAR 10-K XBRL filings. Not investment advice.
+            Amber · Deterministic fundamental analysis from SEC EDGAR 10-K/10-Q XBRL filings. Not investment advice.
           </p>
-          <p className="font-mono-num">
-            {entries.length} tickers · Neon Postgres + Vercel ISR
-          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <MethodologyModal />
+            <span className="font-mono-num">
+              {entries.length} tickers · Neon Postgres + Vercel ISR
+            </span>
+          </div>
         </footer>
       </main>
     </div>

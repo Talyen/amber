@@ -228,6 +228,76 @@ function extractLatestInstant(
   return 0;
 }
 
+/**
+ * Extracts the latest 10-Q YTD duration ending AFTER `latestFyEnd` along with
+ * its matching prior-year comparative YTD period (~365d earlier, same span).
+ * Enables exact TTM = Latest FY + Current YTD 10-Q - Prior YTD 10-Q.
+ */
+function extractLatest10QYtdPair(
+  facts: CompanyFactsResponse,
+  tagCandidates: string[],
+  unit: "USD" | "shares",
+  latestFyEnd: string
+): {
+  currentVal: number;
+  priorVal: number;
+  end: string;
+  filed: string;
+  accn: string;
+} | null {
+  const gaap = facts.facts?.["us-gaap"];
+  if (!gaap) return null;
+
+  for (const tag of tagCandidates) {
+    const entries = gaap[tag]?.units?.[unit];
+    if (!entries?.length) continue;
+
+    const tenQs = entries.filter(
+      (e) =>
+        (e.form === "10-Q" || e.form === "10-Q/A") &&
+        e.start &&
+        e.end > latestFyEnd
+    );
+    if (!tenQs.length) continue;
+
+    // Pick the most recent 10-Q end date, preferring the YTD cumulative span (longest duration)
+    tenQs.sort(
+      (a, b) =>
+        b.end.localeCompare(a.end) ||
+        daysBetween(b.start!, b.end) - daysBetween(a.start!, a.end) ||
+        b.filed.localeCompare(a.filed)
+    );
+    const cur = tenQs[0];
+    const curSpan = daysBetween(cur.start!, cur.end);
+    if (curSpan < 70 || curSpan > 300) continue;
+
+    // Find matching prior-year comparative YTD entry (~350–380 days earlier, similar span)
+    const priorCandidates = entries.filter((e) => {
+      if (!e.start) return false;
+      const span = daysBetween(e.start, e.end);
+      if (Math.abs(span - curSpan) > 15) return false;
+      const endDelta = daysBetween(e.end, cur.end);
+      return endDelta >= 345 && endDelta <= 385;
+    });
+
+    if (priorCandidates.length > 0) {
+      priorCandidates.sort((a, b) => b.filed.localeCompare(a.filed));
+      return {
+        currentVal: cur.val,
+        priorVal: priorCandidates[0].val,
+        end: cur.end,
+        filed: cur.filed,
+        accn: cur.accn,
+      };
+    }
+  }
+
+  return null;
+}
+
+const EXCLUDED_FINANCIAL_ENTITY_RE =
+  /\b(bancorp|bancshares|bank|banking|insurance|insurer|reit|realty|property trust|jpmorgan|citigroup|wells fargo|goldman sachs|morgan stanley|chubb|allstate|travelers|metlife|prudential|aflac|progressive corp|berkshire hathaway)\b/i;
+
 function inferSector(name: string): string {
   const n = name.toLowerCase();
   if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel/.test(n)) return "Semiconductors";
@@ -344,6 +414,9 @@ async function resolveCandidates(): Promise<DirectoryCandidate[]> {
     // Skip preferred shares, warrants, units
     if (/[-/]|W$|U$|R$/.test(ticker) && !ticker.includes(".")) continue;
     if (byTicker.has(ticker)) continue;
+
+    // Skip pure banks/insurers/REITs where GAAP OCF mixes customer deposits & loans
+    if (EXCLUDED_FINANCIAL_ENTITY_RE.test(rawName)) continue;
 
     const candidate: DirectoryCandidate = {
       ticker,
@@ -478,6 +551,106 @@ async function ingestCandidate(
     const latestYearKey = years[years.length - 1];
     const latestMeta = revMap.get(latestYearKey) ?? ocfMap.get(latestYearKey)!;
 
+    // Attempt to compute Trailing Twelve Months (TTM) from newer 10-Q filings
+    let lastFilingType: "10-K" | "10-Q" = "10-K";
+    let lastFilingDate = latestMeta.filed;
+    let lastFilingPeriodEnd = latestMeta.end;
+    let lastFilingAccession = latestMeta.accn;
+
+    const revQ = extractLatest10QYtdPair(
+      facts,
+      [
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "Revenues",
+        "SalesRevenueNet",
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
+      ],
+      "USD",
+      latestMeta.end
+    );
+    const ocfQ = extractLatest10QYtdPair(
+      facts,
+      [
+        "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+      ],
+      "USD",
+      latestMeta.end
+    );
+
+    if (revQ && ocfQ && revQ.end === ocfQ.end) {
+      const capexQ = extractLatest10QYtdPair(
+        facts,
+        [
+          "PaymentsToAcquirePropertyPlantAndEquipment",
+          "PaymentsToAcquireProductiveAssets",
+        ],
+        "USD",
+        latestMeta.end
+      );
+      const sbcQ = extractLatest10QYtdPair(
+        facts,
+        ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
+        "USD",
+        latestMeta.end
+      );
+      const buybackQ = extractLatest10QYtdPair(
+        facts,
+        ["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"],
+        "USD",
+        latestMeta.end
+      );
+
+      const ttmRev = Math.round(
+        latestAnnual.revenue + (revQ.currentVal - revQ.priorVal) / 1e6
+      );
+      const ttmOcf = Math.round(
+        latestAnnual.operatingCashFlow + (ocfQ.currentVal - ocfQ.priorVal) / 1e6
+      );
+      const ttmCapex = Math.max(
+        0,
+        Math.round(
+          latestAnnual.capex +
+            (capexQ ? (Math.abs(capexQ.currentVal) - Math.abs(capexQ.priorVal)) / 1e6 : 0)
+        )
+      );
+      const ttmSbc = Math.max(
+        0,
+        Math.round(
+          latestAnnual.sbc +
+            (sbcQ ? (Math.abs(sbcQ.currentVal) - Math.abs(sbcQ.priorVal)) / 1e6 : 0)
+        )
+      );
+      const ttmBuybacks = Math.max(
+        0,
+        Math.round(
+          latestAnnual.buybacks +
+            (buybackQ
+              ? (Math.abs(buybackQ.currentVal) - Math.abs(buybackQ.priorVal)) / 1e6
+              : 0)
+        )
+      );
+
+      if (ttmRev > 0) {
+        annuals.push({
+          fiscalYear: "TTM",
+          revenue: ttmRev,
+          operatingCashFlow: ttmOcf,
+          capex: ttmCapex,
+          sbc: ttmSbc,
+          buybacks: ttmBuybacks,
+          dilutedShares:
+            latestSharesInstant > 0
+              ? Math.max(1, Math.round(latestSharesInstant / 1e6))
+              : latestAnnual.dilutedShares,
+        });
+        lastFilingType = "10-Q";
+        lastFilingDate = revQ.filed;
+        lastFilingPeriodEnd = revQ.end;
+        lastFilingAccession = revQ.accn;
+      }
+    }
+
     const cashRaw =
       extractLatestInstant(
         facts,
@@ -507,10 +680,21 @@ async function ingestCandidate(
 
     const computed = computeAnnualMetrics(annuals);
     const latestComputed = computed[computed.length - 1];
+
+    // XBRL sanity guardrail: reject anomalous unit mismatches unless curated
+    if (
+      !curated &&
+      (latestComputed.trueFcfMargin > 85 ||
+        latestComputed.trueFcfMargin < -180 ||
+        latestComputed.sbcPctRevenue > 120)
+    ) {
+      return null;
+    }
+
     const dilutionCagr = computeNetDilutionCagr(annuals);
 
     const price = existing?.price ?? meta?.fallbackPrice ?? 100;
-    const marketCap = Math.round(price * latestAnnual.dilutedShares);
+    const marketCap = Math.round(price * latestComputed.dilutedShares);
 
     const defaultTargetFcf = Math.max(
       5,
@@ -540,10 +724,10 @@ async function ingestCandidate(
       cashAndEquiv: Math.round(cashRaw / 1e6),
       totalDebt: Math.round(debtRaw / 1e6),
       lastFiling: {
-        type: "10-K",
-        date: latestMeta.filed,
-        periodEnd: latestMeta.end,
-        accessionNumber: latestMeta.accn,
+        type: lastFilingType,
+        date: lastFilingDate,
+        periodEnd: lastFilingPeriodEnd,
+        accessionNumber: lastFilingAccession,
       },
       annuals,
       defaultDcf: curated?.defaultDcf ?? {

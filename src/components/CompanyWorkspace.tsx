@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { GitCompareArrows } from "lucide-react";
 import {
   type CompanySnapshot,
   computeAnnualMetrics,
@@ -12,9 +14,11 @@ import {
 } from "@/lib/finance";
 import { TopNav } from "@/components/TopNav";
 import { TrueFcfChart } from "@/components/TrueFcfChart";
+import { TrueFcfWaterfall } from "@/components/TrueFcfWaterfall";
 import { FinancialLedgerTable } from "@/components/FinancialLedgerTable";
 import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
+import { MethodologyModal } from "@/components/MethodologyModal";
 
 type ActiveTab = "fcf" | "dcf" | "diffs";
 
@@ -39,6 +43,20 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
     ) {
       setActiveTab("dcf");
     }
+  }, []);
+
+  // Keyboard shortcuts: 1 / 2 / 3 switch analysis tabs when not focused in an input
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "1") setActiveTab("fcf");
+      else if (e.key === "2") setActiveTab("dcf");
+      else if (e.key === "3") setActiveTab("diffs");
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Load @microsoft/focusgroup-polyfill only when native focusgroup is unsupported
@@ -120,6 +138,14 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
               <span className="font-mono-num">
                 SEC {company.lastFiling.type} ({company.lastFiling.date})
               </span>
+              <span>·</span>
+              <Link
+                href={`/compare?t=${company.ticker},${company.ticker === "PLTR" ? "SNOW,NVDA,COST" : "PLTR,NVDA,COST"}`}
+                className="inline-flex items-center gap-1 font-medium text-[var(--amber)] hover:underline"
+              >
+                <GitCompareArrows className="h-3 w-3" />
+                Compare
+              </Link>
             </div>
 
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
@@ -310,6 +336,7 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
               {activeTab === "fcf" && (
                 <div>
                   <TrueFcfChart company={company} series={series} />
+                  <TrueFcfWaterfall period={latest} />
                   <FinancialLedgerTable
                     ticker={company.ticker}
                     series={series}
@@ -343,9 +370,12 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
           <p>
             Amber · Deterministic fundamental analysis from SEC EDGAR filings. Not investment advice.
           </p>
-          <p className="font-mono-num">
-            CIK {company.cik} · Batch Pipeline v1
-          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <MethodologyModal />
+            <span className="font-mono-num">
+              CIK {company.cik} · Press 1/2/3 for tabs
+            </span>
+          </div>
         </footer>
       </main>
     </div>
