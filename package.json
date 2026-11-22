@@ -11,6 +11,7 @@
     "ingest:edgar": "node --experimental-strip-types scripts/ingest-edgar.ts",
     "ingest:diffs": "node --experimental-strip-types scripts/extract-filing-diffs.ts",
     "sync:prices": "node --experimental-strip-types scripts/sync-prices.ts",
+    "send:alerts": "node --experimental-strip-types scripts/send-filing-alerts.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "node --experimental-strip-types scripts/seed-neon.ts"
   },

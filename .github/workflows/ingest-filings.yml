@@ -29,7 +29,7 @@ jobs:
       - name: Sync SEC EDGAR XBRL Financials
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
-          UNIVERSE_LIMIT: "125"
+          UNIVERSE_LIMIT: "500"
         run: pnpm ingest:edgar
 
       - name: Sync Latest EOD Share Prices & Market Caps
@@ -48,6 +48,14 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm db:seed
+
+      - name: Dispatch Filing Alerts via Resend (when configured)
+        if: ${{ secrets.RESEND_API_KEY != '' && secrets.DATABASE_URL != '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          AMBER_PROD_URL: ${{ secrets.AMBER_PROD_URL }}
+        run: pnpm send:alerts
 
       - name: Trigger Vercel On-Demand ISR Revalidation (when configured)
         if: ${{ secrets.REVALIDATE_SECRET != '' && secrets.AMBER_PROD_URL != '' }}

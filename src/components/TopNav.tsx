@@ -9,9 +9,11 @@ import { FEATURED_TICKERS } from "@/data/universe";
 
 interface TopNavProps {
   activeTicker?: string;
+  activeRoute?: "index" | "compare" | "ticker";
 }
 
-export function TopNav({ activeTicker }: TopNavProps) {
+export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
+  const currentRoute = activeRoute ?? (activeTicker ? "ticker" : "index");
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
   const [systemDark, setSystemDark] = useState(false);
@@ -41,9 +43,7 @@ export function TopNav({ activeTicker }: TopNavProps) {
   }
 
   async function handleCopyLink() {
-    const url = activeTicker
-      ? `${window.location.origin}/t/${activeTicker}`
-      : window.location.origin;
+    const url = window.location.href;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -76,14 +76,26 @@ export function TopNav({ activeTicker }: TopNavProps) {
           >
             <Link
               href="/"
-              aria-current={!activeTicker ? "page" : undefined}
+              aria-current={currentRoute === "index" ? "page" : undefined}
               className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                !activeTicker
+                currentRoute === "index"
                   ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
               }`}
             >
               Index
+            </Link>
+
+            <Link
+              href="/compare"
+              aria-current={currentRoute === "compare" ? "page" : undefined}
+              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                currentRoute === "compare"
+                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              Compare
             </Link>
 
             {FEATURED_TICKERS.map((ticker) => {

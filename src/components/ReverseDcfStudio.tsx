@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, RotateCcw } from "lucide-react";
 import {
   type CompanySnapshot,
@@ -30,6 +30,49 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
     company.defaultDcf.targetFcfMargin
   );
   const [sbcDrag, setSbcDrag] = useState(company.defaultDcf.sbcDragPct);
+  const hydratedFromUrl = useRef(false);
+
+  // Hydrate custom Reverse DCF assumptions from shareable URL query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pWacc = parseFloat(params.get("wacc") ?? "");
+    const pMult = parseInt(params.get("mult") ?? "", 10);
+    const pMargin = parseFloat(params.get("margin") ?? "");
+    const pSbc = parseFloat(params.get("sbc") ?? "");
+
+    if (Number.isFinite(pWacc) && pWacc >= 6.5 && pWacc <= 15) setWacc(pWacc);
+    if (Number.isFinite(pMult) && pMult >= 12 && pMult <= 40)
+      setTerminalMultiple(pMult);
+    if (Number.isFinite(pMargin) && pMargin >= 2 && pMargin <= 55)
+      setTargetFcfMargin(pMargin);
+    if (Number.isFinite(pSbc) && pSbc >= 0 && pSbc <= 25) setSbcDrag(pSbc);
+    hydratedFromUrl.current = true;
+  }, []);
+
+  // Keep URL query params cleanly synced so "Share" captures exact assumptions
+  useEffect(() => {
+    if (!hydratedFromUrl.current) return;
+    const isDefault =
+      wacc === company.defaultDcf.wacc &&
+      terminalMultiple === company.defaultDcf.terminalMultiple &&
+      targetFcfMargin === company.defaultDcf.targetFcfMargin &&
+      sbcDrag === company.defaultDcf.sbcDragPct;
+
+    const url = new URL(window.location.href);
+    if (isDefault) {
+      url.searchParams.delete("wacc");
+      url.searchParams.delete("mult");
+      url.searchParams.delete("margin");
+      url.searchParams.delete("sbc");
+    } else {
+      url.searchParams.set("tab", "dcf");
+      url.searchParams.set("wacc", String(wacc));
+      url.searchParams.set("mult", String(terminalMultiple));
+      url.searchParams.set("margin", String(targetFcfMargin));
+      url.searchParams.set("sbc", String(sbcDrag));
+    }
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [wacc, terminalMultiple, targetFcfMargin, sbcDrag, company.defaultDcf]);
 
   const enterpriseValue = useMemo(
     () => computeEnterpriseValue(company),

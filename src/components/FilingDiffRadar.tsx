@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Check, FileText, ArrowRight } from "lucide-react";
+import { FileText, ArrowRight } from "lucide-react";
 import type { CompanySnapshot, FilingDiffItem } from "@/lib/finance";
+import { FilingAlertModal } from "@/components/FilingAlertModal";
 
 interface FilingDiffRadarProps {
   company: CompanySnapshot;
@@ -31,7 +32,6 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
   const [selectedCategory, setSelectedCategory] = useState<
     "All" | FilingDiffItem["category"]
   >("All");
-  const [alertSubscribed, setAlertSubscribed] = useState(false);
 
   const visibleDiffs =
     selectedCategory === "All"
@@ -70,27 +70,7 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setAlertSubscribed((prev) => !prev)}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors cursor-pointer ${
-            alertSubscribed
-              ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
-              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          {alertSubscribed ? (
-            <>
-              <Check className="h-3.5 w-3.5" />
-              Tracking {company.ticker} 10-K / 10-Q diffs
-            </>
-          ) : (
-            <>
-              <Bell className="h-3.5 w-3.5" />
-              Alert me on next filing
-            </>
-          )}
-        </button>
+        <FilingAlertModal ticker={company.ticker} companyName={company.name} />
       </div>
 
       {/* Diff Cards */}

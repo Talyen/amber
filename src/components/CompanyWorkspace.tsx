@@ -25,6 +25,22 @@ interface CompanyWorkspaceProps {
 export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("fcf");
 
+  // Restore shared tab from URL query string (e.g. ?tab=dcf&wacc=10&mult=25)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam === "dcf" || tabParam === "diffs" || tabParam === "fcf") {
+      setActiveTab(tabParam);
+    } else if (
+      params.has("wacc") ||
+      params.has("mult") ||
+      params.has("margin") ||
+      params.has("sbc")
+    ) {
+      setActiveTab("dcf");
+    }
+  }, []);
+
   // Load @microsoft/focusgroup-polyfill only when native focusgroup is unsupported
   useEffect(() => {
     if (
