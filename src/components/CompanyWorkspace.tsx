@@ -15,6 +15,7 @@ import {
 import { useWatchlist } from "@/lib/watchlist";
 import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
+import { CompanyBriefing } from "@/components/CompanyBriefing";
 import { TrueFcfChart } from "@/components/TrueFcfChart";
 import { TrueFcfWaterfall } from "@/components/TrueFcfWaterfall";
 import { BuybackRealityCard } from "@/components/BuybackRealityCard";
@@ -23,8 +24,9 @@ import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
+import { buildCompanyBriefing } from "@/lib/insights";
 
-type ActiveTab = "fcf" | "dcf" | "diffs" | "insiders";
+type ActiveTab = "overview" | "fcf" | "dcf" | "diffs" | "insiders";
 
 interface CompanyWorkspaceProps {
   company: CompanySnapshot;
@@ -37,7 +39,7 @@ export function CompanyWorkspace({
   insiderTrades = [],
   sectorBenchmark = null,
 }: CompanyWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("fcf");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const watchlist = useWatchlist();
   const isStarred = watchlist.has(company.ticker);
 
@@ -45,7 +47,13 @@ export function CompanyWorkspace({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
-    if (tabParam === "dcf" || tabParam === "diffs" || tabParam === "fcf") {
+    if (
+      tabParam === "overview" ||
+      tabParam === "dcf" ||
+      tabParam === "diffs" ||
+      tabParam === "fcf" ||
+      tabParam === "insiders"
+    ) {
       setActiveTab(tabParam);
     } else if (
       params.has("wacc") ||
@@ -57,16 +65,17 @@ export function CompanyWorkspace({
     }
   }, []);
 
-  // Keyboard shortcuts: 1 / 2 / 3 switch analysis tabs when not focused in an input
+  // Keyboard shortcuts: 1–5 switch analysis tabs when not focused in an input
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.key === "1") setActiveTab("fcf");
-      else if (e.key === "2") setActiveTab("dcf");
-      else if (e.key === "3") setActiveTab("diffs");
-      else if (e.key === "4") setActiveTab("insiders");
+      if (e.key === "1") setActiveTab("overview");
+      else if (e.key === "2") setActiveTab("fcf");
+      else if (e.key === "3") setActiveTab("dcf");
+      else if (e.key === "4") setActiveTab("diffs");
+      else if (e.key === "5") setActiveTab("insiders");
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -121,12 +130,24 @@ export function CompanyWorkspace({
     [company.defaultDcf, enterpriseValue, latest.revenue, latest.trueFcfMargin]
   );
 
+  const briefing = useMemo(
+    () =>
+      buildCompanyBriefing(
+        company,
+        series,
+        baselineDcf.impliedRevenueCagrPct,
+        insiderTrades
+      ),
+    [company, series, baselineDcf.impliedRevenueCagrPct, insiderTrades]
+  );
+
   const tabs: Array<{ id: ActiveTab; label: string; badge?: string }> = [
-    { id: "fcf", label: "True FCF & Dilution" },
-    { id: "dcf", label: "Reverse DCF Studio" },
+    { id: "overview", label: "Overview" },
+    { id: "fcf", label: "Cash & Dilution" },
+    { id: "dcf", label: "Valuation" },
     {
       id: "diffs",
-      label: "Filing Diff Radar",
+      label: "SEC Filing Diffs",
       badge: String(company.filingDiffs.length),
     },
     {
@@ -372,6 +393,22 @@ export function CompanyWorkspace({
           </div>
 
           <div className="mt-6">
+            <div
+              role="tabpanel"
+              aria-labelledby="tab-overview"
+              hidden={activeTab !== "overview"}
+            >
+              {activeTab === "overview" && (
+                <CompanyBriefing
+                  ticker={company.ticker}
+                  companyName={company.name}
+                  briefing={briefing}
+                  series={series}
+                  onNavigateTab={(t) => setActiveTab(t)}
+                />
+              )}
+            </div>
+
             <div
               role="tabpanel"
               aria-labelledby="tab-fcf"

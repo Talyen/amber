@@ -9,6 +9,7 @@ import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
+import { DISCOVERY_LENSES } from "@/lib/insights";
 
 type SortKey =
   | "marketCap"
@@ -27,9 +28,15 @@ export function SignalIndex({
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [filter, setFilter] = useState("");
   const [selectedSector, setSelectedSector] = useState<string>("All");
+  const [activeLensId, setActiveLensId] = useState<string | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
+
+  const activeLens = useMemo(
+    () => DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null,
+    [activeLensId]
+  );
 
   const sectors = useMemo(() => {
     const counts = new Map<string, number>();
@@ -98,6 +105,7 @@ export function SignalIndex({
     const q = filter.trim().toLowerCase();
     const filtered = entries.filter((c) => {
       if (watchlistOnly && !watchlist.has(c.ticker)) return false;
+      if (activeLens && !activeLens.filter(c)) return false;
       if (selectedSector !== "All" && c.sector !== selectedSector) return false;
       if (!q) return true;
       return (
@@ -107,11 +115,15 @@ export function SignalIndex({
       );
     });
 
+    if (activeLens && sortKey === "marketCap" && sortDir === "desc") {
+      return [...filtered].sort(activeLens.sort);
+    }
+
     return [...filtered].sort((a, b) => {
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [entries, filter, selectedSector, watchlistOnly, watchlist, sortKey, sortDir]);
+  }, [entries, filter, selectedSector, activeLens, watchlistOnly, watchlist, sortKey, sortDir]);
 
   const visibleRows = rows.slice(0, visibleLimit);
 
@@ -128,10 +140,10 @@ export function SignalIndex({
           </div>
 
           <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
-            Owner earnings, SBC dilution, and market-implied growth—without the noise.
+            Understand any public business in 60 seconds—without Wall Street noise.
           </h1>
           <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            Amber strips Stock-Based Compensation out of headline Free Cash Flow, stress-tests what current Enterprise Value prices in via Reverse DCF, and surfaces material SEC filing diffs.
+            Pick a curated lens below or search any company to see if it&apos;s growing, generating real cash, financially safe, and what growth the stock price already expects.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -144,6 +156,80 @@ export function SignalIndex({
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
+        </section>
+
+        {/* Curated Discovery Lenses ("Start Exploring") */}
+        <section aria-label="Curated discovery lenses" className="mt-8">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                Not sure where to start? Explore by lens
+              </h2>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Click any theme to filter the market and see why it matters.
+              </p>
+            </div>
+            {activeLens && (
+              <button
+                type="button"
+                onClick={() => setActiveLensId(null)}
+                className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
+              >
+                Clear lens
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {DISCOVERY_LENSES.map((lens) => {
+              const isSelected = activeLensId === lens.id;
+              const matchCount = entries.filter(lens.filter).length;
+              return (
+                <button
+                  key={lens.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveLensId(isSelected ? null : lens.id);
+                    setVisibleLimit(30);
+                  }}
+                  className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                    isSelected
+                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)]"
+                      : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`text-xs font-semibold ${
+                        isSelected
+                          ? "text-[var(--amber)]"
+                          : "text-[var(--text-primary)]"
+                      }`}
+                    >
+                      {lens.title}
+                    </span>
+                    <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                      {matchCount}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-snug text-[var(--text-secondary)]">
+                    {lens.subtitle}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeLens && (
+            <div className="mt-3 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-3 text-xs text-[var(--text-primary)]">
+              <span className="font-semibold text-[var(--amber)]">
+                Why {activeLens.title} matters:{" "}
+              </span>
+              <span className="text-[var(--text-secondary)]">
+                {activeLens.whyItMatters}
+              </span>
+            </div>
+          )}
         </section>
 
         {/* 3 High-Signal Leaderboards */}
