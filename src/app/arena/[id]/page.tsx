@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Bot, RefreshCw } from "lucide-react";
 import { getArenaPortfolioById } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { formatPct } from "@/lib/finance";
@@ -60,6 +60,9 @@ export default async function ArenaDetailPage({
               )}
               <span className="font-mono-num text-xs text-[var(--text-muted)]">
                 @{portfolio.handle} · Started {portfolio.lockedAt.slice(0, 10)}
+                {portfolio.rebalances.length > 0 && (
+                  <> · Rebalanced {portfolio.lastRebalancedAt.slice(0, 10)}</>
+                )}
               </span>
             </div>
 
@@ -149,6 +152,46 @@ export default async function ArenaDetailPage({
             </table>
           </div>
         </section>
+
+        {portfolio.rebalances.length > 0 && (
+          <section className="mt-8">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+              <RefreshCw className="h-3.5 w-3.5 text-[var(--amber)]" />
+              Rebalance History
+            </h2>
+            <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+              {portfolio.rebalances.map((reb) => {
+                const cumRet = reb.navAtRebalance - 100;
+                return (
+                  <div
+                    key={reb.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono-num text-[var(--text-muted)]">
+                        {reb.createdAt.slice(0, 10)}
+                      </span>
+                      <span className="text-[var(--text-primary)]">
+                        {reb.summary}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-mono-num font-semibold ${
+                        cumRet > 0
+                          ? "text-[var(--positive)]"
+                          : cumRet < 0
+                            ? "text-[var(--negative)]"
+                            : "text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      {formatPct(cumRet, true)} at rebalance
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

@@ -573,7 +573,7 @@ export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
   ctx.font = '600 13px "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = "left";
   ctx.fillText(
-    `PORTFOLIO X-RAY  ·  ${payload.holdings.length} HOLDINGS`,
+    `PORTFOLIO SNAPSHOT  ·  ${payload.holdings.length} HOLDINGS`,
     56,
     72
   );
@@ -649,8 +649,8 @@ export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
     theme,
     payload.topSector
       ? `Top Sector: ${payload.topSector[0]} (${payload.topSector[1].toFixed(0)}%) · SEC EDGAR 10-K/10-Q`
-      : `Source: SEC EDGAR 10-K/10-Q · Amber Portfolio X-Ray`
+      : `Source: SEC EDGAR 10-K/10-Q · Amber Portfolio Analyzer`
   );
 
-  triggerDownload(canvas, "amber-portfolio-xray.png");
+  triggerDownload(canvas, "amber-portfolio.png");
 }

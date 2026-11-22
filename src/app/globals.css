@@ -181,6 +181,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent awkward 1-2 word orphan line wraps on headings and body copy */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+p,
+li,
+dd {
+  text-wrap: pretty;
+}
+
 /* Financial tabular numerals everywhere */
 .font-mono-num {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;

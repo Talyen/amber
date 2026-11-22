@@ -308,8 +308,8 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                       addToPortfolio(suggestions[0].ticker);
                     }
                   }}
-                  placeholder="Add ticker to X-Ray…"
-                  aria-label="Add ticker to portfolio X-Ray"
+                  placeholder="Add ticker…"
+                  aria-label="Add ticker to portfolio"
                   className="w-36 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none sm:w-40"
                 />
               </div>
@@ -379,7 +379,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               type="submit"
               className="h-9 shrink-0 rounded-md bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
             >
-              Run X-Ray
+              Apply Portfolio
             </button>
           </form>
         )}

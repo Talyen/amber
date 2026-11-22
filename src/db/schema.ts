@@ -1,6 +1,7 @@
 import {
   pgTable,
   text,
+  boolean,
   doublePrecision,
   integer,
   jsonb,
@@ -136,16 +137,72 @@ export const insiderTrades = pgTable(
   (table) => [index("insider_ticker_idx").on(table.ticker)]
 );
 
+/* Better Auth core tables (stored directly in Neon Postgres — $0/mo) */
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const arenaPortfolios = pgTable("arena_portfolios", {
   id: text("id").primaryKey(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
   handle: text("handle").notNull(),
   title: text("title").notNull(),
   thesis: text("thesis").notNull(),
   isBot: integer("is_bot").notNull().default(0), // 1 = Strategy Bot, 0 = Community
   botTheme: text("bot_theme"),
   periodKey: text("period_key"), // e.g. "2026-11" (monthly) or "2025" (yearly)
+  nav: doublePrecision("nav").notNull().default(100), // Time-Weighted NAV (starts at 100.0)
   finalReturnPct: doublePrecision("final_return_pct"), // Set when a past period closes; null = live
   lockedAt: timestamp("locked_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  lastRebalancedAt: timestamp("last_rebalanced_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
@@ -161,7 +218,23 @@ export const arenaPositions = pgTable(
       .notNull()
       .references(() => companies.ticker, { onDelete: "cascade" }),
     weightPct: doublePrecision("weight_pct").notNull(), // Normalized 0..100
-    entryPrice: doublePrecision("entry_price").notNull(), // Server-locked EOD price
+    entryPrice: doublePrecision("entry_price").notNull(), // Server-locked EOD price at entry/rebalance
   },
   (table) => [index("arena_pos_portfolio_idx").on(table.portfolioId)]
+);
+
+export const arenaRebalances = pgTable(
+  "arena_rebalances",
+  {
+    id: text("id").primaryKey(),
+    portfolioId: text("portfolio_id")
+      .notNull()
+      .references(() => arenaPortfolios.id, { onDelete: "cascade" }),
+    navAtRebalance: doublePrecision("nav_at_rebalance").notNull(),
+    summary: text("summary").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("arena_reb_portfolio_idx").on(table.portfolioId)]
 );

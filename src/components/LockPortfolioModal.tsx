@@ -2,27 +2,78 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, ShieldCheck, X } from "lucide-react";
+import { RefreshCw, Trophy, X } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import { openAuthDialog } from "@/components/AuthButton";
 
 interface LockPortfolioModalProps {
   positions: Array<{ ticker: string; weight: number }>;
   buttonLabel?: string;
 }
 
+interface ExistingArenaPortfolio {
+  id: string;
+  handle: string;
+  title: string;
+  thesis: string;
+  nav: number;
+  lockedAt: string;
+  lastRebalancedAt: string;
+}
+
 export function LockPortfolioModal({
   positions,
-  buttonLabel = "Lock into Arena",
+  buttonLabel,
 }: LockPortfolioModalProps) {
   const router = useRouter();
+  const { data: session } = authClient.useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const handleRef = useRef<HTMLInputElement>(null);
+
+  const [existing, setExisting] = useState<ExistingArenaPortfolio | null>(null);
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
   const [thesis, setThesis] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!session?.user) {
+      setExisting(null);
+      return;
+    }
+    let active = true;
+    fetch("/api/arena/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { portfolio: ExistingArenaPortfolio | null } | null) => {
+        if (!active) return;
+        const port = data?.portfolio ?? null;
+        setExisting(port);
+        if (port) {
+          setHandle(port.handle);
+          setTitle(port.title);
+          setThesis(port.thesis);
+        } else if (session.user.name) {
+          const suggested = session.user.name
+            .toLowerCase()
+            .replace(/[^a-z0-9_.-]+/g, "_")
+            .slice(0, 24);
+          if (suggested.length >= 2) {
+            setHandle((prev) => prev || suggested);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [session?.user]);
+
   function openModal() {
+    if (!session?.user) {
+      openAuthDialog();
+      return;
+    }
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     setError("");
@@ -82,7 +133,7 @@ export function LockPortfolioModal({
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
-        setError(data.error ?? "Could not lock portfolio.");
+        setError(data.error ?? "Could not save portfolio.");
         setSubmitting(false);
         return;
       }
@@ -94,23 +145,35 @@ export function LockPortfolioModal({
     }
   }
 
-  const canLock = positions.length >= 3 && positions.length <= 10;
+  const canPublish = positions.length >= 3 && positions.length <= 10;
+  const isRebalance = Boolean(existing);
+  const resolvedButtonLabel = isRebalance
+    ? "Rebalance Arena Portfolio"
+    : buttonLabel ?? "Publish to Arena";
 
   return (
     <>
       <button
         type="button"
         onClick={openModal}
-        disabled={!canLock}
+        disabled={!canPublish}
         title={
-          canLock
-            ? "Lock this portfolio at official EOD prices to compete on the Arena leaderboard"
-            : "Arena entries require between 3 and 10 stocks"
+          !canPublish
+            ? "Arena entries require between 3 and 10 stocks"
+            : !session?.user
+              ? "Sign in to publish your portfolio to the Arena"
+              : isRebalance
+                ? "Update your Arena portfolio weights and holdings"
+                : "Publish this portfolio to compete on the Arena leaderboard"
         }
         className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--amber)] px-3.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-45 cursor-pointer disabled:cursor-not-allowed"
       >
-        <Lock className="h-3.5 w-3.5" />
-        {buttonLabel}
+        {isRebalance ? (
+          <RefreshCw className="h-3.5 w-3.5" />
+        ) : (
+          <Trophy className="h-3.5 w-3.5" />
+        )}
+        {resolvedButtonLabel}
       </button>
 
       <dialog
@@ -128,13 +191,15 @@ export function LockPortfolioModal({
               id="lock-arena-title"
               className="mt-0.5 text-base font-semibold text-[var(--text-primary)]"
             >
-              Publish your {positions.length}-stock portfolio
+              {isRebalance
+                ? `Rebalance your ${positions.length}-stock portfolio`
+                : `Publish your ${positions.length}-stock portfolio`}
             </h2>
           </div>
           <button
             type="button"
             onClick={closeModal}
-            aria-label="Close lock portfolio dialog"
+            aria-label="Close Arena portfolio dialog"
             className="inline-flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             <X className="h-3.5 w-3.5" />
@@ -142,7 +207,9 @@ export function LockPortfolioModal({
         </div>
 
         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-          Enter the Arena leaderboard starting from today&apos;s closing prices. Returns update automatically after each market close.
+          {isRebalance
+            ? "Your cumulative return so far is banked automatically, and these updated holdings take effect from today's closing prices."
+            : "Enter the Arena leaderboard with one active portfolio per account. You can rebalance holdings or weights anytime."}
         </p>
 
         <div className="mt-3 flex flex-wrap gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-2.5">
@@ -227,8 +294,18 @@ export function LockPortfolioModal({
               disabled={submitting}
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
             >
-              <Lock className="h-3 w-3" />
-              {submitting ? "Locking…" : "Lock & Publish"}
+              {isRebalance ? (
+                <RefreshCw className="h-3 w-3" />
+              ) : (
+                <Trophy className="h-3 w-3" />
+              )}
+              {submitting
+                ? isRebalance
+                  ? "Rebalancing…"
+                  : "Publishing…"
+                : isRebalance
+                  ? "Save Rebalance"
+                  : "Publish to Arena"}
             </button>
           </div>
         </form>

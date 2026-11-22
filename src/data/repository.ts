@@ -5,6 +5,7 @@ import {
   annualFinancials,
   arenaPortfolios,
   arenaPositions,
+  arenaRebalances,
   companies,
   filingDiffs,
   insiderTrades,
@@ -362,6 +363,13 @@ export interface ArenaPositionView {
   returnPct: number;
 }
 
+export interface ArenaRebalanceItem {
+  id: string;
+  navAtRebalance: number;
+  summary: string;
+  createdAt: string;
+}
+
 export interface ArenaPortfolioView {
   id: string;
   handle: string;
@@ -372,8 +380,11 @@ export interface ArenaPortfolioView {
   periodKey: string; // "2026-11" or "2025"
   isFinalized: boolean;
   lockedAt: string; // ISO date string
+  lastRebalancedAt: string; // ISO date string
+  nav: number;
   totalReturnPct: number;
   positions: ArenaPositionView[];
+  rebalances: ArenaRebalanceItem[];
 }
 
 async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
@@ -381,9 +392,13 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
   if (!db) return [];
 
   try {
-    const [portRows, posRows, compRows] = await Promise.all([
+    const [portRows, posRows, rebRows, compRows] = await Promise.all([
       db.select().from(arenaPortfolios).orderBy(desc(arenaPortfolios.lockedAt)),
       db.select().from(arenaPositions),
+      db
+        .select()
+        .from(arenaRebalances)
+        .orderBy(desc(arenaRebalances.createdAt)),
       db
         .select({
           ticker: companies.ticker,
@@ -399,6 +414,18 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
       const list = posByPort.get(p.portfolioId) ?? [];
       list.push(p);
       posByPort.set(p.portfolioId, list);
+    }
+
+    const rebByPort = new Map<string, ArenaRebalanceItem[]>();
+    for (const r of rebRows) {
+      const list = rebByPort.get(r.portfolioId) ?? [];
+      list.push({
+        id: r.id,
+        navAtRebalance: r.navAtRebalance,
+        summary: r.summary,
+        createdAt: r.createdAt.toISOString(),
+      });
+      rebByPort.set(r.portfolioId, list);
     }
 
     const views: ArenaPortfolioView[] = [];
@@ -428,8 +455,11 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
       positions.sort((a, b) => b.weightPct - a.weightPct);
 
       const isoDate = port.lockedAt.toISOString();
+      const lastRebalancedIso = (port.lastRebalancedAt ?? port.lockedAt).toISOString();
       const resolvedPeriodKey = port.periodKey ?? isoDate.slice(0, 7);
       const isFinalized = typeof port.finalReturnPct === "number";
+      const nav = typeof port.nav === "number" && Number.isFinite(port.nav) ? port.nav : 100;
+      const liveTotalReturn = nav * (1 + weightedReturn / 100) - 100;
 
       views.push({
         id: port.id,
@@ -441,10 +471,13 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
         periodKey: resolvedPeriodKey,
         isFinalized,
         lockedAt: isoDate,
+        lastRebalancedAt: lastRebalancedIso,
+        nav: Number(nav.toFixed(2)),
         totalReturnPct: Number(
-          (isFinalized ? port.finalReturnPct! : weightedReturn).toFixed(2)
+          (isFinalized ? port.finalReturnPct! : liveTotalReturn).toFixed(2)
         ),
         positions,
+        rebalances: rebByPort.get(port.id) ?? [],
       });
     }
 

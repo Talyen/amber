@@ -1,9 +1,15 @@
 import crypto from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { arenaPortfolios, arenaPositions, companies } from "@/db/schema";
+import {
+  arenaPortfolios,
+  arenaPositions,
+  arenaRebalances,
+  companies,
+} from "@/db/schema";
+import { getAuth } from "@/lib/auth";
 
 interface LockPositionInput {
   ticker: string;
@@ -11,13 +17,30 @@ interface LockPositionInput {
 }
 
 /**
- * Anti-Cheat Portfolio Lock Endpoint
+ * Portfolio Arena Publish & Rebalance Endpoint
  *
- * Accepts 3–10 tickers + weights, looks up each ticker's OFFICIAL current price
- * from Neon Postgres on the server (never trusting client prices), and writes an
- * immutable timestamped entry into the Amber Portfolio Arena.
+ * - Requires an authenticated Better Auth session.
+ * - Enforces one active portfolio per user.
+ * - If the user already has a portfolio, banks current period returns into their
+ *   Time-Weighted NAV and records a rebalance event at official closing prices.
  */
 export async function POST(request: Request) {
+  const db = getDb();
+  if (!db) {
+    return NextResponse.json(
+      { error: "Database unavailable in local preview mode." },
+      { status: 503 }
+    );
+  }
+
+  const session = await getAuth().api.getSession({ headers: request.headers });
+  if (!session?.user) {
+    return NextResponse.json(
+      { error: "Please sign in to publish or rebalance an Arena portfolio." },
+      { status: 401 }
+    );
+  }
+
   let body: {
     handle?: string;
     title?: string;
@@ -69,14 +92,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const db = getDb();
-  if (!db) {
-    return NextResponse.json(
-      { error: "Database unavailable in local preview mode." },
-      { status: 503 }
-    );
-  }
-
   const tickers = [...deduped.keys()];
   const dbCompanies = await db
     .select({ ticker: companies.ticker, price: companies.price })
@@ -93,20 +108,126 @@ export async function POST(request: Request) {
   }
 
   const totalWeight = [...deduped.values()].reduce((a, b) => a + b, 0);
+  const now = new Date();
+  const periodKey = now.toISOString().slice(0, 7); // e.g. "2026-11"
+
+  // Enforce 1 portfolio per user: check if this user already has one
+  const existingRows = await db
+    .select()
+    .from(arenaPortfolios)
+    .where(
+      and(
+        eq(arenaPortfolios.userId, session.user.id),
+        eq(arenaPortfolios.isBot, 0)
+      )
+    )
+    .limit(1);
+
+  const existing = existingRows[0];
+
+  if (existing) {
+    const oldPositions = await db
+      .select()
+      .from(arenaPositions)
+      .where(eq(arenaPositions.portfolioId, existing.id));
+
+    const oldTickers = oldPositions.map((p) => p.ticker);
+    const oldPriceRows =
+      oldTickers.length > 0
+        ? await db
+            .select({ ticker: companies.ticker, price: companies.price })
+            .from(companies)
+            .where(inArray(companies.ticker, oldTickers))
+        : [];
+    const oldPriceMap = new Map(oldPriceRows.map((c) => [c.ticker, c.price]));
+
+    // Bank current period weighted return into Time-Weighted NAV
+    let periodReturnDecimal = 0;
+    for (const p of oldPositions) {
+      const currentPrice = oldPriceMap.get(p.ticker) ?? p.entryPrice;
+      const ret = p.entryPrice > 0 ? (currentPrice - p.entryPrice) / p.entryPrice : 0;
+      periodReturnDecimal += ret * (p.weightPct / 100);
+    }
+
+    const prevNav =
+      typeof existing.nav === "number" && Number.isFinite(existing.nav)
+        ? existing.nav
+        : 100;
+    const newNav = Number((prevNav * (1 + periodReturnDecimal)).toFixed(4));
+
+    // Build concise diff summary
+    const oldSet = new Set(oldTickers);
+    const newSet = new Set(tickers);
+    const added = tickers.filter((t) => !oldSet.has(t));
+    const removed = oldTickers.filter((t) => !newSet.has(t));
+    const parts: string[] = [];
+    if (added.length > 0) parts.push(`Added ${added.join(", ")}`);
+    if (removed.length > 0) parts.push(`Removed ${removed.join(", ")}`);
+    if (parts.length === 0) parts.push("Adjusted target weights");
+    const summary = `${parts.join(" · ")} (${tickers.length} holdings)`;
+
+    await db
+      .update(arenaPortfolios)
+      .set({
+        handle,
+        title,
+        thesis: thesis || existing.thesis,
+        nav: newNav,
+        lastRebalancedAt: now,
+      })
+      .where(eq(arenaPortfolios.id, existing.id));
+
+    await db
+      .delete(arenaPositions)
+      .where(eq(arenaPositions.portfolioId, existing.id));
+
+    await db.insert(arenaPositions).values(
+      dbCompanies.map((c) => ({
+        id: `${existing.id}:${c.ticker}`,
+        portfolioId: existing.id,
+        ticker: c.ticker,
+        weightPct: Number((((deduped.get(c.ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
+        entryPrice: c.price,
+      }))
+    );
+
+    await db.insert(arenaRebalances).values({
+      id: `${existing.id}:reb:${crypto.randomBytes(4).toString("hex")}`,
+      portfolioId: existing.id,
+      navAtRebalance: newNav,
+      summary,
+      createdAt: now,
+    });
+
+    revalidateTag("arena");
+    revalidatePath("/arena");
+    revalidatePath(`/arena/${existing.id}`);
+
+    return NextResponse.json({
+      id: existing.id,
+      url: `/arena/${existing.id}`,
+      rebalanced: true,
+      nav: newNav,
+      lockedAt: now.toISOString(),
+    });
+  }
+
+  // Create initial portfolio for this user
   const id = `${handle.toLowerCase().replace(/[^a-z0-9]/g, "")}-${crypto.randomBytes(3).toString("hex")}`;
-  const lockedAt = new Date();
-  const periodKey = lockedAt.toISOString().slice(0, 7); // e.g. "2026-11"
 
   await db.insert(arenaPortfolios).values({
     id,
+    userId: session.user.id,
     handle,
     title,
-    thesis: thesis || `Locked ${tickers.length}-stock conviction basket.`,
+    thesis: thesis || `${tickers.length}-stock conviction portfolio.`,
     isBot: 0,
     botTheme: null,
     periodKey,
+    nav: 100,
     finalReturnPct: null,
-    lockedAt,
+    lockedAt: now,
+    lastRebalancedAt: now,
   });
 
   await db.insert(arenaPositions).values(
@@ -115,7 +236,7 @@ export async function POST(request: Request) {
       portfolioId: id,
       ticker: c.ticker,
       weightPct: Number((((deduped.get(c.ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
-      entryPrice: c.price, // Server-locked official price
+      entryPrice: c.price,
     }))
   );
 
@@ -125,6 +246,8 @@ export async function POST(request: Request) {
   return NextResponse.json({
     id,
     url: `/arena/${id}`,
-    lockedAt: lockedAt.toISOString(),
+    rebalanced: false,
+    nav: 100,
+    lockedAt: now.toISOString(),
   });
 }

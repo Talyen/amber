@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Check, Link2, Moon, Sun } from "lucide-react";
 import { AmberLogo } from "@/components/AmberLogo";
+import { AuthButton } from "@/components/AuthButton";
 import { CommandSearch } from "@/components/CommandSearch";
 
 interface TopNavProps {
@@ -138,6 +139,8 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
               <Moon className="h-3.5 w-3.5" />
             )}
           </button>
+
+          <AuthButton />
         </div>
       </div>
     </header>
