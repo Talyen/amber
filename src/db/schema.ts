@@ -135,3 +135,31 @@ export const insiderTrades = pgTable(
   },
   (table) => [index("insider_ticker_idx").on(table.ticker)]
 );
+
+export const arenaPortfolios = pgTable("arena_portfolios", {
+  id: text("id").primaryKey(),
+  handle: text("handle").notNull(),
+  title: text("title").notNull(),
+  thesis: text("thesis").notNull(),
+  isBot: integer("is_bot").notNull().default(0), // 1 = Strategy Bot, 0 = Community
+  botTheme: text("bot_theme"),
+  lockedAt: timestamp("locked_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const arenaPositions = pgTable(
+  "arena_positions",
+  {
+    id: text("id").primaryKey(),
+    portfolioId: text("portfolio_id")
+      .notNull()
+      .references(() => arenaPortfolios.id, { onDelete: "cascade" }),
+    ticker: text("ticker")
+      .notNull()
+      .references(() => companies.ticker, { onDelete: "cascade" }),
+    weightPct: doublePrecision("weight_pct").notNull(), // Normalized 0..100
+    entryPrice: doublePrecision("entry_price").notNull(), // Server-locked EOD price
+  },
+  (table) => [index("arena_pos_portfolio_idx").on(table.portfolioId)]
+);

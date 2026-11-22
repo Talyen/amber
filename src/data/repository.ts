@@ -3,6 +3,8 @@ import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   annualFinancials,
+  arenaPortfolios,
+  arenaPositions,
   companies,
   filingDiffs,
   insiderTrades,
@@ -349,4 +351,113 @@ export async function getRecentMarketInsiders(): Promise<
   );
 
   return await cachedFetch();
+}
+
+export interface ArenaPositionView {
+  ticker: string;
+  companyName: string;
+  weightPct: number;
+  entryPrice: number;
+  currentPrice: number;
+  returnPct: number;
+}
+
+export interface ArenaPortfolioView {
+  id: string;
+  handle: string;
+  title: string;
+  thesis: string;
+  isBot: boolean;
+  botTheme: string | null;
+  lockedAt: string; // ISO date string
+  totalReturnPct: number;
+  positions: ArenaPositionView[];
+}
+
+async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
+  const db = getDb();
+  if (!db) return [];
+
+  try {
+    const [portRows, posRows, compRows] = await Promise.all([
+      db.select().from(arenaPortfolios).orderBy(desc(arenaPortfolios.lockedAt)),
+      db.select().from(arenaPositions),
+      db
+        .select({
+          ticker: companies.ticker,
+          name: companies.name,
+          price: companies.price,
+        })
+        .from(companies),
+    ]);
+
+    const compMap = new Map(compRows.map((c) => [c.ticker, c]));
+    const posByPort = new Map<string, typeof posRows>();
+    for (const p of posRows) {
+      const list = posByPort.get(p.portfolioId) ?? [];
+      list.push(p);
+      posByPort.set(p.portfolioId, list);
+    }
+
+    const views: ArenaPortfolioView[] = [];
+    for (const port of portRows) {
+      const rawPositions = posByPort.get(port.id) ?? [];
+      if (rawPositions.length === 0) continue;
+
+      let weightedReturn = 0;
+      const positions: ArenaPositionView[] = rawPositions.map((p) => {
+        const live = compMap.get(p.ticker);
+        const currentPrice = live?.price ?? p.entryPrice;
+        const ret =
+          p.entryPrice > 0
+            ? ((currentPrice - p.entryPrice) / p.entryPrice) * 100
+            : 0;
+        weightedReturn += ret * (p.weightPct / 100);
+        return {
+          ticker: p.ticker,
+          companyName: live?.name ?? p.ticker,
+          weightPct: Number(p.weightPct.toFixed(1)),
+          entryPrice: p.entryPrice,
+          currentPrice,
+          returnPct: Number(ret.toFixed(2)),
+        };
+      });
+
+      positions.sort((a, b) => b.weightPct - a.weightPct);
+
+      views.push({
+        id: port.id,
+        handle: port.handle,
+        title: port.title,
+        thesis: port.thesis,
+        isBot: port.isBot === 1,
+        botTheme: port.botTheme,
+        lockedAt: port.lockedAt.toISOString(),
+        totalReturnPct: Number(weightedReturn.toFixed(2)),
+        positions,
+      });
+    }
+
+    return views.sort((a, b) => b.totalReturnPct - a.totalReturnPct);
+  } catch (err) {
+    console.warn("[amber-repo] Arena query failed:", err);
+    return [];
+  }
+}
+
+export async function getArenaLeaderboard(): Promise<ArenaPortfolioView[]> {
+  if (!process.env.DATABASE_URL) return [];
+  const cachedFetch = unstable_cache(
+    async () => queryArenaLeaderboardFromDb(),
+    ["amber-arena-leaderboard"],
+    { revalidate: 3600, tags: ["arena", "companies"] }
+  );
+  return await cachedFetch();
+}
+
+export async function getArenaPortfolioById(
+  id: string
+): Promise<ArenaPortfolioView | undefined> {
+  const all = await getArenaLeaderboard();
+  return all.find((p) => p.id === id);
 }

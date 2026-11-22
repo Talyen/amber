@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, FileText, TrendingUp } from "lucide-react";
+import { ArrowRight, FileText, Star, TrendingUp } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import type { MarketInsiderFeedItem } from "@/data/repository";
+import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
@@ -24,25 +25,30 @@ function cleanEntity(str: string): string {
 
 export function SignalFeed({ entries, insiders }: SignalFeedProps) {
   const [filter, setFilter] = useState<FeedFilter>("all");
+  const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const watchlist = useWatchlist();
 
   const recentFilings = useMemo(
     () =>
       [...entries]
-        .filter((e) => e.lastFilingDate)
+        .filter((e) => e.lastFilingDate && (!watchlistOnly || watchlist.has(e.ticker)))
         .sort((a, b) => b.lastFilingDate.localeCompare(a.lastFilingDate))
         .slice(0, 35),
-    [entries]
+    [entries, watchlistOnly, watchlist]
   );
 
   const visibleInsiders = useMemo(() => {
+    const base = watchlistOnly
+      ? insiders.filter((i) => watchlist.has(i.ticker))
+      : insiders;
     if (filter === "insider-buys") {
-      return insiders.filter((i) => i.transactionType === "Buy");
+      return base.filter((i) => i.transactionType === "Buy");
     }
     if (filter === "insider-sells") {
-      return insiders.filter((i) => i.transactionType === "Sell");
+      return base.filter((i) => i.transactionType === "Sell");
     }
-    return insiders.slice(0, 20);
-  }, [insiders, filter]);
+    return base.slice(0, 20);
+  }, [insiders, filter, watchlistOnly, watchlist]);
 
   const showFilings = filter === "all" || filter === "filings";
   const showInsiders =
@@ -50,21 +56,41 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <TopNav activeRoute="feed" />
+      <TopNav activeRoute="filings" />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
         <section className="border-b border-[var(--border)] pb-6">
           <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-            LIVE SEC EDGAR FEED
+            LIVE SEC EDGAR STREAM
           </div>
           <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-            Just Filed: Latest 10-K, 10-Q &amp; Form 4 Signals
+            SEC Filings &amp; Insider Activity
           </h1>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Updated automatically every night from SEC EDGAR—highlighting fresh financial filings and open-market insider activity.
+            Updated automatically every night from SEC EDGAR—toggle your Watchlist below to track only the companies you follow.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setWatchlistOnly((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                watchlistOnly
+                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                  : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <Star
+                className="h-3 w-3"
+                fill={watchlistOnly ? "currentColor" : "none"}
+              />
+              My Watchlist
+              {watchlist.tickers.length > 0 && (
+                <span className="font-mono-num opacity-75">
+                  ({watchlist.tickers.length})
+                </span>
+              )}
+            </button>
             {(
               [
                 { id: "all", label: "All Signals" },

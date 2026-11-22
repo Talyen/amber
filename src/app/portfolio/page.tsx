@@ -5,9 +5,9 @@ import { PortfolioXRay } from "@/components/PortfolioXRay";
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: "Portfolio X-Ray",
+  title: "Portfolio Analyzer",
   description:
-    "Analyze your watchlist's weighted implied growth, real cash margins, stock-comp drag, and sector concentration.",
+    "Analyze your portfolio's weighted implied growth, real cash margins, stock-comp drag, and sector concentration—or lock it into the Amber Arena.",
 };
 
 export default async function PortfolioPage() {

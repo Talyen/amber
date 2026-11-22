@@ -14,6 +14,7 @@ import {
 import type { SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
+import { LockPortfolioModal } from "@/components/LockPortfolioModal";
 import { formatPct } from "@/lib/finance";
 import { exportPortfolioXRayCard } from "@/lib/export-card";
 
@@ -274,7 +275,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-                PORTFOLIO X-RAY
+                PORTFOLIO ANALYZER
               </span>
               <span
                 className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${metrics.valuationStance.tone}`}
@@ -283,11 +284,11 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               </span>
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              See what your watchlist is really betting on
+              See what your portfolio is really betting on
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {usingStarter
-                ? "Showing a sample 5-stock portfolio. Star any company across Amber (or add a ticker on the right) to X-Ray your own holdings—stored privately in your browser."
+                ? "Showing a sample 5-stock portfolio. Star any company across Amber (or add/paste tickers on the right) to analyze your own holdings—or lock it into the Arena leaderboard."
                 : `Analyzing your ${holdings.length} holdings with weighted expectations, cash quality, and sector concentration.`}
             </p>
           </div>
@@ -349,8 +350,15 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
-              Export PNG
+              PNG
             </button>
+
+            <LockPortfolioModal
+              positions={holdings.map((h) => ({
+                ticker: h.ticker,
+                weight: (normalizedWeights.get(h.ticker) ?? 0) * 100,
+              }))}
+            />
           </div>
         </section>
 

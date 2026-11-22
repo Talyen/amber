@@ -35,7 +35,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: siteUrl, lastModified: now, changeFrequency: "daily", priority: 1.0 },
     { url: `${siteUrl}/compare`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${siteUrl}/portfolio`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${siteUrl}/feed`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${siteUrl}/arena`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${siteUrl}/filings`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
   ];
 
   const lensRoutes: MetadataRoute.Sitemap = DISCOVERY_LENSES.map((lens) => ({

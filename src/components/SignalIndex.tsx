@@ -185,10 +185,10 @@ export function SignalIndex({
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <CommandSearch variant="hero" initialEntries={entries} />
             <Link
-              href="/t/PLTR"
+              href="/t/NVDA"
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
             >
-              Open PLTR Demo
+              Open NVDA Demo
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

@@ -5,12 +5,23 @@ import { useState, useEffect } from "react";
 import { Check, Link2, Moon, Sun } from "lucide-react";
 import { AmberLogo } from "@/components/AmberLogo";
 import { CommandSearch } from "@/components/CommandSearch";
-import { FEATURED_TICKERS } from "@/data/universe";
 
 interface TopNavProps {
   activeTicker?: string;
-  activeRoute?: "index" | "compare" | "portfolio" | "feed" | "ticker";
+  activeRoute?: "index" | "compare" | "portfolio" | "arena" | "filings" | "ticker";
 }
+
+const NAV_LINKS: Array<{
+  href: string;
+  label: string;
+  route: NonNullable<TopNavProps["activeRoute"]>;
+}> = [
+  { href: "/", label: "Index", route: "index" },
+  { href: "/compare", label: "Compare", route: "compare" },
+  { href: "/portfolio", label: "Portfolio", route: "portfolio" },
+  { href: "/arena", label: "Arena", route: "arena" },
+  { href: "/filings", label: "Filings", route: "filings" },
+];
 
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
   const currentRoute = activeRoute ?? (activeTicker ? "ticker" : "index");
@@ -60,7 +71,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           <Link
             href="/"
             className="shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--amber)] rounded-sm"
-            aria-label="Amber Signal Index"
+            aria-label="Amber Home"
           >
             <AmberLogo />
           </Link>
@@ -71,71 +82,23 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           />
 
           <nav
-            aria-label="Quick navigation"
+            aria-label="Primary navigation"
             className="flex items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            <Link
-              href="/"
-              aria-current={currentRoute === "index" ? "page" : undefined}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                currentRoute === "index"
-                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Index
-            </Link>
-
-            <Link
-              href="/compare"
-              aria-current={currentRoute === "compare" ? "page" : undefined}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                currentRoute === "compare"
-                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Compare
-            </Link>
-
-            <Link
-              href="/portfolio"
-              aria-current={currentRoute === "portfolio" ? "page" : undefined}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                currentRoute === "portfolio"
-                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              X-Ray
-            </Link>
-
-            <Link
-              href="/feed"
-              aria-current={currentRoute === "feed" ? "page" : undefined}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                currentRoute === "feed"
-                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Feed
-            </Link>
-
-            {FEATURED_TICKERS.map((ticker) => {
-              const isActive = ticker === activeTicker;
+            {NAV_LINKS.map((item) => {
+              const isActive = currentRoute === item.route;
               return (
                 <Link
-                  key={ticker}
-                  href={`/t/${ticker}`}
+                  key={item.href}
+                  href={item.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`font-mono-num hidden shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors lg:inline-block ${
+                  className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                     isActive
                       ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  {ticker}
+                  {item.label}
                 </Link>
               );
             })}
