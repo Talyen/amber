@@ -236,114 +236,6 @@ export function SignalIndex({
           )}
         </section>
 
-        {/* 3 High-Signal Leaderboards */}
-        <section
-          aria-label="High-signal leaderboards"
-          className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3"
-        >
-          {/* Card 1: Steepest SBC Burden */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                Steepest SBC Burden
-              </h2>
-              <span className="font-mono-num text-[11px] text-[var(--sbc)]">
-                SBC / Rev
-              </span>
-            </div>
-            <ul className="mt-3.5 divide-y divide-[var(--border)]">
-              {steepestSbc.map((c) => (
-                <li key={c.ticker}>
-                  <Link
-                    href={`/t/${c.ticker}`}
-                    className="flex items-center justify-between py-2.5 text-xs transition-colors hover:text-[var(--amber)]"
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono-num w-12 shrink-0 font-semibold text-[var(--amber)]">
-                        {c.ticker}
-                      </span>
-                      <span className="truncate text-[var(--text-secondary)]">
-                        {c.name}
-                      </span>
-                    </span>
-                    <span className="font-mono-num shrink-0 font-semibold text-[var(--sbc)]">
-                      {formatPct(c.sbcPctRevenue)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Card 2: Cleanest True FCF Margins */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                Cleanest True FCF Margins
-              </h2>
-              <span className="font-mono-num text-[11px] text-[var(--amber)]">
-                True FCF %
-              </span>
-            </div>
-            <ul className="mt-3.5 divide-y divide-[var(--border)]">
-              {cleanestCash.map((c) => (
-                <li key={c.ticker}>
-                  <Link
-                    href={`/t/${c.ticker}`}
-                    className="flex items-center justify-between py-2.5 text-xs transition-colors hover:text-[var(--amber)]"
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono-num w-12 shrink-0 font-semibold text-[var(--amber)]">
-                        {c.ticker}
-                      </span>
-                      <span className="truncate text-[var(--text-secondary)]">
-                        {c.name}
-                      </span>
-                    </span>
-                    <span className="font-mono-num shrink-0 font-semibold text-[var(--positive)]">
-                      {formatPct(c.trueFcfMargin)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Card 3: Steepest Implied Growth */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                Highest Implied 10Y Growth
-              </h2>
-              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                Reverse DCF
-              </span>
-            </div>
-            <ul className="mt-3.5 divide-y divide-[var(--border)]">
-              {steepestImplied.map((c) => (
-                <li key={c.ticker}>
-                  <Link
-                    href={`/t/${c.ticker}`}
-                    className="flex items-center justify-between py-2.5 text-xs transition-colors hover:text-[var(--amber)]"
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono-num w-12 shrink-0 font-semibold text-[var(--amber)]">
-                        {c.ticker}
-                      </span>
-                      <span className="truncate text-[var(--text-secondary)]">
-                        {c.name}
-                      </span>
-                    </span>
-                    <span className="font-mono-num shrink-0 font-semibold text-[var(--text-primary)]">
-                      {formatPct(c.impliedCagr)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
         {/* Full Coverage Screener Table */}
         <section className="mt-10">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -589,6 +481,121 @@ export function SignalIndex({
               </button>
             </div>
           )}
+        </section>
+
+        {/* Market Extremes & Leaderboards */}
+        <section aria-label="High-signal leaderboards" className="mt-12">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              Market Extremes &amp; Leaderboards
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Top 5 standouts across stock compensation, real cash margins, and priced-in growth.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Card 1: Steepest SBC Burden */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  Steepest SBC Burden
+                </h3>
+                <span className="font-mono-num text-[11px] text-[var(--sbc)]">
+                  SBC / Rev
+                </span>
+              </div>
+              <ul className="mt-3.5 divide-y divide-[var(--border)]">
+                {steepestSbc.map((c) => (
+                  <li key={c.ticker}>
+                    <Link
+                      href={`/t/${c.ticker}`}
+                      className="flex items-center justify-between py-2.5 text-xs transition-colors hover:text-[var(--amber)]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono-num w-12 shrink-0 font-semibold text-[var(--amber)]">
+                          {c.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-secondary)]">
+                          {c.name}
+                        </span>
+                      </span>
+                      <span className="font-mono-num shrink-0 font-semibold text-[var(--sbc)]">
+                        {formatPct(c.sbcPctRevenue)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Card 2: Cleanest True FCF Margins */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  Cleanest True FCF Margins
+                </h3>
+                <span className="font-mono-num text-[11px] text-[var(--amber)]">
+                  True FCF %
+                </span>
+              </div>
+              <ul className="mt-3.5 divide-y divide-[var(--border)]">
+                {cleanestCash.map((c) => (
+                  <li key={c.ticker}>
+                    <Link
+                      href={`/t/${c.ticker}`}
+                      className="flex items-center justify-between py-2.5 text-xs transition-colors hover:text-[var(--amber)]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono-num w-12 shrink-0 font-semibold text-[var(--amber)]">
+                          {c.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-secondary)]">
+                          {c.name}
+                        </span>
+                      </span>
+                      <span className="font-mono-num shrink-0 font-semibold text-[var(--positive)]">
+                        {formatPct(c.trueFcfMargin)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Card 3: Steepest Implied Growth */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  Highest Implied 10Y Growth
+                </h3>
+                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                  Reverse DCF
+                </span>
+              </div>
+              <ul className="mt-3.5 divide-y divide-[var(--border)]">
+                {steepestImplied.map((c) => (
+                  <li key={c.ticker}>
+                    <Link
+                      href={`/t/${c.ticker}`}
+                      className="flex items-center justify-between py-2.5 text-xs transition-colors hover:text-[var(--amber)]"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono-num w-12 shrink-0 font-semibold text-[var(--amber)]">
+                          {c.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-secondary)]">
+                          {c.name}
+                        </span>
+                      </span>
+                      <span className="font-mono-num shrink-0 font-semibold text-[var(--text-primary)]">
+                        {formatPct(c.impliedCagr)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </section>
 
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
