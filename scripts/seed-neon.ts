@@ -111,6 +111,11 @@ async function run() {
       sbc: a.sbc,
       buybacks: a.buybacks,
       dilutedShares: a.dilutedShares,
+      grossProfit: a.grossProfit ?? null,
+      rdExpense: a.rdExpense ?? null,
+      sgaExpense: a.sgaExpense ?? null,
+      operatingIncome: a.operatingIncome ?? null,
+      netIncome: a.netIncome ?? null,
     }))
   );
 
@@ -128,6 +133,11 @@ async function run() {
           sbc: sql`excluded.sbc`,
           buybacks: sql`excluded.buybacks`,
           dilutedShares: sql`excluded.diluted_shares`,
+          grossProfit: sql`excluded.gross_profit`,
+          rdExpense: sql`excluded.rd_expense`,
+          sgaExpense: sql`excluded.sga_expense`,
+          operatingIncome: sql`excluded.operating_income`,
+          netIncome: sql`excluded.net_income`,
         },
       });
   }

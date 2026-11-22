@@ -52,6 +52,11 @@ export const annualFinancials = pgTable(
     sbc: doublePrecision("sbc").notNull(), // $M
     buybacks: doublePrecision("buybacks").notNull(), // $M
     dilutedShares: doublePrecision("diluted_shares").notNull(), // Millions
+    grossProfit: doublePrecision("gross_profit"), // $M (optional)
+    rdExpense: doublePrecision("rd_expense"), // $M (optional)
+    sgaExpense: doublePrecision("sga_expense"), // $M (optional)
+    operatingIncome: doublePrecision("operating_income"), // $M (optional)
+    netIncome: doublePrecision("net_income"), // $M (optional)
   },
   (table) => [
     uniqueIndex("annual_ticker_fy_idx").on(table.ticker, table.fiscalYear),

@@ -6,6 +6,12 @@ export interface AnnualFinancials {
   sbc: number; // $M (Stock-Based Compensation)
   buybacks: number; // $M (Share repurchases)
   dilutedShares: number; // Millions
+  // Optional Income Statement breakdown for Automated Sankey Diagram ($M)
+  grossProfit?: number | null;
+  rdExpense?: number | null;
+  sgaExpense?: number | null;
+  operatingIncome?: number | null;
+  netIncome?: number | null;
 }
 
 export interface FilingDiffItem {

@@ -7,6 +7,7 @@ import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
+import { NotableSignalsFeed } from "@/components/NotableSignalsFeed";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { DISCOVERY_LENSES } from "@/lib/insights";
@@ -157,6 +158,9 @@ export function SignalIndex({
             </Link>
           </div>
         </section>
+
+        {/* Market-Wide Notable Signals Feed */}
+        <NotableSignalsFeed entries={entries} />
 
         {/* Curated Discovery Lenses ("Start Exploring") */}
         <section aria-label="Curated discovery lenses" className="mt-8">

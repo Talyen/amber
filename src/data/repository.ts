@@ -78,6 +78,11 @@ async function queryCompanyFromDb(
         sbc: a.sbc,
         buybacks: a.buybacks,
         dilutedShares: a.dilutedShares,
+        grossProfit: a.grossProfit,
+        rdExpense: a.rdExpense,
+        sgaExpense: a.sgaExpense,
+        operatingIncome: a.operatingIncome,
+        netIncome: a.netIncome,
       })),
       defaultDcf: row.defaultDcf,
       filingDiffs: diffRows.map((d) => ({

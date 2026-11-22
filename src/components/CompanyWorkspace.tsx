@@ -16,11 +16,13 @@ import { useWatchlist } from "@/lib/watchlist";
 import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { CompanyBriefing } from "@/components/CompanyBriefing";
+import { RevenueSankey } from "@/components/RevenueSankey";
 import { TrueFcfChart } from "@/components/TrueFcfChart";
 import { TrueFcfWaterfall } from "@/components/TrueFcfWaterfall";
 import { BuybackRealityCard } from "@/components/BuybackRealityCard";
 import { FinancialLedgerTable } from "@/components/FinancialLedgerTable";
 import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
+import { ScenarioBuilder } from "@/components/ScenarioBuilder";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
@@ -40,6 +42,7 @@ export function CompanyWorkspace({
   sectorBenchmark = null,
 }: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+  const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
   const watchlist = useWatchlist();
   const isStarred = watchlist.has(company.ticker);
 
@@ -62,6 +65,7 @@ export function CompanyWorkspace({
       params.has("sbc")
     ) {
       setActiveTab("dcf");
+      setValuationMode("reverse");
     }
   }, []);
 
@@ -399,13 +403,20 @@ export function CompanyWorkspace({
               hidden={activeTab !== "overview"}
             >
               {activeTab === "overview" && (
-                <CompanyBriefing
-                  ticker={company.ticker}
-                  companyName={company.name}
-                  briefing={briefing}
-                  series={series}
-                  onNavigateTab={(t) => setActiveTab(t)}
-                />
+                <div className="space-y-6">
+                  <CompanyBriefing
+                    ticker={company.ticker}
+                    companyName={company.name}
+                    briefing={briefing}
+                    series={series}
+                    onNavigateTab={(t) => setActiveTab(t)}
+                  />
+                  <RevenueSankey
+                    ticker={company.ticker}
+                    companyName={company.name}
+                    period={latest}
+                  />
+                </div>
               )}
             </div>
 
@@ -436,7 +447,38 @@ export function CompanyWorkspace({
               hidden={activeTab !== "dcf"}
             >
               {activeTab === "dcf" && (
-                <ReverseDcfStudio company={company} latest={latest} />
+                <div className="space-y-4">
+                  <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setValuationMode("scenario")}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                        valuationMode === "scenario"
+                          ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      5-Year Return Scenario (Bull / Base / Bear)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setValuationMode("reverse")}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                        valuationMode === "reverse"
+                          ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      Reverse DCF (What&apos;s Priced In)
+                    </button>
+                  </div>
+
+                  {valuationMode === "scenario" ? (
+                    <ScenarioBuilder company={company} latest={latest} />
+                  ) : (
+                    <ReverseDcfStudio company={company} latest={latest} />
+                  )}
+                </div>
               )}
             </div>
 

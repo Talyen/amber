@@ -9,7 +9,7 @@ import { FEATURED_TICKERS } from "@/data/universe";
 
 interface TopNavProps {
   activeTicker?: string;
-  activeRoute?: "index" | "compare" | "ticker";
+  activeRoute?: "index" | "compare" | "portfolio" | "ticker";
 }
 
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
@@ -96,6 +96,18 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
               }`}
             >
               Compare
+            </Link>
+
+            <Link
+              href="/portfolio"
+              aria-current={currentRoute === "portfolio" ? "page" : undefined}
+              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                currentRoute === "portfolio"
+                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              X-Ray
             </Link>
 
             {FEATURED_TICKERS.map((ticker) => {

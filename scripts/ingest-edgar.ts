@@ -507,6 +507,37 @@ async function ingestCandidate(
       ],
       "shares"
     );
+    const grossProfitMap = extractAnnualSeries(
+      facts,
+      ["GrossProfit"],
+      "USD"
+    );
+    const rdMap = extractAnnualSeries(
+      facts,
+      [
+        "ResearchAndDevelopmentExpense",
+        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+      ],
+      "USD"
+    );
+    const sgaMap = extractAnnualSeries(
+      facts,
+      [
+        "SellingGeneralAndAdministrativeExpense",
+        "GeneralAndAdministrativeExpense",
+      ],
+      "USD"
+    );
+    const opIncMap = extractAnnualSeries(
+      facts,
+      ["OperatingIncomeLoss"],
+      "USD"
+    );
+    const netIncMap = extractAnnualSeries(
+      facts,
+      ["NetIncomeLoss"],
+      "USD"
+    );
 
     const years = [...revMap.keys()]
       .filter((y) => ocfMap.has(y))
@@ -534,6 +565,12 @@ async function ingestCandidate(
         sharesMap.get(yr)?.val ??
         (latestSharesInstant > 0 ? latestSharesInstant : 100_000_000);
 
+      const gpVal = grossProfitMap.get(yr)?.val;
+      const rdVal = rdMap.get(yr)?.val;
+      const sgaVal = sgaMap.get(yr)?.val;
+      const opVal = opIncMap.get(yr)?.val;
+      const niVal = netIncMap.get(yr)?.val;
+
       return {
         fiscalYear: `FY${yr.slice(2)}`,
         revenue: Math.round(rev),
@@ -542,6 +579,11 @@ async function ingestCandidate(
         sbc: Math.round(sbc),
         buybacks: Math.round(buybacks),
         dilutedShares: Math.max(1, Math.round(rawShares / 1e6)),
+        grossProfit: gpVal !== undefined ? Math.round(gpVal / 1e6) : null,
+        rdExpense: rdVal !== undefined ? Math.round(Math.abs(rdVal) / 1e6) : null,
+        sgaExpense: sgaVal !== undefined ? Math.round(Math.abs(sgaVal) / 1e6) : null,
+        operatingIncome: opVal !== undefined ? Math.round(opVal / 1e6) : null,
+        netIncome: niVal !== undefined ? Math.round(niVal / 1e6) : null,
       };
     });
 
