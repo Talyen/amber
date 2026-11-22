@@ -1,0 +1,170 @@
+"use client";
+
+import { useState } from "react";
+import { Bell, Check, FileText, ArrowRight } from "lucide-react";
+import type { CompanySnapshot, FilingDiffItem } from "@/lib/finance";
+
+interface FilingDiffRadarProps {
+  company: CompanySnapshot;
+}
+
+const CATEGORIES: Array<"All" | FilingDiffItem["category"]> = [
+  "All",
+  "Risk Factors",
+  "Customer Concentration",
+  "Executive Comp",
+  "Capital Allocation",
+];
+
+function materialityStyle(level: FilingDiffItem["materiality"]): string {
+  switch (level) {
+    case "High":
+      return "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]";
+    case "Medium":
+      return "bg-[var(--surface-subtle)] text-[var(--text-primary)] ring-1 ring-inset ring-[var(--border-strong)]";
+    case "Watch":
+      return "bg-[var(--surface-subtle)] text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]";
+  }
+}
+
+export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
+  const [selectedCategory, setSelectedCategory] = useState<
+    "All" | FilingDiffItem["category"]
+  >("All");
+  const [alertSubscribed, setAlertSubscribed] = useState(false);
+
+  const visibleDiffs =
+    selectedCategory === "All"
+      ? company.filingDiffs
+      : company.filingDiffs.filter((d) => d.category === selectedCategory);
+
+  return (
+    <div className="space-y-5">
+      {/* Filter & Push Alert Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {CATEGORIES.map((cat) => {
+            const active = selectedCategory === cat;
+            const count =
+              cat === "All"
+                ? company.filingDiffs.length
+                : company.filingDiffs.filter((d) => d.category === cat).length;
+
+            if (cat !== "All" && count === 0) return null;
+
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                  active
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {cat}
+                <span className="font-mono-num ml-1.5 opacity-70">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setAlertSubscribed((prev) => !prev)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors cursor-pointer ${
+            alertSubscribed
+              ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          {alertSubscribed ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              Tracking {company.ticker} 10-K / 10-Q diffs
+            </>
+          ) : (
+            <>
+              <Bell className="h-3.5 w-3.5" />
+              Alert me on next filing
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Diff Cards */}
+      <div className="space-y-4">
+        {visibleDiffs.map((diff) => (
+          <article
+            key={diff.id}
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${materialityStyle(diff.materiality)}`}
+                >
+                  {diff.materiality} Signal
+                </span>
+                <span className="rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                  {diff.category}
+                </span>
+                <span className="font-mono-num inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+                  <FileText className="h-3 w-3" />
+                  {diff.filingType} · {diff.filingDate}
+                </span>
+              </div>
+
+              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                {diff.section}
+              </span>
+            </div>
+
+            <h3 className="mt-3 text-[15px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+              {diff.headline}
+            </h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
+              {diff.summary}
+            </p>
+
+            {/* Prior vs Latest Filing Comparison */}
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3.5">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  Prior Filing Language
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-secondary)]">
+                  &ldquo;{diff.priorExcerpt}&rdquo;
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] p-3.5">
+                <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--amber)]">
+                  <ArrowRight className="h-3 w-3" />
+                  Latest Filing Language
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-primary)]">
+                  &ldquo;{diff.currentExcerpt}&rdquo;
+                </p>
+              </div>
+            </div>
+
+            {/* Analyst Signal Takeaway */}
+            <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3 text-xs">
+              <p className="text-[var(--text-secondary)]">
+                <span className="font-semibold text-[var(--text-primary)]">
+                  Amber Take:{" "}
+                </span>
+                {diff.signalNote}
+              </p>
+              <span className="font-mono-num text-[10px] text-[var(--text-muted)]">
+                EDGAR {diff.accessionNumber}
+              </span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}

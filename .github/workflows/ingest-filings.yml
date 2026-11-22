@@ -1,0 +1,29 @@
+name: Batch SEC EDGAR Ingestion
+
+on:
+  schedule:
+    # Run daily at 06:00 UTC (after overnight SEC EDGAR filings settle)
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Run SEC EDGAR batch sync
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
+        run: pnpm ingest:edgar
