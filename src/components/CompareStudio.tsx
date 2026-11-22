@@ -173,7 +173,7 @@ export function CompareStudio({ entries }: CompareStudioProps) {
               </span>
             ))}
 
-            {selectedItems.length < 4 && (
+            {selectedItems.length < 4 ? (
               <div className="relative">
                 <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
                   <Plus className="h-3.5 w-3.5 text-[var(--text-muted)]" />
@@ -181,6 +181,12 @@ export function CompareStudio({ entries }: CompareStudioProps) {
                     type="text"
                     value={addQuery}
                     onChange={(e) => setAddQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && suggestions[0]) {
+                        e.preventDefault();
+                        addTicker(suggestions[0].ticker);
+                      }
+                    }}
                     placeholder="Add ticker…"
                     aria-label="Add company to comparison"
                     className="w-28 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
@@ -208,6 +214,10 @@ export function CompareStudio({ entries }: CompareStudioProps) {
                   </ul>
                 )}
               </div>
+            ) : (
+              <span className="font-mono-num rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
+                4 / 4 max · remove one to swap
+              </span>
             )}
           </div>
 
@@ -238,36 +248,59 @@ export function CompareStudio({ entries }: CompareStudioProps) {
               True FCF Margin (FCF − SBC)
             </div>
             <div className="mt-4 space-y-3.5">
-              {selectedItems.map((item) => (
-                <div key={item.ticker}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-mono-num font-semibold text-[var(--text-primary)]">
-                      {item.ticker}
-                    </span>
-                    <span
-                      className={`font-mono-num font-semibold ${
-                        item.trueFcfMargin >= 0
-                          ? "text-[var(--amber)]"
-                          : "text-[var(--negative)]"
-                      }`}
-                    >
-                      {formatPct(item.trueFcfMargin)}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
-                    <div
-                      className="h-full rounded-full transition-all duration-200"
-                      style={{
-                        width: `${Math.min(100, (Math.abs(item.trueFcfMargin) / maxTrueMargin) * 100)}%`,
-                        backgroundColor:
+              {selectedItems.map((item) => {
+                const hasAnyNeg = selectedItems.some((i) => i.trueFcfMargin < 0);
+                const halfWidth = Math.min(
+                  50,
+                  (Math.abs(item.trueFcfMargin) / maxTrueMargin) * 50
+                );
+                return (
+                  <div key={item.ticker}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="font-mono-num font-semibold text-[var(--text-primary)]">
+                        {item.ticker}
+                      </span>
+                      <span
+                        className={`font-mono-num font-semibold ${
                           item.trueFcfMargin >= 0
-                            ? "var(--amber)"
-                            : "var(--negative)",
-                      }}
-                    />
+                            ? "text-[var(--amber)]"
+                            : "text-[var(--negative)]"
+                        }`}
+                      >
+                        {formatPct(item.trueFcfMargin)}
+                      </span>
+                    </div>
+                    {hasAnyNeg ? (
+                      <div className="relative h-2 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+                        <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--border-strong)]" />
+                        <div
+                          className="absolute inset-y-0 rounded-full transition-all duration-200"
+                          style={{
+                            left:
+                              item.trueFcfMargin >= 0
+                                ? "50%"
+                                : `${50 - halfWidth}%`,
+                            width: `${Math.max(2, halfWidth)}%`,
+                            backgroundColor:
+                              item.trueFcfMargin >= 0
+                                ? "var(--amber)"
+                                : "var(--negative)",
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+                        <div
+                          className="h-full rounded-full bg-[var(--amber)] transition-all duration-200"
+                          style={{
+                            width: `${Math.min(100, (item.trueFcfMargin / maxTrueMargin) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

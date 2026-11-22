@@ -138,7 +138,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {usingStarter
-                ? "Showing a sample 5-stock portfolio. Star any company across Amber (or add below) to X-Ray your own holdings—stored privately in your browser."
+                ? "Showing a sample 5-stock portfolio. Star any company across Amber (or add a ticker on the right) to X-Ray your own holdings—stored privately in your browser."
                 : `Analyzing your ${holdings.length} watchlisted companies with weighted expectations, cash quality, and sector concentration.`}
             </p>
           </div>
@@ -151,6 +151,12 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                 type="text"
                 value={addQuery}
                 onChange={(e) => setAddQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && suggestions[0]) {
+                    e.preventDefault();
+                    addToPortfolio(suggestions[0].ticker);
+                  }
+                }}
                 placeholder="Add ticker to X-Ray…"
                 aria-label="Add ticker to portfolio X-Ray"
                 className="w-40 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
@@ -304,9 +310,11 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                   <th scope="col">SBC / Rev</th>
                   <th scope="col">Dilution (4Y)</th>
                   <th scope="col">Implied 10Y</th>
-                  <th scope="col" className="w-10">
-                    <span className="sr-only">Remove</span>
-                  </th>
+                  {!usingStarter && (
+                    <th scope="col" className="w-10">
+                      <span className="sr-only">Remove</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -364,8 +372,8 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                       >
                         {formatPct(h.impliedCagr)}
                       </td>
-                      <td data-label="Remove">
-                        {!usingStarter && (
+                      {!usingStarter && (
+                        <td data-label="Remove">
                           <button
                             type="button"
                             onClick={() => watchlist.toggle(h.ticker)}
@@ -374,8 +382,8 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
-                        )}
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

@@ -44,9 +44,20 @@ async function fetchSecText(url: string): Promise<string> {
   return await res.text();
 }
 
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/gi, "&")
+    .replace(/&apos;|&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extractTag(xml: string, tag: string): string {
   const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
-  return m ? m[1].replace(/<[^>]+>/g, "").trim() : "";
+  return m ? decodeXmlEntities(m[1].replace(/<[^>]+>/g, "")) : "";
 }
 
 function parseForm4Xml(

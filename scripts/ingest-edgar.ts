@@ -130,14 +130,54 @@ async function fetchSecJson<T>(url: string): Promise<T> {
 }
 
 function cleanCompanyName(raw: string): string {
-  // Turn "MICROSOFT CORP" -> "Microsoft Corp" while keeping normal casing if mixed
-  if (raw !== raw.toUpperCase()) return raw;
-  return raw
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/\b(Inc|Corp|Co|Ltd|Llc|Lp|Plc)\b/g, (m) => m)
-    .replace(/\s+\/\w+\/$/i, "")
+  // Strip SEC state suffixes like "/DE/", "/MN", "/NV/"
+  let cleaned = raw.replace(/\s*\/[A-Z]{2,4}\/?$/i, "").trim();
+  if (cleaned === cleaned.toUpperCase()) {
+    cleaned = cleaned
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return cleaned
+    .replace(/\bLlc\b/g, "LLC")
+    .replace(/\bLp\b/g, "LP")
+    .replace(/\bPlc\b/g, "PLC")
+    .replace(/\bCorp\b\.?/g, "Corp.")
+    .replace(/\bInc\b\.?/g, "Inc.")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Retroactively normalizes pre-split share counts in older 10-K years when
+ * a forward split (e.g. NVDA 10:1, AVGO 10:1, NOW 5:1, CMG 50:1) or reverse
+ * split occurred and earlier comparative filings remained unadjusted.
+ */
+function normalizeStockSplits(annuals: AnnualFinancials[]): AnnualFinancials[] {
+  const out = annuals.map((a) => ({ ...a }));
+  for (let i = out.length - 2; i >= 0; i--) {
+    const prev = out[i].dilutedShares;
+    const next = out[i + 1].dilutedShares;
+    if (prev <= 0 || next <= 0) continue;
+
+    const ratio = next / prev;
+    if (ratio >= 1.85) {
+      // Forward split (e.g. 2:1, 3:1, 4:1, 5:1, 10:1, 20:1, 50:1)
+      const factor = Math.round(ratio);
+      for (let j = 0; j <= i; j++) {
+        out[j].dilutedShares = Math.round(out[j].dilutedShares * factor);
+      }
+    } else if (ratio <= 0.55) {
+      // Reverse split (e.g. 1:2, 1:5, 1:10)
+      const invFactor = Math.round(1 / ratio);
+      for (let j = 0; j <= i; j++) {
+        out[j].dilutedShares = Math.max(
+          1,
+          Math.round(out[j].dilutedShares / invFactor)
+        );
+      }
+    }
+  }
+  return out;
 }
 
 function daysBetween(start: string, end: string): number {
@@ -296,18 +336,32 @@ function extractLatest10QYtdPair(
 }
 
 const EXCLUDED_FINANCIAL_ENTITY_RE =
-  /\b(bancorp|bancshares|bank|banking|insurance|insurer|reit|realty|property trust|jpmorgan|citigroup|wells fargo|goldman sachs|morgan stanley|chubb|allstate|travelers|metlife|prudential|aflac|progressive corp|berkshire hathaway)\b/i;
+  /\b(bancorp|bancshares|bank|banking|insurance|insurer|reit|realty|property trust|properties|jpmorgan|citigroup|wells fargo|goldman sachs|morgan stanley|chubb|allstate|travelers|metlife|prudential|aflac|progressive corp|berkshire hathaway|keycorp|cme group|brookfield|vici|public storage|prologis|equinix|digital realty|simon property|american tower|crown castle|welltower|extra space|avalonbay|equity residential|blackrock|blackstone|kkr|apollo|charles schwab|capital one|discover financial|us bancorp|pnc financial|truist|state street|northern trust|regions financial|fifth third|huntington|m&t bank|citizens financial|synchrony|ally financial|hartford|arch capital|markel|cincinnati financial|principal financial|lincoln national|loews|marsh & mclennan|aon|arthur j|brown & brown|willis towers)\b/i;
+
+const ALLOWLISTED_FINTECH = new Set([
+  "V",
+  "MA",
+  "PYPL",
+  "SPGI",
+  "MCO",
+  "MSCI",
+  "FICO",
+  "VRSK",
+  "INTU",
+  "COIN",
+  "HOOD",
+]);
 
 function inferSector(name: string): string {
   const n = name.toLowerCase();
-  if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel/.test(n)) return "Semiconductors";
-  if (/software|cloud|data|cyber|security|crowdstrike|palo alto|zscaler|okta|workday|servicenow|salesforce|adobe|intuit|autodesk|atlassian|hubspot|mongodb|confluent|gitlab|snowflake|palantir|datadog|cloudflare/.test(n)) return "Cloud & Software";
-  if (/pharma|therapeutics|biotech|lilly|health|medical|surgical|abbott|amgen|gilead|merck|abbvie|johnson|danaher|thermo/.test(n)) return "Healthcare";
-  if (/bank|capital|financial|visa|mastercard|paypal|american express|blackrock|morgan|goldman|coinbase|robinhood|sp global|moody|msci|fico|fair isaac/.test(n)) return "Financials & Payments";
-  if (/retail|costco|walmart|home depot|lowe|tjx|autozone|o'reilly|starbucks|mcdonald|chipotle|nike|procter|coca-cola|pepsi/.test(n)) return "Consumer & Retail";
-  if (/energy|exxon|chevron|conocophillips/.test(n)) return "Energy";
-  if (/media|netflix|disney|comcast|spotify|roblox|t-mobile|verizon|at&t/.test(n)) return "Media & Telecom";
-  return "Industrials & Services";
+  if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel|sandisk|western digital|micron|marvell|monolithic|nxp|on semi|texas instruments|arista/.test(n)) return "Semiconductors";
+  if (/software|cloud|data|cyber|security|crowdstrike|palo alto|zscaler|okta|workday|servicenow|salesforce|adobe|intuit|autodesk|atlassian|hubspot|mongodb|confluent|gitlab|snowflake|palantir|datadog|cloudflare|fortinet|applovin|trade desk|veeva|docusign|twilio|samsara|duolingo|roblox|spotify/.test(n)) return "Cloud & Software";
+  if (/pharma|therapeutics|biotech|lilly|health|medical|surgical|abbott|amgen|gilead|merck|abbvie|johnson|danaher|thermo|pfizer|bristol|vertex|regeneron|stryker|medtronic|boston scientific|edwards|hca|unitedhealth|elevance|cigna|cvs|mckesson|cencora|cardinal|humana|agilent|iqvia|dexcom|intuitive|idxx|zoetis/.test(n)) return "Healthcare";
+  if (/visa|mastercard|paypal|sp global|s&p global|moody|msci|fico|fair isaac|coinbase|robinhood|verisk|fiserv|fidelity national|paychex|automatic data|global payments|block, inc|mercado/.test(n)) return "Fintech & Data";
+  if (/retail|costco|walmart|home depot|lowe|tjx|autozone|o'reilly|starbucks|mcdonald|chipotle|nike|procter|coca-cola|pepsi|altria|philip morris|mondelez|colgate|kimberly|general mills|hershey|monster bev|target|ross stores|dollar|kroger|amazon|shopify|booking|airbnb|uber|doordash|marriott|hilton|royal caribbean|carnival|yum!|domino|lululemon|estee lauder|constellation brands/.test(n)) return "Consumer & Retail";
+  if (/energy|exxon|chevron|conocophillips|eog |eqt |schlumberger|slb|halliburton|baker hughes|phillips 66|marathon|valero|occidental|devon|diamondback|williams cos|kinder morgan|oneok|targa|cheniere|hess|nextera|duke energy|southern co|dominion|constellation energy|vistra|pg&e|exelon|sempra|american electric/.test(n)) return "Energy & Utilities";
+  if (/media|netflix|disney|comcast|t-mobile|verizon|at&t|charter|warner|fox |paramount|live nation|electronic arts|take-two|alphabet|meta platforms/.test(n)) return "Media & Telecom";
+  return "Industrials & Materials";
 }
 
 function buildAutoTagline(
@@ -416,7 +470,12 @@ async function resolveCandidates(): Promise<DirectoryCandidate[]> {
     if (byTicker.has(ticker)) continue;
 
     // Skip pure banks/insurers/REITs where GAAP OCF mixes customer deposits & loans
-    if (EXCLUDED_FINANCIAL_ENTITY_RE.test(rawName)) continue;
+    if (
+      !ALLOWLISTED_FINTECH.has(ticker) &&
+      EXCLUDED_FINANCIAL_ENTITY_RE.test(rawName)
+    ) {
+      continue;
+    }
 
     const candidate: DirectoryCandidate = {
       ticker,
@@ -549,11 +608,20 @@ async function ingestCandidate(
       return null;
     }
 
-    const latestSharesInstant = extractLatestInstant(
-      facts,
-      ["EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
-      "shares"
-    );
+    // Only accept recent (>=2024) instant share counts so stale 2010 DEI tags never overwrite modern diluted shares
+    const gaapShares =
+      facts.facts?.["us-gaap"]?.["WeightedAverageNumberOfDilutedSharesOutstanding"]?.units?.shares
+        ?.filter((e) => (e.form === "10-Q" || e.form === "10-K") && e.end >= "2024-01-01")
+        ?.sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))?.[0]?.val ?? 0;
+
+    const latestSharesInstant =
+      gaapShares > 0
+        ? gaapShares
+        : extractLatestInstant(
+            facts,
+            ["CommonStockSharesOutstanding"],
+            "shares"
+          );
 
     const annuals: AnnualFinancials[] = years.map((yr) => {
       const rev = (revMap.get(yr)?.val ?? 0) / 1e6;
@@ -720,20 +788,24 @@ async function ingestCandidate(
         "USD"
       );
 
-    const computed = computeAnnualMetrics(annuals);
+    // Normalize stock splits retroactively so Dilution (4Y) is never distorted by 5:1 / 10:1 / 50:1 splits
+    const normalizedAnnuals = normalizeStockSplits(annuals);
+
+    const computed = computeAnnualMetrics(normalizedAnnuals);
     const latestComputed = computed[computed.length - 1];
 
-    // XBRL sanity guardrail: reject anomalous unit mismatches unless curated
+    // Strict XBRL sanity guardrail: reject anomalous unit mismatches unless curated
     if (
       !curated &&
-      (latestComputed.trueFcfMargin > 85 ||
-        latestComputed.trueFcfMargin < -180 ||
-        latestComputed.sbcPctRevenue > 120)
+      (latestComputed.revenue < 200 ||
+        latestComputed.trueFcfMargin > 80 ||
+        latestComputed.trueFcfMargin < -120 ||
+        latestComputed.sbcPctRevenue > 90)
     ) {
       return null;
     }
 
-    const dilutionCagr = computeNetDilutionCagr(annuals);
+    const dilutionCagr = computeNetDilutionCagr(normalizedAnnuals);
 
     const price = existing?.price ?? meta?.fallbackPrice ?? 100;
     const marketCap = Math.round(price * latestComputed.dilutedShares);
@@ -771,7 +843,7 @@ async function ingestCandidate(
         periodEnd: lastFilingPeriodEnd,
         accessionNumber: lastFilingAccession,
       },
-      annuals,
+      annuals: normalizedAnnuals,
       defaultDcf: curated?.defaultDcf ?? {
         wacc: 9.5,
         terminalMultiple: 22,

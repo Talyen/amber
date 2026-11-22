@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { sql } from "drizzle-orm";
+import { notInArray, sql } from "drizzle-orm";
 import {
   annualFinancials,
   companies,
@@ -183,6 +183,14 @@ async function run() {
           source: sql`excluded.source`,
         },
       });
+  }
+
+  // 4. Prune stale/excluded tickers (e.g. banks, REITs, XBRL outliers removed from universe)
+  const validTickers = snapshots.map((c) => c.ticker);
+  if (validTickers.length > 0) {
+    await db
+      .delete(companies)
+      .where(notInArray(companies.ticker, validTickers));
   }
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);

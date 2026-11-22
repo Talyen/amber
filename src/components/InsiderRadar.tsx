@@ -17,6 +17,13 @@ interface InsiderRadarProps {
   trades: InsiderTradeItem[];
 }
 
+function cleanEntityText(str: string): string {
+  return str
+    .replace(/&amp;/gi, "&")
+    .replace(/&apos;|&#39;/gi, "'")
+    .replace(/&quot;/gi, '"');
+}
+
 export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
   const totalBuys = trades
     .filter((t) => t.transactionType === "Buy")
@@ -103,10 +110,10 @@ export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
                   </th>
                   <td data-label="Insider" className="!text-left">
                     <div className="font-medium text-[var(--text-primary)]">
-                      {t.insiderName}
+                      {cleanEntityText(t.insiderName)}
                     </div>
                     <div className="text-[11px] text-[var(--text-muted)]">
-                      {t.insiderTitle}
+                      {cleanEntityText(t.insiderTitle)}
                     </div>
                   </td>
                   <td data-label="Type">

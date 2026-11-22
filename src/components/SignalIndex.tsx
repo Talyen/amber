@@ -145,13 +145,14 @@ export function SignalIndex({
   const groupedBySector = useMemo(() => {
     if (!groupBySector) return [];
     const map = new Map<string, SearchIndexEntry[]>();
-    for (const c of visibleRows) {
+    // Group across ALL matching rows so sector totals are accurate (not clipped at 30)
+    for (const c of rows) {
       const list = map.get(c.sector) ?? [];
       list.push(c);
       map.set(c.sector, list);
     }
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
-  }, [groupBySector, visibleRows]);
+  }, [groupBySector, rows]);
 
   const sortColumns: Array<{ key: SortKey; label: string }> = [
     { key: "marketCap", label: "Mkt Cap" },
@@ -590,7 +591,7 @@ export function SignalIndex({
             </table>
           </div>
 
-          {rows.length > visibleLimit && (
+          {!groupBySector && rows.length > visibleLimit && (
             <div className="mt-4 flex justify-center">
               <button
                 type="button"

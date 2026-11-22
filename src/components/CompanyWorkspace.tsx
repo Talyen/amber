@@ -183,7 +183,12 @@ export function CompanyWorkspace({
               </span>
               <span>·</span>
               <Link
-                href={`/compare?t=${company.ticker},${company.ticker === "PLTR" ? "SNOW,NVDA,COST" : "PLTR,NVDA,COST"}`}
+                href={`/compare?t=${[
+                  company.ticker,
+                  ...["PLTR", "NVDA", "SNOW", "COST", "MSFT"]
+                    .filter((t) => t !== company.ticker)
+                    .slice(0, 3),
+                ].join(",")}`}
                 className="inline-flex items-center gap-1 font-medium text-[var(--amber)] hover:underline"
               >
                 <GitCompareArrows className="h-3 w-3" />
@@ -513,7 +518,7 @@ export function CompanyWorkspace({
           <div className="flex flex-wrap items-center gap-4">
             <MethodologyModal />
             <span className="font-mono-num">
-              CIK {company.cik} · Press 1/2/3 for tabs
+              CIK {company.cik} · Press 1–5 for tabs
             </span>
           </div>
         </footer>

@@ -254,7 +254,7 @@ export function buildCompanyBriefing(
       id: "insider-sell",
       tag: "Insider Activity",
       title: `${formatCurrencyCompact(sellTotal)} in recent open-market insider sales`,
-      detail: `${sellTrades.length} recent SEC Form 4 sales logged across executives/directors. Check the Filings & Insiders tab for individual transactions.`,
+      detail: `${sellTrades.length} recent SEC Form 4 sales logged across executives/directors. Check the Insider Form 4 tab for individual transactions.`,
       tone: "neutral",
     });
   }

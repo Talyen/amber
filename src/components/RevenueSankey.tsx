@@ -69,19 +69,19 @@ export function RevenueSankey({
     ? Math.max(0, opInc - netInc)
     : Math.max(0, opInc - trueFcf);
 
-  // SVG layout coordinates
-  const W = 760;
-  const H = 290;
+  // SVG layout coordinates (generous right margin so col 3 labels never clip)
+  const W = 880;
+  const H = 295;
   const barW = 14;
-  const topPad = 36;
-  const usableH = 216;
+  const topPad = 38;
+  const usableH = 218;
   const scale = usableH / rev;
 
   // Column X positions
   const x0 = 115; // Revenue
-  const x1 = 315; // Gross Profit / Cost of Rev (or OCF / Operating Costs)
-  const x2 = 525; // Operating Income / OpEx (or Reported FCF / CapEx)
-  const x3 = 690; // Net Income / Taxes (or True FCF / SBC)
+  const x1 = 295; // Gross Profit / Cost of Rev (or OCF / Operating Costs)
+  const x2 = 475; // Operating Income / OpEx (or Reported FCF / CapEx)
+  const x3 = 650; // Net Income / Taxes (or True FCF / SBC) — 216px right label room
 
   const revH = rev * scale;
   const revY0 = topPad;
