@@ -2,16 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import {
-  ArrowRight,
-  BarChart3,
-  Bot,
-  Calendar,
-  Globe,
-  Layers,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Bot, Calendar, Trophy } from "lucide-react";
 import type { ArenaPortfolioView } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -137,8 +128,7 @@ export function ArenaLeaderboard({
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <div className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
-              <Trophy className="h-3.5 w-3.5" />
+            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
               PORTFOLIO ARENA · TOP 10
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
@@ -163,28 +153,24 @@ export function ArenaLeaderboard({
           <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-xs">
             {(
               [
-                { id: "monthly", label: "Monthly", icon: Calendar },
-                { id: "yearly", label: "Yearly", icon: BarChart3 },
-                { id: "all", label: "All-Time", icon: Globe },
+                { id: "monthly", label: "Monthly" },
+                { id: "yearly", label: "Yearly" },
+                { id: "all", label: "All-Time" },
               ] as const
-            ).map((tf) => {
-              const Icon = tf.icon;
-              return (
-                <button
-                  key={tf.id}
-                  type="button"
-                  onClick={() => setTimeframe(tf.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors cursor-pointer ${
-                    timeframe === tf.id
-                      ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 opacity-85" aria-hidden="true" />
-                  {tf.label}
-                </button>
-              );
-            })}
+            ).map((tf) => (
+              <button
+                key={tf.id}
+                type="button"
+                onClick={() => setTimeframe(tf.id)}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors cursor-pointer ${
+                  timeframe === tf.id
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {tf.label}
+              </button>
+            ))}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -204,28 +190,24 @@ export function ArenaLeaderboard({
             )}
             {(
               [
-                { id: "all", label: "All", icon: Layers },
-                { id: "community", label: "Community", icon: Users },
-                { id: "bots", label: "Strategy Bots", icon: Bot },
+                { id: "all", label: "All" },
+                { id: "community", label: "Community" },
+                { id: "bots", label: "Strategy Bots" },
               ] as const
-            ).map((f) => {
-              const Icon = f.icon;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setTypeFilter(f.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                    typeFilter === f.id
-                      ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5 opacity-85" aria-hidden="true" />
-                  {f.label}
-                </button>
-              );
-            })}
+            ).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setTypeFilter(f.id)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                  typeFilter === f.id
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </section>
 

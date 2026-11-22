@@ -13,7 +13,6 @@ import {
   PieChart,
   Star,
   UserCheck,
-  Users,
 } from "lucide-react";
 import {
   type CompanySnapshot,
@@ -495,8 +494,7 @@ export function CompanyWorkspace({
                   {sectorPeers.length > 0 && (
                     <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
-                          <Users className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
+                        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                           Closest {company.sector} Peers
                         </h3>
                         <Link

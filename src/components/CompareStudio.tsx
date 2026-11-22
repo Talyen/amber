@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  Copy,
-  Download,
-  FileSpreadsheet,
-  GitCompareArrows,
-  Plus,
-  X,
-} from "lucide-react";
+import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { TopNav } from "@/components/TopNav";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
@@ -122,8 +114,7 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
         {/* Header */}
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <div className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
-              <GitCompareArrows className="h-4 w-4" aria-hidden="true" />
+            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
               COMPARISON STUDIO
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">

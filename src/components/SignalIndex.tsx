@@ -13,8 +13,6 @@ import {
   Gauge,
   Landmark,
   Layers,
-  Rocket,
-  Sparkles,
   Star,
 } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
@@ -211,8 +209,7 @@ export function SignalIndex({
         {/* Curated Discovery Lenses ("Start Exploring") */}
         <section aria-label="Curated discovery lenses" className="mt-7">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
-              <Sparkles className="h-4 w-4 text-[var(--amber)]" />
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
               Explore by Lens
             </h2>
             {activeLens && (
@@ -641,8 +638,7 @@ export function SignalIndex({
             {/* Card 1: Steepest SBC Burden */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  <AlertTriangle className="h-4 w-4 text-[var(--sbc)]" aria-hidden="true" />
+                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                   Steepest SBC Burden
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--sbc)]">
@@ -676,8 +672,7 @@ export function SignalIndex({
             {/* Card 2: Cleanest True FCF Margins */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  <Landmark className="h-4 w-4 text-[var(--positive)]" aria-hidden="true" />
+                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                   Cleanest True FCF Margins
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--amber)]">
@@ -711,8 +706,7 @@ export function SignalIndex({
             {/* Card 3: Steepest Implied Growth */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  <Rocket className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
+                <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                   Highest Implied 10Y Growth
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
