@@ -23,6 +23,7 @@ import {
   type FilingDiffItem,
   computeAnnualMetrics,
   computeEnterpriseValue,
+  computeGroundedDefaultDcf,
   computeNetDilutionCagr,
   solveReverseDcf,
 } from "../src/lib/finance.ts";
@@ -818,14 +819,8 @@ async function ingestCandidate(
     const price = existing?.price ?? meta?.fallbackPrice ?? 100;
     const marketCap = Math.round(price * latestComputed.dilutedShares);
 
-    const defaultTargetFcf = Math.max(
-      5,
-      Math.min(50, Math.round(Math.max(latestComputed.reportedFcfMargin, 18)))
-    );
-    const defaultSbcDrag = Math.max(
-      0.5,
-      Math.min(18, Number((latestComputed.sbcPctRevenue * 0.65).toFixed(1)))
-    );
+    const defaultDcf =
+      curated?.defaultDcf ?? computeGroundedDefaultDcf(normalizedAnnuals);
 
     const baseSnapshot: Omit<CompanySnapshot, "filingDiffs"> = {
       ticker: candidate.ticker,
@@ -852,12 +847,7 @@ async function ingestCandidate(
         accessionNumber: lastFilingAccession,
       },
       annuals: normalizedAnnuals,
-      defaultDcf: curated?.defaultDcf ?? {
-        wacc: 9.5,
-        terminalMultiple: 22,
-        targetFcfMargin: defaultTargetFcf,
-        sbcDragPct: defaultSbcDrag,
-      },
+      defaultDcf,
     };
 
     // Preserve any existing text-diffs or curated diffs, supplemented with XBRL diffs

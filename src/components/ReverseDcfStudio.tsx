@@ -249,7 +249,7 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
             <input
               id="dcf-margin"
               type="range"
-              min={2}
+              min={1}
               max={55}
               step={0.5}
               value={targetFcfMargin}
@@ -257,12 +257,12 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(targetFcfMargin, 2, 55),
+                  "--range-progress": progressPct(targetFcfMargin, 1, 55),
                 } as React.CSSProperties
               }
             />
             <div className="font-mono-num mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
-              <span>2%</span>
+              <span>1%</span>
               <span>28%</span>
               <span>55%</span>
             </div>

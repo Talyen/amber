@@ -21,12 +21,15 @@ function progressPct(value: number, min: number, max: number): string {
 
 export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const histGrowth = Math.max(
-    2,
+    1,
     Math.min(40, Math.round(computeRevenueCagr(company.annuals)))
   );
-  const baseMargin = Math.max(
-    5,
-    Math.min(50, Math.round(company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct))
+  const rawBaseMargin = Math.max(
+    1,
+    company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
+  );
+  const baseMargin = Number(
+    Math.max(1, Math.min(55, Math.round(rawBaseMargin * 2) / 2)).toFixed(1)
   );
   const baseMultiple = company.defaultDcf.terminalMultiple;
 
@@ -44,16 +47,20 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     setActivePreset(kind);
     if (kind === "bear") {
       setRevGrowth(Math.max(0, Math.round(histGrowth * 0.55)));
-      setTargetMargin(Math.max(4, Math.round(baseMargin * 0.78)));
-      setExitMultiple(Math.max(10, Math.round(baseMultiple * 0.7)));
+      setTargetMargin(
+        Number(Math.max(1, Math.round(baseMargin * 0.8 * 2) / 2).toFixed(1))
+      );
+      setExitMultiple(Math.max(10, Math.round(baseMultiple * 0.72)));
     } else if (kind === "base") {
       setRevGrowth(histGrowth);
       setTargetMargin(baseMargin);
       setExitMultiple(baseMultiple);
     } else {
-      setRevGrowth(Math.min(45, Math.round(histGrowth * 1.3 + 3)));
-      setTargetMargin(Math.min(55, Math.round(baseMargin * 1.18 + 2)));
-      setExitMultiple(Math.min(42, Math.round(baseMultiple * 1.25)));
+      setRevGrowth(Math.min(45, Math.round(histGrowth * 1.3 + 2)));
+      setTargetMargin(
+        Number(Math.min(55, Math.round(baseMargin * 1.2 * 2) / 2).toFixed(1))
+      );
+      setExitMultiple(Math.min(42, Math.round(baseMultiple * 1.22)));
     }
   }
 
@@ -214,30 +221,30 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
                 Year-5 Real Cash Margin (True FCF)
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
-                {formatPct(targetMargin, false, 0)}
+                {formatPct(targetMargin, false, 1)}
               </span>
             </div>
             <input
               id="sc-margin"
               type="range"
-              min={2}
+              min={1}
               max={55}
-              step={1}
+              step={0.5}
               value={targetMargin}
               onChange={(e) => {
-                setTargetMargin(parseInt(e.target.value, 10));
+                setTargetMargin(parseFloat(e.target.value));
                 setActivePreset("custom");
               }}
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(targetMargin, 2, 55),
+                  "--range-progress": progressPct(targetMargin, 1, 55),
                 } as React.CSSProperties
               }
             />
             <div className="font-mono-num mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
-              <span>2%</span>
-              <span>Now: {formatPct(latest.trueFcfMargin, false, 0)}</span>
+              <span>1%</span>
+              <span>Now: {formatPct(latest.trueFcfMargin, false, 1)}</span>
               <span>55%</span>
             </div>
           </div>

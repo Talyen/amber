@@ -118,6 +118,56 @@ export function computeNetDilutionCagr(annuals: AnnualFinancials[]): number {
   return (Math.pow(last / first, 1 / years) - 1) * 100;
 }
 
+/**
+ * Computes realistic, business-model-grounded default DCF assumptions anchored
+ * to the company's own historical FCF margin (so a 2% margin retailer like WMT
+ * never gets a 18% software margin assumption).
+ */
+export function computeGroundedDefaultDcf(
+  annuals: AnnualFinancials[]
+): CompanySnapshot["defaultDcf"] {
+  const computed = computeAnnualMetrics(annuals);
+  const latest = computed[computed.length - 1];
+
+  const repMargins = computed
+    .map((c) => c.reportedFcfMargin)
+    .filter((m) => Number.isFinite(m))
+    .sort((a, b) => a - b);
+  const mid = Math.floor(repMargins.length / 2);
+  const medianRepMargin =
+    repMargins.length === 0
+      ? 10
+      : repMargins.length % 2 === 0
+        ? (repMargins[mid - 1] + repMargins[mid]) / 2
+        : repMargins[mid];
+
+  const ocfMargin =
+    latest.revenue > 0 ? (latest.operatingCashFlow / latest.revenue) * 100 : 10;
+
+  // Modest +10% operating-leverage headroom above historical median, never an arbitrary 18% floor
+  const rawTarget =
+    medianRepMargin > 0.5
+      ? medianRepMargin * 1.1
+      : Math.max(2, Math.min(18, ocfMargin * 0.55));
+
+  const targetFcfMargin = Number(
+    Math.max(1.5, Math.min(55, rawTarget)).toFixed(1)
+  );
+  const sbcDragPct = Number(
+    Math.max(
+      0.2,
+      Math.min(Math.max(0.5, targetFcfMargin * 0.55), latest.sbcPctRevenue * 0.8)
+    ).toFixed(1)
+  );
+
+  return {
+    wacc: 9.5,
+    terminalMultiple: 22,
+    targetFcfMargin,
+    sbcDragPct,
+  };
+}
+
 export interface ReverseDcfInputs {
   enterpriseValue: number; // $M
   baseRevenue: number; // $M (latest FY)
