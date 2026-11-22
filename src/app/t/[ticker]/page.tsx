@@ -4,14 +4,19 @@ import { getAllTickers, getCompanySnapshot } from "@/data/repository";
 import { CompanyWorkspace } from "@/components/CompanyWorkspace";
 
 export const revalidate = 86400;
+export const dynamicParams = true;
 
 interface TickerPageProps {
   params: Promise<{ ticker: string }>;
 }
 
+/**
+ * Pre-render the top 40 tickers at build time for instant cold loads;
+ * all remaining tickers (41..5,000+) render on-demand and cache at Vercel's edge for 24h.
+ */
 export async function generateStaticParams() {
   const tickers = await getAllTickers();
-  return tickers.map((ticker) => ({ ticker }));
+  return tickers.slice(0, 40).map((ticker) => ({ ticker }));
 }
 
 export async function generateMetadata({

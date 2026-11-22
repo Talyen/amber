@@ -29,12 +29,17 @@ jobs:
       - name: Sync SEC EDGAR XBRL Financials
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
+          UNIVERSE_LIMIT: "125"
         run: pnpm ingest:edgar
 
-      - name: Extract Incremental 10-K Text Diffs
+      - name: Sync Latest EOD Share Prices & Market Caps
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm sync:prices
+
+      - name: Extract Incremental 10-K Text Diffs (Deterministic)
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MAX_TICKERS: "10"
         run: pnpm ingest:diffs
 

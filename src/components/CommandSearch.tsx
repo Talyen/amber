@@ -10,25 +10,56 @@ interface CommandSearchProps {
   variant?: "nav" | "hero";
 }
 
-export function CommandSearch({ variant = "nav" }: CommandSearchProps) {
+export function CommandSearch({
+  variant = "nav",
+  initialEntries = SEARCH_INDEX,
+}: CommandSearchProps & { initialEntries?: SearchIndexEntry[] }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [entries, setEntries] = useState<SearchIndexEntry[]>(initialEntries);
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
+
+  // Hydrate latest edge-cached search index from /api/search-index once on open
+  const hasFetchedRef = useRef(false);
+  function refreshIndexOnce() {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+    fetch("/api/search-index")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: SearchIndexEntry[] | null) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setEntries(data);
+        }
+      })
+      .catch(() => {
+        // Keep bundled initialEntries on network error
+      });
+  }
 
   const results = useMemo<SearchIndexEntry[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
-      return SEARCH_INDEX.slice(0, 12);
+      return [...entries]
+        .sort((a, b) => b.marketCap - a.marketCap)
+        .slice(0, 12);
     }
-    return SEARCH_INDEX.filter(
-      (item) =>
-        item.ticker.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.sector.toLowerCase().includes(q)
-    ).slice(0, 12);
-  }, [query]);
+    return entries
+      .filter(
+        (item) =>
+          item.ticker.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          item.sector.toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const aExact = a.ticker.toLowerCase().startsWith(q) ? 1 : 0;
+        const bExact = b.ticker.toLowerCase().startsWith(q) ? 1 : 0;
+        if (aExact !== bExact) return bExact - aExact;
+        return b.marketCap - a.marketCap;
+      })
+      .slice(0, 12);
+  }, [entries, query]);
 
   useEffect(() => {
     setActiveIdx(0);
@@ -37,6 +68,7 @@ export function CommandSearch({ variant = "nav" }: CommandSearchProps) {
   function openDialog() {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
+    refreshIndexOnce();
     dialog.showModal();
     setQuery("");
     setActiveIdx(0);
@@ -147,7 +179,7 @@ export function CommandSearch({ variant = "nav" }: CommandSearchProps) {
         >
           <span className="inline-flex items-center gap-2.5">
             <Search className="h-4 w-4 text-[var(--amber)]" />
-            <span>Search {SEARCH_INDEX.length} SEC-verified companies…</span>
+            <span>Search {entries.length} SEC-verified companies…</span>
           </span>
           <kbd className="font-mono-num rounded border border-[var(--border)] bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]">
             ⌘K
@@ -261,7 +293,7 @@ export function CommandSearch({ variant = "nav" }: CommandSearchProps) {
         <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-2 text-[11px] text-[var(--text-muted)]">
           <span>↑↓ Navigate · ↵ Open · Esc Close</span>
           <span className="font-mono-num">
-            {SEARCH_INDEX.length} companies · SEC EDGAR 10-K
+            {entries.length} companies · SEC EDGAR 10-K
           </span>
         </div>
       </dialog>

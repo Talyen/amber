@@ -24,6 +24,22 @@ export function SignalIndex({
   const [sortKey, setSortKey] = useState<SortKey>("marketCap");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [filter, setFilter] = useState("");
+  const [selectedSector, setSelectedSector] = useState<string>("All");
+  const [visibleLimit, setVisibleLimit] = useState(30);
+
+  const sectors = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of entries) {
+      counts.set(c.sector, (counts.get(c.sector) ?? 0) + 1);
+    }
+    return [
+      "All",
+      ...[...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 7)
+        .map(([sector]) => sector),
+    ];
+  }, [entries]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -61,20 +77,23 @@ export function SignalIndex({
 
   const rows = useMemo<SearchIndexEntry[]>(() => {
     const q = filter.trim().toLowerCase();
-    const filtered = q
-      ? entries.filter(
-          (c) =>
-            c.ticker.toLowerCase().includes(q) ||
-            c.name.toLowerCase().includes(q) ||
-            c.sector.toLowerCase().includes(q)
-        )
-      : entries;
+    const filtered = entries.filter((c) => {
+      if (selectedSector !== "All" && c.sector !== selectedSector) return false;
+      if (!q) return true;
+      return (
+        c.ticker.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        c.sector.toLowerCase().includes(q)
+      );
+    });
 
     return [...filtered].sort((a, b) => {
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [entries, filter, sortKey, sortDir]);
+  }, [entries, filter, selectedSector, sortKey, sortDir]);
+
+  const visibleRows = rows.slice(0, visibleLimit);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -85,7 +104,7 @@ export function SignalIndex({
         <section className="border-b border-[var(--border)] pb-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-1 text-[11px] font-medium text-[var(--amber)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--amber)]" />
-            Live SEC EDGAR 10-K XBRL · {SEARCH_INDEX.length} Companies Indexed
+            Live SEC EDGAR 10-K XBRL · {entries.length} Companies Indexed
           </div>
 
           <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
@@ -96,7 +115,7 @@ export function SignalIndex({
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <CommandSearch variant="hero" />
+            <CommandSearch variant="hero" initialEntries={entries} />
             <Link
               href="/t/PLTR"
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
@@ -233,11 +252,38 @@ export function SignalIndex({
             <input
               type="search"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setVisibleLimit(30);
+              }}
               placeholder="Filter table…"
               aria-label="Filter coverage table"
               className="h-8 w-52 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
             />
+          </div>
+
+          {/* Sector Filter Pills */}
+          <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
+            {sectors.map((sector) => {
+              const active = selectedSector === sector;
+              return (
+                <button
+                  key={sector}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSector(sector);
+                    setVisibleLimit(30);
+                  }}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                    active
+                      ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {sector}
+                </button>
+              );
+            })}
           </div>
 
           <div
@@ -313,7 +359,7 @@ export function SignalIndex({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((c) => (
+                {visibleRows.map((c) => (
                   <tr key={c.ticker}>
                     <th scope="row">
                       <Link
@@ -373,6 +419,18 @@ export function SignalIndex({
               </tbody>
             </table>
           </div>
+
+          {rows.length > visibleLimit && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setVisibleLimit((prev) => prev + 40)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
+              >
+                Show more ({rows.length - visibleLimit} remaining)
+              </button>
+            </div>
+          )}
         </section>
 
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
@@ -380,7 +438,7 @@ export function SignalIndex({
             Amber · Deterministic fundamental analysis from SEC EDGAR 10-K XBRL filings. Not investment advice.
           </p>
           <p className="font-mono-num">
-            {SEARCH_INDEX.length} tickers · Zero live LLM calls
+            {entries.length} tickers · Neon Postgres + Vercel ISR
           </p>
         </footer>
       </main>
