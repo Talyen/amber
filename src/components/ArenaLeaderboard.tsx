@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bot, Trophy, ArrowRight, Calendar } from "lucide-react";
+import { Bot, Trophy, Medal, ArrowRight, Calendar } from "lucide-react";
 import type { ArenaPortfolioView } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { formatPct } from "@/lib/finance";
 
 interface ArenaLeaderboardProps {
@@ -256,15 +257,42 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                 href={`/arena/${p.id}`}
                 className="group flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:border-[var(--amber-border)] sm:flex-row sm:items-center"
               >
-                <div className="flex items-start gap-4 min-w-0">
-                  <div
-                    className={`font-mono-num flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
-                      idx === 0
-                        ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                        : "bg-[var(--surface-subtle)] text-[var(--text-secondary)]"
-                    }`}
-                  >
-                    #{idx + 1}
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="flex shrink-0 items-center gap-2.5">
+                    <div
+                      title={
+                        idx === 0
+                          ? "1st Place — Gold"
+                          : idx === 1
+                            ? "2nd Place — Silver"
+                            : idx === 2
+                              ? "3rd Place — Bronze"
+                              : `Rank #${idx + 1}`
+                      }
+                      className={`font-mono-num flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg text-xs font-bold leading-none ${
+                        idx === 0
+                          ? "bg-yellow-500/15 text-yellow-600 ring-1 ring-inset ring-yellow-500/40 dark:text-yellow-400"
+                          : idx === 1
+                            ? "bg-slate-400/15 text-slate-600 ring-1 ring-inset ring-slate-400/40 dark:text-slate-300"
+                            : idx === 2
+                              ? "bg-orange-600/15 text-orange-700 ring-1 ring-inset ring-orange-500/40 dark:text-orange-400"
+                              : "bg-[var(--surface-subtle)] text-[var(--text-secondary)] text-sm"
+                      }`}
+                    >
+                      {idx < 3 ? (
+                        <>
+                          {idx === 0 ? (
+                            <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+                          ) : (
+                            <Medal className="h-3.5 w-3.5" aria-hidden="true" />
+                          )}
+                          <span className="mt-0.5 text-[10px]">#{idx + 1}</span>
+                        </>
+                      ) : (
+                        <>#{idx + 1}</>
+                      )}
+                    </div>
+                    <ProfileAvatar icon={p.avatarIcon} size="md" />
                   </div>
 
                   <div className="min-w-0">

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, RefreshCw } from "lucide-react";
 import { getArenaPortfolioById } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { formatPct } from "@/lib/finance";
 
 export const revalidate = 3600;
@@ -46,7 +47,9 @@ export default async function ArenaDetailPage({
         </Link>
 
         <section className="mt-4 flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
-          <div>
+          <div className="flex items-start gap-4">
+            <ProfileAvatar icon={portfolio.avatarIcon} size="lg" className="mt-0.5" />
+            <div>
             <div className="flex flex-wrap items-center gap-2">
               {portfolio.isBot ? (
                 <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
@@ -72,6 +75,7 @@ export default async function ArenaDetailPage({
             <p className="mt-1.5 max-w-2xl text-sm text-[var(--text-secondary)]">
               {portfolio.thesis}
             </p>
+            </div>
           </div>
 
           <div className="sm:text-right">

@@ -377,6 +377,7 @@ export interface ArenaPortfolioView {
   thesis: string;
   isBot: boolean;
   botTheme: string | null;
+  avatarIcon: string;
   periodKey: string; // "2026-11" or "2025"
   isFinalized: boolean;
   lockedAt: string; // ISO date string
@@ -468,6 +469,7 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
         thesis: port.thesis,
         isBot: port.isBot === 1,
         botTheme: port.botTheme,
+        avatarIcon: port.avatarIcon ?? "compass",
         periodKey: resolvedPeriodKey,
         isFinalized,
         lockedAt: isoDate,

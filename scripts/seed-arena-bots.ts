@@ -11,7 +11,7 @@
 
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { arenaPortfolios, arenaPositions, companies } from "../src/db/schema.ts";
 
 interface BotTemplate {
@@ -19,6 +19,7 @@ interface BotTemplate {
   handle: string;
   title: string;
   botTheme: string;
+  avatarIcon: string;
   thesis: string;
   tickers: string[];
 }
@@ -26,51 +27,57 @@ interface BotTemplate {
 const BOTS: BotTemplate[] = [
   {
     slug: "cash-machines",
-    handle: "CashMachineBot",
-    title: "Elite True FCF Margin Basket",
+    handle: "tollbooth",
+    title: "Tollbooth Capital",
     botTheme: "Cash Machines",
-    thesis: "Equal-weight basket of wide-moat businesses converting >30% of revenue into real cash after SBC.",
-    tickers: ["V", "MA", "NVDA", "FICO", "AAPL"],
+    avatarIcon: "vault",
+    thesis: "Equal-weight basket of wide-moat tollbooth businesses converting >30% of revenue into real cash after SBC.",
+    tickers: ["V", "MA", "NVDA", "FICO", "AAPL", "SPGI", "MCO"],
   },
   {
     slug: "buyback-cannibals",
-    handle: "BuybackCannibalBot",
-    title: "Relentless Share Retirees",
-    botTheme: "Buyback Cannibals",
+    handle: "share_eater",
+    title: "The Share Eater",
+    botTheme: "Buybacks",
+    avatarIcon: "flame",
     thesis: "Companies consistently shrinking their diluted share count every year via self-funded buybacks.",
-    tickers: ["AAPL", "V", "MA", "ORLY", "AZO"],
+    tickers: ["AAPL", "V", "MA", "ORLY", "AZO", "BKNG"],
   },
   {
     slug: "ai-infrastructure",
-    handle: "AIInfraBot",
-    title: "AI Compute & Cloud Backbone",
-    botTheme: "AI Infrastructure",
-    thesis: "Core picks-and-shovels powering hyperscale AI training, networking, and enterprise cloud.",
-    tickers: ["NVDA", "MSFT", "AVGO", "ANET", "ORCL"],
+    handle: "gpu_baron",
+    title: "Picks & Shovels",
+    botTheme: "AI Infra",
+    avatarIcon: "cpu",
+    thesis: "Core picks-and-shovels powering hyperscale AI training, networking, semi equipment, and enterprise cloud.",
+    tickers: ["NVDA", "MSFT", "AVGO", "ANET", "ORCL", "AMD", "AMAT"],
   },
   {
     slug: "high-sbc-saas",
-    handle: "HighSbcGrowthBot",
-    title: "High-SBC Cloud Software",
-    botTheme: "Hidden Dilution",
+    handle: "saas_rocket",
+    title: "Cloud Rocket",
+    botTheme: "Cloud Growth",
+    avatarIcon: "rocket",
     thesis: "High-growth cloud & cybersecurity leaders where stock-based compensation heavily trails headline FCF.",
-    tickers: ["PLTR", "SNOW", "CRWD", "DDOG", "NET"],
+    tickers: ["PLTR", "SNOW", "CRWD", "DDOG", "NET", "PANW"],
   },
   {
     slug: "modest-expectations",
-    handle: "ValueHawkBot",
-    title: "Cash-Rich, Low Expectations",
-    botTheme: "Modest Expectations",
+    handle: "margin_of_safety",
+    title: "Cigar Butts & Moats",
+    botTheme: "Value",
+    avatarIcon: "compass",
     thesis: "Profitable, cash-generative franchises priced for single-digit long-term growth.",
-    tickers: ["GOOGL", "HD", "UNH", "QCOM", "ADBE"],
+    tickers: ["GOOGL", "HD", "UNH", "QCOM", "ADBE", "CMCSA"],
   },
   {
     slug: "quality-compounders",
-    handle: "CompounderBot",
-    title: "All-Weather Quality Compounders",
-    botTheme: "Quality Compounders",
+    handle: "swan_fund",
+    title: "Sleep Well at Night",
+    botTheme: "Compounders",
+    avatarIcon: "shield",
     thesis: "Durable consumer & enterprise franchises with high ROIC and disciplined capital allocation.",
-    tickers: ["COST", "MSFT", "V", "NFLX", "INTU"],
+    tickers: ["COST", "MSFT", "V", "NFLX", "INTU", "WMT", "LIN", "CTAS"],
   },
 ];
 
@@ -232,6 +239,7 @@ async function run() {
           thesis: bot.thesis,
           isBot: 1,
           botTheme: bot.botTheme,
+          avatarIcon: bot.avatarIcon,
           periodKey: period.key,
           finalReturnPct,
           lockedAt: period.lockedAt,
@@ -239,14 +247,20 @@ async function run() {
         .onConflictDoUpdate({
           target: arenaPortfolios.id,
           set: {
+            handle: sql`excluded.handle`,
             title: sql`excluded.title`,
             thesis: sql`excluded.thesis`,
             botTheme: sql`excluded.bot_theme`,
+            avatarIcon: sql`excluded.avatar_icon`,
             periodKey: sql`excluded.period_key`,
             finalReturnPct: sql`excluded.final_return_pct`,
             lockedAt: sql`excluded.locked_at`,
           },
         });
+
+      await db
+        .delete(arenaPositions)
+        .where(eq(arenaPositions.portfolioId, id));
 
       for (const p of posEntries) {
         await db

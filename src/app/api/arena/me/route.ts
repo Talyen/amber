@@ -46,6 +46,7 @@ export async function GET(request: Request) {
         handle: port.handle,
         title: port.title,
         thesis: port.thesis,
+        avatarIcon: port.avatarIcon ?? "compass",
         nav: port.nav,
         lockedAt: port.lockedAt.toISOString(),
         lastRebalancedAt: (port.lastRebalancedAt ?? port.lockedAt).toISOString(),

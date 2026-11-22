@@ -10,6 +10,7 @@ import {
   companies,
 } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { normalizeAvatarId } from "@/lib/avatars";
 
 interface LockPositionInput {
   ticker: string;
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
     handle?: string;
     title?: string;
     thesis?: string;
+    avatarIcon?: string;
     positions?: LockPositionInput[];
   };
 
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
     .slice(0, 28);
   const title = String(body.title ?? "").trim().slice(0, 64);
   const thesis = String(body.thesis ?? "").trim().slice(0, 220);
+  const avatarIcon = normalizeAvatarId(body.avatarIcon);
 
   if (handle.length < 2 || !/^[A-Za-z0-9_.-]+$/.test(handle)) {
     return NextResponse.json(
@@ -172,6 +175,7 @@ export async function POST(request: Request) {
         handle,
         title,
         thesis: thesis || existing.thesis,
+        avatarIcon,
         nav: newNav,
         lastRebalancedAt: now,
       })
@@ -223,6 +227,7 @@ export async function POST(request: Request) {
     thesis: thesis || `${tickers.length}-stock conviction portfolio.`,
     isBot: 0,
     botTheme: null,
+    avatarIcon,
     periodKey,
     nav: 100,
     finalReturnPct: null,

@@ -196,6 +196,7 @@ export const arenaPortfolios = pgTable("arena_portfolios", {
   thesis: text("thesis").notNull(),
   isBot: integer("is_bot").notNull().default(0), // 1 = Strategy Bot, 0 = Community
   botTheme: text("bot_theme"),
+  avatarIcon: text("avatar_icon").notNull().default("compass"),
   periodKey: text("period_key"), // e.g. "2026-11" (monthly) or "2025" (yearly)
   nav: doublePrecision("nav").notNull().default(100), // Time-Weighted NAV (starts at 100.0)
   finalReturnPct: doublePrecision("final_return_pct"), // Set when a past period closes; null = live

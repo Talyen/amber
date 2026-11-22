@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { RefreshCw, Trophy, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { openAuthDialog } from "@/components/AuthButton";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { AVATAR_PRESETS, normalizeAvatarId, type AvatarId } from "@/lib/avatars";
 
 interface LockPortfolioModalProps {
   positions: Array<{ ticker: string; weight: number }>;
@@ -16,6 +18,7 @@ interface ExistingArenaPortfolio {
   handle: string;
   title: string;
   thesis: string;
+  avatarIcon?: string;
   nav: number;
   lockedAt: string;
   lastRebalancedAt: string;
@@ -34,6 +37,7 @@ export function LockPortfolioModal({
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
   const [thesis, setThesis] = useState("");
+  const [avatarIcon, setAvatarIcon] = useState<AvatarId>("compass");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -53,6 +57,7 @@ export function LockPortfolioModal({
           setHandle(port.handle);
           setTitle(port.title);
           setThesis(port.thesis);
+          setAvatarIcon(normalizeAvatarId(port.avatarIcon));
         } else if (session.user.name) {
           const suggested = session.user.name
             .toLowerCase()
@@ -129,7 +134,7 @@ export function LockPortfolioModal({
       const res = await fetch("/api/arena/lock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle, title, thesis, positions }),
+        body: JSON.stringify({ handle, title, thesis, avatarIcon, positions }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
@@ -224,6 +229,34 @@ export function LockPortfolioModal({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+              Profile Icon
+            </span>
+            <div className="grid grid-cols-6 gap-1.5">
+              {AVATAR_PRESETS.map((preset) => {
+                const selected = avatarIcon === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setAvatarIcon(preset.id)}
+                    aria-label={`Select ${preset.label} icon`}
+                    aria-pressed={selected}
+                    title={preset.label}
+                    className={`flex items-center justify-center rounded-lg border p-1.5 transition-colors cursor-pointer ${
+                      selected
+                        ? "border-[var(--amber)] bg-[var(--amber-soft)]"
+                        : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    <ProfileAvatar icon={preset.id} size="sm" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <label
               htmlFor="arena-handle"
