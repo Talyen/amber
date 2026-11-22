@@ -47,8 +47,7 @@ function createAuthInstance() {
       },
     }),
     emailAndPassword: {
-      enabled: true,
-      minPasswordLength: 8,
+      enabled: false,
     },
     socialProviders,
   });

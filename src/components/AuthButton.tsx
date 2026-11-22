@@ -15,28 +15,54 @@ export function openAuthDialog() {
   }
 }
 
+function GoogleIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"
+      />
+    </svg>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg
+      className="h-4 w-4 fill-current"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.06 11.06 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14 0 1.54-.01 2.79-.01 3.17 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
+    </svg>
+  );
+}
+
 export function AuthButton() {
   const { data: session, isPending } = authClient.useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const emailRef = useRef<HTMLInputElement>(null);
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"google" | "github" | null>(null);
   const [error, setError] = useState("");
-  const [providers, setProviders] = useState<ProviderAvailability>({
-    google: false,
-    github: false,
-  });
+  const [providers, setProviders] = useState<ProviderAvailability | null>(null);
 
   function openModal() {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     setError("");
     dialog.showModal();
-    window.requestAnimationFrame(() => emailRef.current?.focus());
   }
 
   function closeModal() {
@@ -57,7 +83,9 @@ export function AuthButton() {
       .then((data: ProviderAvailability | null) => {
         if (active && data) setProviders(data);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setProviders({ google: false, github: false });
+      });
     return () => {
       active = false;
     };
@@ -99,52 +127,19 @@ export function AuthButton() {
 
   async function handleSocial(provider: "google" | "github") {
     setError("");
-    setSubmitting(true);
+    setSubmitting(provider);
     try {
-      await authClient.signIn.social({
+      const res = await authClient.signIn.social({
         provider,
         callbackURL: window.location.href,
       });
+      if (res?.error) {
+        setError(res.error.message ?? `Could not sign in with ${provider}.`);
+        setSubmitting(null);
+      }
     } catch {
       setError(`Could not start ${provider} sign-in.`);
-      setSubmitting(false);
-    }
-  }
-
-  async function handleEmailSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-
-    try {
-      if (mode === "signup") {
-        const res = await authClient.signUp.email({
-          name: name.trim() || email.split("@")[0],
-          email: email.trim(),
-          password,
-        });
-        if (res.error) {
-          setError(res.error.message ?? "Could not create account.");
-          setSubmitting(false);
-          return;
-        }
-      } else {
-        const res = await authClient.signIn.email({
-          email: email.trim(),
-          password,
-        });
-        if (res.error) {
-          setError(res.error.message ?? "Invalid email or password.");
-          setSubmitting(false);
-          return;
-        }
-      }
-      setSubmitting(false);
-      setPassword("");
-      closeModal();
-    } catch {
-      setError("Authentication request failed. Please try again.");
-      setSubmitting(false);
+      setSubmitting(null);
     }
   }
 
@@ -187,7 +182,7 @@ export function AuthButton() {
     );
   }
 
-  const hasSocial = providers.google || providers.github;
+  const anyConfigured = Boolean(providers?.google || providers?.github);
 
   return (
     <>
@@ -204,7 +199,7 @@ export function AuthButton() {
         ref={dialogRef}
         aria-labelledby="amber-auth-title"
         {...({ closedby: "any" } as Record<string, string>)}
-        className="amber-dialog m-auto w-[min(420px,calc(100vw-2rem))] rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-5 text-[var(--text-primary)] shadow-2xl"
+        className="amber-dialog m-auto w-[min(400px,calc(100vw-2rem))] rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-5 text-[var(--text-primary)] shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -215,9 +210,7 @@ export function AuthButton() {
               id="amber-auth-title"
               className="mt-0.5 text-base font-semibold text-[var(--text-primary)]"
             >
-              {mode === "signin"
-                ? "Sign in to your account"
-                : "Create an Amber account"}
+              Sign in to Amber
             </h2>
           </div>
           <button
@@ -230,145 +223,51 @@ export function AuthButton() {
           </button>
         </div>
 
-        <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-secondary)]">
-          Manage your Arena portfolio and rebalance positions anytime.
+        <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+          Sign in with Google or GitHub to publish and rebalance your Arena portfolio. Amber never stores passwords.
         </p>
 
-        {hasSocial && (
-          <div className="mt-4 space-y-2">
-            {providers.google && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => handleSocial("google")}
-                className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--bg)] px-3 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] cursor-pointer disabled:opacity-50"
-              >
-                Continue with Google
-              </button>
-            )}
-            {providers.github && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => handleSocial("github")}
-                className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--bg)] px-3 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] cursor-pointer disabled:opacity-50"
-              >
-                Continue with GitHub
-              </button>
-            )}
-            <div className="relative py-1 text-center text-[11px] text-[var(--text-muted)]">
-              <span className="bg-[var(--surface)] px-2">or continue with email</span>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleEmailSubmit} className="mt-4 space-y-3">
-          {mode === "signup" && (
-            <div>
-              <label
-                htmlFor="auth-name"
-                className="mb-1 block text-xs font-medium text-[var(--text-secondary)]"
-              >
-                Display Name
-              </label>
-              <input
-                id="auth-name"
-                type="text"
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ryan"
-                className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-              />
-            </div>
-          )}
-
-          <div>
-            <label
-              htmlFor="auth-email"
-              className="mb-1 block text-xs font-medium text-[var(--text-secondary)]"
-            >
-              Email
-            </label>
-            <input
-              ref={emailRef}
-              id="auth-email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="auth-password"
-              className="mb-1 block text-xs font-medium text-[var(--text-secondary)]"
-            >
-              Password
-            </label>
-            <input
-              id="auth-password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-            />
-          </div>
-
-          {error && <p className="text-xs text-[var(--negative)]">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex h-9 w-full items-center justify-center rounded-md bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
-          >
-            {submitting
-              ? "Please wait…"
-              : mode === "signin"
-                ? "Sign In"
-                : "Create Account"}
-          </button>
-        </form>
-
-        <div className="mt-4 border-t border-[var(--border)] pt-3 text-center text-xs text-[var(--text-secondary)]">
-          {mode === "signin" ? (
+        <div className="mt-5 space-y-2.5">
+          {providers === null ? (
+            <div className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] opacity-60" />
+          ) : anyConfigured ? (
             <>
-              New to Amber?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("signup");
-                  setError("");
-                }}
-                className="font-semibold text-[var(--amber)] hover:underline cursor-pointer"
-              >
-                Create an account
-              </button>
+              {providers.google && (
+                <button
+                  type="button"
+                  disabled={submitting !== null}
+                  onClick={() => handleSocial("google")}
+                  className="flex h-10 w-full items-center justify-center gap-2.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] px-4 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] cursor-pointer disabled:opacity-50"
+                >
+                  <GoogleIcon />
+                  {submitting === "google"
+                    ? "Redirecting to Google…"
+                    : "Continue with Google"}
+                </button>
+              )}
+
+              {providers.github && (
+                <button
+                  type="button"
+                  disabled={submitting !== null}
+                  onClick={() => handleSocial("github")}
+                  className="flex h-10 w-full items-center justify-center gap-2.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] px-4 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] cursor-pointer disabled:opacity-50"
+                >
+                  <GitHubIcon />
+                  {submitting === "github"
+                    ? "Redirecting to GitHub…"
+                    : "Continue with GitHub"}
+                </button>
+              )}
             </>
           ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("signin");
-                  setError("");
-                }}
-                className="font-semibold text-[var(--amber)] hover:underline cursor-pointer"
-              >
-                Sign in
-              </button>
-            </>
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3 text-xs text-[var(--text-secondary)]">
+              Sign-in providers are being configured. Check back shortly.
+            </div>
           )}
         </div>
+
+        {error && <p className="mt-3 text-xs text-[var(--negative)]">{error}</p>}
       </dialog>
     </>
   );
