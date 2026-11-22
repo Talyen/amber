@@ -111,7 +111,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
                       : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+                  <Icon className="h-4 w-4 opacity-85" aria-hidden="true" />
                   {item.label}
                 </Link>
               );

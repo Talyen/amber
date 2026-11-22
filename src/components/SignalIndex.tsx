@@ -216,7 +216,7 @@ export function SignalIndex({
         <section aria-label="Curated discovery lenses" className="mt-8">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
-              <Sparkles className="h-3.5 w-3.5 text-[var(--amber)]" />
+              <Sparkles className="h-4 w-4 text-[var(--amber)]" />
               Explore by Lens
             </h2>
             {activeLens && (
@@ -255,7 +255,7 @@ export function SignalIndex({
                       }`}
                     >
                       <LensIcon
-                        className={`h-3.5 w-3.5 shrink-0 ${
+                        className={`h-4 w-4 shrink-0 ${
                           isSelected ? "text-[var(--amber)]" : "text-[var(--text-muted)]"
                         }`}
                         aria-hidden="true"
@@ -646,7 +646,7 @@ export function SignalIndex({
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
                 <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  <AlertTriangle className="h-3.5 w-3.5 text-[var(--sbc)]" aria-hidden="true" />
+                  <AlertTriangle className="h-4 w-4 text-[var(--sbc)]" aria-hidden="true" />
                   Steepest SBC Burden
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--sbc)]">
@@ -681,7 +681,7 @@ export function SignalIndex({
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
                 <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  <Landmark className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
+                  <Landmark className="h-4 w-4 text-[var(--positive)]" aria-hidden="true" />
                   Cleanest True FCF Margins
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--amber)]">
@@ -716,7 +716,7 @@ export function SignalIndex({
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
                 <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  <Rocket className="h-3.5 w-3.5 text-[var(--amber)]" aria-hidden="true" />
+                  <Rocket className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
                   Highest Implied 10Y Growth
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--text-muted)]">

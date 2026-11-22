@@ -123,7 +123,7 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
             <div className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
-              <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
+              <GitCompareArrows className="h-4 w-4" aria-hidden="true" />
               COMPARISON STUDIO
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">

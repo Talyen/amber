@@ -445,7 +445,7 @@ export function CompanyWorkspace({
                   onClick={() => setActiveTab(tab.id)}
                   className="amber-tab inline-flex items-center gap-1.5"
                 >
-                  <TabIcon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+                  <TabIcon className="h-4 w-4 opacity-85" aria-hidden="true" />
                   <span>{tab.label}</span>
                   {tab.badge && (
                     <span className="font-mono-num rounded-full bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">

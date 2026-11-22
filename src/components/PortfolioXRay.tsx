@@ -281,7 +281,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono-num inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
-                <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
+                <PieChart className="h-4 w-4" aria-hidden="true" />
                 PORTFOLIO ANALYZER
               </span>
               <span
@@ -397,7 +397,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
               <span>Implied 10Y Growth</span>
-              <TrendingUp className="h-3.5 w-3.5 text-[var(--amber)]" aria-hidden="true" />
+              <TrendingUp className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--amber)]">
               {formatPct(metrics.wImplied)}
@@ -410,7 +410,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
               <span>True FCF Margin</span>
-              <Banknote className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
+              <Banknote className="h-4 w-4 text-[var(--positive)]" aria-hidden="true" />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--text-primary)]">
               {formatPct(metrics.wTrueMargin)}
@@ -423,7 +423,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
               <span>SBC Burden</span>
-              <Flame className="h-3.5 w-3.5 text-[var(--sbc)]" aria-hidden="true" />
+              <Flame className="h-4 w-4 text-[var(--sbc)]" aria-hidden="true" />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--sbc)]">
               {formatPct(metrics.wSbcPct)}
@@ -436,7 +436,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
               <span>Net Dilution</span>
-              <Users className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
+              <Users className="h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" />
             </div>
             <div
               className={`font-mono-num mt-1.5 text-2xl font-semibold ${

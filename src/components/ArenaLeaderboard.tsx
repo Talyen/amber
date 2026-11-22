@@ -168,7 +168,7 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+                  <Icon className="h-4 w-4 opacity-85" aria-hidden="true" />
                   {tf.label}
                 </button>
               );
@@ -195,7 +195,7 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                       : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  <Icon className="h-3 w-3 opacity-80" aria-hidden="true" />
+                  <Icon className="h-3.5 w-3.5 opacity-85" aria-hidden="true" />
                   {f.label}
                 </button>
               );

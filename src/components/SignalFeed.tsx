@@ -120,7 +120,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                       : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  <Icon className="h-3 w-3 opacity-80" aria-hidden="true" />
+                  <Icon className="h-3.5 w-3.5 opacity-85" aria-hidden="true" />
                   {tab.label}
                 </button>
               );
