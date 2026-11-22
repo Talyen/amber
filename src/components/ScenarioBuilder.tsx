@@ -59,6 +59,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
 
   const projection = useMemo(() => {
     const years = 5;
+    const hurdleRate = 0.1; // 10%/yr equity hurdle rate to discount back to today's fair value
     const yr5Rev = latest.revenue * Math.pow(1 + revGrowth / 100, years);
     const yr5TrueFcf = yr5Rev * (targetMargin / 100);
     const yr5Ev = yr5TrueFcf * exitMultiple;
@@ -73,6 +74,9 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       latest.dilutedShares * Math.pow(1 + clampedDilution / 100, years);
 
     const targetPrice = yr5MarketCap / Math.max(1, yr5Shares);
+    const fairValueToday = targetPrice / Math.pow(1 + hurdleRate, years);
+    const upsidePct =
+      ((fairValueToday - company.price) / Math.max(0.01, company.price)) * 100;
     const totalMultiple = targetPrice / Math.max(0.01, company.price);
     const irrPct = (Math.pow(Math.max(0.05, totalMultiple), 1 / years) - 1) * 100;
 
@@ -81,6 +85,8 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       yr5TrueFcf,
       yr5MarketCap,
       targetPrice,
+      fairValueToday,
+      upsidePct,
       totalMultiple,
       irrPct,
     };
@@ -97,12 +103,31 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     dilutionCagr,
   ]);
 
-  const irrColor =
-    projection.irrPct >= 14
-      ? "text-[var(--positive)]"
-      : projection.irrPct >= 7
-        ? "text-[var(--amber)]"
-        : "text-[var(--negative)]";
+  const verdict =
+    projection.upsidePct >= 12
+      ? {
+          label: `${Math.round(projection.upsidePct)}% Undervalued`,
+          badge: "Undervalued",
+          color: "text-[var(--positive)]",
+          pill: "bg-[var(--surface-subtle)] text-[var(--positive)] ring-1 ring-inset ring-[var(--border-strong)]",
+        }
+      : projection.upsidePct <= -12
+        ? {
+            label: `${Math.abs(Math.round(projection.upsidePct))}% Overvalued`,
+            badge: "Overvalued",
+            color: "text-[var(--negative)]",
+            pill: "bg-[var(--surface-subtle)] text-[var(--negative)] ring-1 ring-inset ring-[var(--border-strong)]",
+          }
+        : {
+            label: "Roughly Fairly Valued",
+            badge: "Fairly Priced",
+            color: "text-[var(--amber)]",
+            pill: "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]",
+          };
+
+  const barMax = Math.max(company.price, projection.fairValueToday) * 1.15;
+  const pricePosPct = Math.min(100, (company.price / barMax) * 100);
+  const fairPosPct = Math.min(100, (projection.fairValueToday / barMax) * 100);
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
@@ -257,47 +282,105 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
         </div>
       </section>
 
-      {/* Right: Plain-English Return Output */}
+      {/* Right: Clear Fair Value & Undervalued / Overvalued Output */}
       <section className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 lg:col-span-7">
         <div>
-          <div className="text-xs font-medium text-[var(--text-secondary)]">
-            Projected 5-Year Annual Return (IRR)
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-baseline gap-4">
-            <span
-              className={`font-mono-num text-5xl font-semibold tracking-[-0.03em] ${irrColor}`}
-            >
-              {formatPct(projection.irrPct, true)}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              Estimated Fair Value Today (at 10%/yr target return)
             </span>
-            <span className="font-mono-num text-sm text-[var(--text-secondary)]">
-              / yr ·{" "}
-              <strong className="text-[var(--text-primary)]">
-                {projection.totalMultiple.toFixed(2)}x
-              </strong>{" "}
-              money in 5 years
+            <span
+              className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${verdict.pill}`}
+            >
+              {verdict.badge}
             </span>
           </div>
 
-          <p className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-xs leading-relaxed text-[var(--text-secondary)]">
+          <div className="mt-2 flex flex-wrap items-baseline gap-4">
+            <span
+              className={`font-mono-num text-4xl font-semibold tracking-[-0.03em] sm:text-5xl ${verdict.color}`}
+            >
+              {verdict.label}
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-baseline gap-3 text-sm text-[var(--text-secondary)]">
+            <span>
+              Fair value:{" "}
+              <strong className="font-mono-num text-[var(--text-primary)]">
+                ${projection.fairValueToday.toFixed(2)}
+              </strong>
+            </span>
+            <span>·</span>
+            <span>
+              Current price:{" "}
+              <strong className="font-mono-num text-[var(--text-primary)]">
+                ${company.price.toFixed(2)}
+              </strong>
+            </span>
+          </div>
+
+          {/* Visual Fair Value vs. Current Price Comparison Bars */}
+          <div className="mt-5 space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
+            <div>
+              <div className="mb-1 flex justify-between text-[11px]">
+                <span className="text-[var(--text-secondary)]">Current Share Price</span>
+                <span className="font-mono-num font-semibold text-[var(--text-primary)]">
+                  ${company.price.toFixed(2)}
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--border)]">
+                <div
+                  className="h-full rounded-full bg-[var(--text-secondary)] transition-all duration-150"
+                  style={{ width: `${Math.max(4, pricePosPct)}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1 flex justify-between text-[11px]">
+                <span className="text-[var(--text-secondary)]">Your Fair Value Today</span>
+                <span className={`font-mono-num font-semibold ${verdict.color}`}>
+                  ${projection.fairValueToday.toFixed(2)}
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--border)]">
+                <div
+                  className="h-full rounded-full transition-all duration-150"
+                  style={{
+                    width: `${Math.max(4, fairPosPct)}%`,
+                    backgroundColor:
+                      projection.upsidePct >= 12
+                        ? "var(--positive)"
+                        : projection.upsidePct <= -12
+                          ? "var(--negative)"
+                          : "var(--amber)",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-3.5 text-xs leading-relaxed text-[var(--text-secondary)]">
             If <strong className="text-[var(--text-primary)]">{company.name}</strong> grows revenue{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{formatPct(revGrowth, true, 0)}/yr</strong> to{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{formatCurrencyCompact(projection.yr5Rev)}</strong>, achieves a{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong> True FCF margin, and trades at{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in Year 5, the stock reaches{" "}
-            <strong className="font-mono-num text-[var(--amber)]">${projection.targetPrice.toFixed(2)}</strong> vs.{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">${company.price.toFixed(2)}</strong> today.
+            <strong className="font-mono-num text-[var(--text-primary)]">{formatCurrencyCompact(projection.yr5Rev)}</strong> at a{" "}
+            <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong> real cash margin and trades at{" "}
+            <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in 5 years, shares reach{" "}
+            <strong className="font-mono-num text-[var(--text-primary)]">${projection.targetPrice.toFixed(2)}</strong>—worth{" "}
+            <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today if you require a 10%/yr return.
           </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-5 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-4 sm:grid-cols-4">
           <div>
-            <div className="text-[11px] text-[var(--text-muted)]">Today&apos;s Price</div>
+            <div className="text-[11px] text-[var(--text-muted)]">Expected Return / yr</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
-              ${company.price.toFixed(2)}
+              {formatPct(projection.irrPct, true)}
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-[var(--text-muted)]">Year-5 Target</div>
+            <div className="text-[11px] text-[var(--text-muted)]">Year-5 Share Price</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--amber)]">
               ${projection.targetPrice.toFixed(2)}
             </div>
