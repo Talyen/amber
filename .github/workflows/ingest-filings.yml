@@ -21,7 +21,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -44,13 +44,11 @@ jobs:
         run: pnpm ingest:diffs
 
       - name: Upsert into Neon Postgres (when configured)
-        if: ${{ secrets.DATABASE_URL != '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm db:seed
 
       - name: Dispatch Filing Alerts via Resend (when configured)
-        if: ${{ secrets.RESEND_API_KEY != '' && secrets.DATABASE_URL != '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -58,12 +56,15 @@ jobs:
         run: pnpm send:alerts
 
       - name: Trigger Vercel On-Demand ISR Revalidation (when configured)
-        if: ${{ secrets.REVALIDATE_SECRET != '' && secrets.AMBER_PROD_URL != '' }}
         env:
           REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
           AMBER_PROD_URL: ${{ secrets.AMBER_PROD_URL }}
         run: |
-          curl -fsS -X POST "${AMBER_PROD_URL}/api/revalidate" \
-            -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
+          if [ -n "$REVALIDATE_SECRET" ] && [ -n "$AMBER_PROD_URL" ]; then
+            curl -fsS -X POST "${AMBER_PROD_URL}/api/revalidate" \
+              -H "Authorization: Bearer ${REVALIDATE_SECRET}" \
+              -H "Content-Type: application/json" \
+              -d '{}'
+          else
+            echo "Skipping ISR revalidation (REVALIDATE_SECRET or AMBER_PROD_URL not set)."
+          fi
