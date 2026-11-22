@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" fill="none">
+  <defs>
+    <linearGradient id="body" x1="4" y1="2" x2="24" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FBBF24" />
+      <stop offset="52%" stop-color="#D97706" />
+      <stop offset="100%" stop-color="#92400E" />
+    </linearGradient>
+    <linearGradient id="top" x1="14" y1="2.5" x2="14" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FEF3C7" stop-opacity="0.92" />
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.15" />
+    </linearGradient>
+    <linearGradient id="core" x1="14" y1="7" x2="14" y2="21.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE68A" stop-opacity="0.72" />
+      <stop offset="100%" stop-color="#B45309" stop-opacity="0.45" />
+    </linearGradient>
+  </defs>
+  <path d="M14 2.25L23.5 8.25V19.75L14 25.75L4.5 19.75V8.25L14 2.25Z" fill="url(#body)" />
+  <path d="M14 2.25L23.5 8.25L14 12.25L4.5 8.25L14 2.25Z" fill="url(#top)" />
+  <path d="M23.5 8.25V19.75L14 25.75V12.25L23.5 8.25Z" fill="#78350F" fill-opacity="0.34" />
+  <path d="M14 7.5L18.75 11.75L14 20.5L9.25 11.75L14 7.5Z" fill="url(#core)" />
+  <path d="M14 2.6L23.15 8.4V19.6L14 25.4L4.85 19.6V8.4L14 2.6Z" stroke="#FDE68A" stroke-opacity="0.38" stroke-width="0.75" />
+</svg>

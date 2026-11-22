@@ -307,19 +307,7 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                     >
                       #{idx + 1}
                     </div>
-                    <ProfileAvatar
-                      icon={p.avatarIcon}
-                      size="md"
-                      className={
-                        idx === 0
-                          ? "!ring-2 !ring-yellow-500/70"
-                          : idx === 1
-                            ? "!ring-2 !ring-slate-400/70"
-                            : idx === 2
-                              ? "!ring-2 !ring-orange-500/70"
-                              : ""
-                      }
-                    />
+                    <ProfileAvatar icon={p.avatarIcon} size="md" />
                   </div>
 
                   <div className="min-w-0">
