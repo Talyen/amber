@@ -104,3 +104,22 @@ export const alertSubscriptions = pgTable(
     uniqueIndex("alert_email_ticker_idx").on(table.email, table.ticker),
   ]
 );
+
+export const insiderTrades = pgTable(
+  "insider_trades",
+  {
+    id: text("id").primaryKey(),
+    ticker: text("ticker")
+      .notNull()
+      .references(() => companies.ticker, { onDelete: "cascade" }),
+    filingDate: text("filing_date").notNull(),
+    insiderName: text("insider_name").notNull(),
+    insiderTitle: text("insider_title").notNull(),
+    transactionType: text("transaction_type").notNull(), // "Buy" | "Sell"
+    shares: doublePrecision("shares").notNull(),
+    pricePerShare: doublePrecision("price_per_share").notNull(),
+    totalValue: doublePrecision("total_value").notNull(), // $M
+    accessionNumber: text("accession_number").notNull(),
+  },
+  (table) => [index("insider_ticker_idx").on(table.ticker)]
+);

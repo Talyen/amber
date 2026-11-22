@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "ingest:edgar": "node --experimental-strip-types scripts/ingest-edgar.ts",
     "ingest:diffs": "node --experimental-strip-types scripts/extract-filing-diffs.ts",
+    "ingest:form4": "node --experimental-strip-types scripts/ingest-form4.ts",
     "sync:prices": "node --experimental-strip-types scripts/sync-prices.ts",
     "send:alerts": "node --experimental-strip-types scripts/send-filing-alerts.ts",
     "db:push": "drizzle-kit push",

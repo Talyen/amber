@@ -1,7 +1,13 @@
 import { unstable_cache } from "next/cache";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { annualFinancials, companies, filingDiffs } from "@/db/schema";
+import {
+  annualFinancials,
+  companies,
+  filingDiffs,
+  insiderTrades,
+} from "@/db/schema";
+import type { InsiderTradeItem } from "@/components/InsiderRadar";
 import {
   ALL_COMPANIES,
   SEARCH_INDEX,
@@ -222,4 +228,77 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
 
   const fromDb = await cachedFetch();
   return fromDb ?? SEARCH_INDEX;
+}
+
+export async function getInsiderTrades(
+  rawTicker: string
+): Promise<InsiderTradeItem[]> {
+  const ticker = rawTicker.trim().toUpperCase();
+  const db = getDb();
+  if (!db) return [];
+
+  const cachedFetch = unstable_cache(
+    async () => {
+      try {
+        const rows = await db
+          .select()
+          .from(insiderTrades)
+          .where(eq(insiderTrades.ticker, ticker))
+          .orderBy(desc(insiderTrades.filingDate))
+          .limit(20);
+        return rows.map((r) => ({
+          id: r.id,
+          filingDate: r.filingDate,
+          insiderName: r.insiderName,
+          insiderTitle: r.insiderTitle,
+          transactionType: r.transactionType === "Buy" ? "Buy" : "Sell",
+          shares: r.shares,
+          pricePerShare: r.pricePerShare,
+          totalValue: r.totalValue,
+          accessionNumber: r.accessionNumber,
+        })) as InsiderTradeItem[];
+      } catch {
+        return [];
+      }
+    },
+    ["amber-insider-trades", ticker],
+    { revalidate: 86400, tags: ["companies", `ticker-${ticker}`] }
+  );
+
+  return await cachedFetch();
+}
+
+export interface SectorBenchmark {
+  sector: string;
+  count: number;
+  medianTrueFcfMargin: number;
+  medianSbcPctRevenue: number;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+export async function getSectorBenchmark(
+  sector: string
+): Promise<SectorBenchmark | null> {
+  const index = await getSearchIndex();
+  const peers = index.filter((c) => c.sector === sector);
+  if (peers.length < 3) return null;
+
+  return {
+    sector,
+    count: peers.length,
+    medianTrueFcfMargin: Number(
+      median(peers.map((p) => p.trueFcfMargin)).toFixed(1)
+    ),
+    medianSbcPctRevenue: Number(
+      median(peers.map((p) => p.sbcPctRevenue)).toFixed(1)
+    ),
+  };
 }

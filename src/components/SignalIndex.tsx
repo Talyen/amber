@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowUpDown, ArrowRight } from "lucide-react";
+import { ArrowUpDown, ArrowRight, Star } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
+import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
 import { MethodologyModal } from "@/components/MethodologyModal";
@@ -26,7 +27,9 @@ export function SignalIndex({
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [filter, setFilter] = useState("");
   const [selectedSector, setSelectedSector] = useState<string>("All");
+  const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(30);
+  const watchlist = useWatchlist();
 
   const sectors = useMemo(() => {
     const counts = new Map<string, number>();
@@ -94,6 +97,7 @@ export function SignalIndex({
   const rows = useMemo<SearchIndexEntry[]>(() => {
     const q = filter.trim().toLowerCase();
     const filtered = entries.filter((c) => {
+      if (watchlistOnly && !watchlist.has(c.ticker)) return false;
       if (selectedSector !== "All" && c.sector !== selectedSector) return false;
       if (!q) return true;
       return (
@@ -107,7 +111,7 @@ export function SignalIndex({
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [entries, filter, selectedSector, sortKey, sortDir]);
+  }, [entries, filter, selectedSector, watchlistOnly, watchlist, sortKey, sortDir]);
 
   const visibleRows = rows.slice(0, visibleLimit);
 
@@ -278,8 +282,32 @@ export function SignalIndex({
             />
           </div>
 
-          {/* Sector Filter Pills */}
+          {/* Watchlist + Sector Filter Pills */}
           <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setWatchlistOnly((prev) => !prev);
+                setVisibleLimit(30);
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                watchlistOnly
+                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                  : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <Star
+                className="h-3 w-3"
+                fill={watchlistOnly ? "currentColor" : "none"}
+              />
+              Watchlist
+              {watchlist.tickers.length > 0 && (
+                <span className="font-mono-num opacity-75">
+                  ({watchlist.tickers.length})
+                </span>
+              )}
+            </button>
+
             {sectors.map((sector) => {
               const active = selectedSector === sector;
               return (
@@ -375,20 +403,43 @@ export function SignalIndex({
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((c) => (
+                {visibleRows.map((c) => {
+                  const starred = watchlist.has(c.ticker);
+                  return (
                   <tr key={c.ticker}>
                     <th scope="row">
-                      <Link
-                        href={`/t/${c.ticker}`}
-                        className="group inline-flex items-center gap-2.5 hover:text-[var(--amber)]"
-                      >
-                        <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
-                          {c.ticker}
-                        </span>
-                        <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                          {c.name}
-                        </span>
-                      </Link>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => watchlist.toggle(c.ticker)}
+                          aria-label={
+                            starred
+                              ? `Remove ${c.ticker} from watchlist`
+                              : `Add ${c.ticker} to watchlist`
+                          }
+                          className={`transition-colors cursor-pointer ${
+                            starred
+                              ? "text-[var(--amber)]"
+                              : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
+                          }`}
+                        >
+                          <Star
+                            className="h-3.5 w-3.5"
+                            fill={starred ? "currentColor" : "none"}
+                          />
+                        </button>
+                        <Link
+                          href={`/t/${c.ticker}`}
+                          className="group inline-flex items-center gap-2 hover:text-[var(--amber)]"
+                        >
+                          <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
+                            {c.ticker}
+                          </span>
+                          <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                            {c.name}
+                          </span>
+                        </Link>
+                      </div>
                     </th>
                     <td data-label="Mkt Cap" className="font-mono-num">
                       {formatCurrencyCompact(c.marketCap)}
@@ -431,7 +482,8 @@ export function SignalIndex({
                       {formatPct(c.impliedCagr)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

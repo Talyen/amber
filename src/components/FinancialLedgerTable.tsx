@@ -1,8 +1,12 @@
+"use client";
+
+import { FileSpreadsheet } from "lucide-react";
 import {
   type ComputedAnnual,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
+import { exportFinancialLedgerCsv } from "@/lib/export-csv";
 
 interface FinancialLedgerTableProps {
   ticker: string;
@@ -15,16 +19,26 @@ export function FinancialLedgerTable({
 }: FinancialLedgerTableProps) {
   return (
     <div className="mt-5">
-      <div className="mb-2.5 flex items-center justify-between">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <h3
           id="ledger-caption"
           className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
         >
-          {ticker} Cash Flow &amp; Dilution Ledger (SEC 10-K)
+          {ticker} Cash Flow &amp; Dilution Ledger (SEC 10-K / 10-Q)
         </h3>
-        <span className="text-[11px] text-[var(--text-muted)]">
-          All figures in USD · Tabular numerals
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-[11px] text-[var(--text-muted)] sm:inline">
+            USD · Tabular numerals
+          </span>
+          <button
+            type="button"
+            onClick={() => exportFinancialLedgerCsv(ticker, series)}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <div

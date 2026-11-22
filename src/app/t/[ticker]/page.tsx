@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAllTickers, getCompanySnapshot } from "@/data/repository";
+import {
+  getAllTickers,
+  getCompanySnapshot,
+  getInsiderTrades,
+  getSectorBenchmark,
+} from "@/data/repository";
 import { CompanyWorkspace } from "@/components/CompanyWorkspace";
 
 export const revalidate = 86400;
@@ -42,5 +47,16 @@ export default async function TickerPage({ params }: TickerPageProps) {
     notFound();
   }
 
-  return <CompanyWorkspace company={company} />;
+  const [insiderTrades, sectorBenchmark] = await Promise.all([
+    getInsiderTrades(company.ticker),
+    getSectorBenchmark(company.sector),
+  ]);
+
+  return (
+    <CompanyWorkspace
+      company={company}
+      insiderTrades={insiderTrades}
+      sectorBenchmark={sectorBenchmark}
+    />
+  );
 }

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Plus, X } from "lucide-react";
+import { Download, FileSpreadsheet, Plus, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { TopNav } from "@/components/TopNav";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { exportComparisonCard } from "@/lib/export-card";
+import { exportComparisonCsv } from "@/lib/export-csv";
 
 const PRESETS: Array<{ label: string; tickers: string[] }> = [
   { label: "AI & Cloud", tickers: ["PLTR", "NVDA", "MSFT", "ORCL"] },
@@ -122,14 +123,24 @@ export function CompareStudio({ entries }: CompareStudioProps) {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => exportComparisonCard(selectedItems)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer shrink-0"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export Comparison PNG
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => exportComparisonCsv(selectedItems)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => exportComparisonCard(selectedItems)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export PNG
+            </button>
+          </div>
         </section>
 
         {/* Presets & Active Ticker Slots */}

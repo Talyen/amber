@@ -1,0 +1,853 @@
+{
+  "NVDA": [
+    {
+      "id": "NVDA:0001696841-26-000014:S",
+      "filingDate": "2026-09-23",
+      "insiderName": "Teter Timothy S.",
+      "insiderTitle": "EVP, General Counsel and Sec",
+      "transactionType": "Sell",
+      "shares": 30460,
+      "pricePerShare": 222.8,
+      "totalValue": 6.787,
+      "accessionNumber": "0001696841-26-000014"
+    },
+    {
+      "id": "NVDA:0001199039-26-000016:S",
+      "filingDate": "2026-09-22",
+      "insiderName": "STEVENS MARK A",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 1366000,
+      "pricePerShare": 219.73,
+      "totalValue": 300.147,
+      "accessionNumber": "0001199039-26-000016"
+    },
+    {
+      "id": "NVDA:0001588670-26-000014:S",
+      "filingDate": "2026-09-18",
+      "insiderName": "Kress Colette",
+      "insiderTitle": "EVP &amp; Chief Financial Officer",
+      "transactionType": "Sell",
+      "shares": 34918,
+      "pricePerShare": 219.05,
+      "totalValue": 7.649,
+      "accessionNumber": "0001588670-26-000014"
+    },
+    {
+      "id": "NVDA:0001199039-26-000014:S",
+      "filingDate": "2026-09-08",
+      "insiderName": "STEVENS MARK A",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 1022239,
+      "pricePerShare": 230.51,
+      "totalValue": 235.637,
+      "accessionNumber": "0001199039-26-000014"
+    },
+    {
+      "id": "NVDA:0001199039-26-000012:S",
+      "filingDate": "2026-09-02",
+      "insiderName": "STEVENS MARK A",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 1848501,
+      "pricePerShare": 222.26,
+      "totalValue": 410.844,
+      "accessionNumber": "0001199039-26-000012"
+    },
+    {
+      "id": "NVDA:0001696841-26-000010:S",
+      "filingDate": "2026-09-02",
+      "insiderName": "Teter Timothy S.",
+      "insiderTitle": "EVP, General Counsel and Sec",
+      "transactionType": "Sell",
+      "shares": 30000,
+      "pricePerShare": 217.88,
+      "totalValue": 6.537,
+      "accessionNumber": "0001696841-26-000010"
+    }
+  ],
+  "MSFT": [
+    {
+      "id": "MSFT:0000789019-26-000234:S",
+      "filingDate": "2026-11-12",
+      "insiderName": "Numoto Takeshi",
+      "insiderTitle": "EVP, Chief Marketing Officer",
+      "transactionType": "Sell",
+      "shares": 5000,
+      "pricePerShare": 531,
+      "totalValue": 2.655,
+      "accessionNumber": "0000789019-26-000234"
+    },
+    {
+      "id": "MSFT:0000789019-26-000232:S",
+      "filingDate": "2026-11-10",
+      "insiderName": "Hood Amy",
+      "insiderTitle": "EVP, Chief Financial Officer",
+      "transactionType": "Sell",
+      "shares": 7305,
+      "pricePerShare": 544.37,
+      "totalValue": 3.977,
+      "accessionNumber": "0000789019-26-000232"
+    },
+    {
+      "id": "MSFT:0000789019-26-000226:S",
+      "filingDate": "2026-10-14",
+      "insiderName": "Hood Amy",
+      "insiderTitle": "EVP, Chief Financial Officer",
+      "transactionType": "Sell",
+      "shares": 7305,
+      "pricePerShare": 545.42,
+      "totalValue": 3.984,
+      "accessionNumber": "0000789019-26-000226"
+    },
+    {
+      "id": "MSFT:0000789019-26-000212:S",
+      "filingDate": "2026-09-15",
+      "insiderName": "Hood Amy",
+      "insiderTitle": "EVP, Chief Financial Officer",
+      "transactionType": "Sell",
+      "shares": 41674,
+      "pricePerShare": 498.27,
+      "totalValue": 20.765,
+      "accessionNumber": "0000789019-26-000212"
+    }
+  ],
+  "COST": [
+    {
+      "id": "COST:0000909832-26-000138:S",
+      "filingDate": "2026-11-13",
+      "insiderName": "George Sarah Catherine",
+      "insiderTitle": "Executive Vice President",
+      "transactionType": "Sell",
+      "shares": 756,
+      "pricePerShare": 1096.01,
+      "totalValue": 0.829,
+      "accessionNumber": "0000909832-26-000138"
+    },
+    {
+      "id": "COST:0000909832-26-000136:S",
+      "filingDate": "2026-11-12",
+      "insiderName": "Jones Teresa A.",
+      "insiderTitle": "Executive Vice President",
+      "transactionType": "Sell",
+      "shares": 900,
+      "pricePerShare": 1083.95,
+      "totalValue": 0.976,
+      "accessionNumber": "0000909832-26-000136"
+    }
+  ],
+  "AAPL": [
+    {
+      "id": "AAPL:0001140361-26-044952:S",
+      "filingDate": "2026-11-19",
+      "insiderName": "Newstead Jennifer",
+      "insiderTitle": "SVP, GC and Government Affairs",
+      "transactionType": "Sell",
+      "shares": 2398,
+      "pricePerShare": 352.77,
+      "totalValue": 0.846,
+      "accessionNumber": "0001140361-26-044952"
+    },
+    {
+      "id": "AAPL:0001140361-26-044773:S",
+      "filingDate": "2026-11-18",
+      "insiderName": "LEVINSON ARTHUR D",
+      "insiderTitle": "10% Owner",
+      "transactionType": "Sell",
+      "shares": 90000,
+      "pricePerShare": 352.95,
+      "totalValue": 31.766,
+      "accessionNumber": "0001140361-26-044773"
+    },
+    {
+      "id": "AAPL:0001140361-26-043484:S",
+      "filingDate": "2026-11-12",
+      "insiderName": "Newstead Jennifer",
+      "insiderTitle": "SVP, GC and Government Affairs",
+      "transactionType": "Sell",
+      "shares": 2399,
+      "pricePerShare": 351.36,
+      "totalValue": 0.843,
+      "accessionNumber": "0001140361-26-043484"
+    },
+    {
+      "id": "AAPL:0001140361-26-042149:S",
+      "filingDate": "2026-11-05",
+      "insiderName": "Newstead Jennifer",
+      "insiderTitle": "SVP, GC and Government Affairs",
+      "transactionType": "Sell",
+      "shares": 2399,
+      "pricePerShare": 325.75,
+      "totalValue": 0.781,
+      "accessionNumber": "0001140361-26-042149"
+    },
+    {
+      "id": "AAPL:0001140361-26-041201:S",
+      "filingDate": "2026-10-29",
+      "insiderName": "Newstead Jennifer",
+      "insiderTitle": "SVP, GC and Government Affairs",
+      "transactionType": "Sell",
+      "shares": 2399,
+      "pricePerShare": 343.36,
+      "totalValue": 0.824,
+      "accessionNumber": "0001140361-26-041201"
+    },
+    {
+      "id": "AAPL:0001140361-26-040540:S",
+      "filingDate": "2026-10-22",
+      "insiderName": "Newstead Jennifer",
+      "insiderTitle": "SVP, GC and Government Affairs",
+      "transactionType": "Sell",
+      "shares": 2399,
+      "pricePerShare": 339.62,
+      "totalValue": 0.815,
+      "accessionNumber": "0001140361-26-040540"
+    },
+    {
+      "id": "AAPL:0001140361-26-040127:S",
+      "filingDate": "2026-10-19",
+      "insiderName": "Borders Ben",
+      "insiderTitle": "Principal Accounting Officer",
+      "transactionType": "Sell",
+      "shares": 1280,
+      "pricePerShare": 345.4,
+      "totalValue": 0.442,
+      "accessionNumber": "0001140361-26-040127"
+    },
+    {
+      "id": "AAPL:0001140361-26-040126:S",
+      "filingDate": "2026-10-19",
+      "insiderName": "Parekh Kevan",
+      "insiderTitle": "Senior Vice President,  CFO",
+      "transactionType": "Sell",
+      "shares": 1392,
+      "pricePerShare": 345.05,
+      "totalValue": 0.48,
+      "accessionNumber": "0001140361-26-040126"
+    }
+  ],
+  "AMZN": [
+    {
+      "id": "AMZN:0001018724-26-000056:S",
+      "filingDate": "2026-11-20",
+      "insiderName": "Huttenlocher Daniel P",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 783,
+      "pricePerShare": 259.63,
+      "totalValue": 0.203,
+      "accessionNumber": "0001018724-26-000056"
+    },
+    {
+      "id": "AMZN:0001936006-26-000030:S",
+      "filingDate": "2026-11-17",
+      "insiderName": "Herrington Douglas J",
+      "insiderTitle": "CEO Worldwide Amazon Stores",
+      "transactionType": "Sell",
+      "shares": 3741,
+      "pricePerShare": 261.08,
+      "totalValue": 0.977,
+      "accessionNumber": "0001936006-26-000030"
+    },
+    {
+      "id": "AMZN:0001936006-26-000028:S",
+      "filingDate": "2026-11-04",
+      "insiderName": "Herrington Douglas J",
+      "insiderTitle": "CEO Worldwide Amazon Stores",
+      "transactionType": "Sell",
+      "shares": 1000,
+      "pricePerShare": 243.47,
+      "totalValue": 0.243,
+      "accessionNumber": "0001936006-26-000028"
+    },
+    {
+      "id": "AMZN:0001936006-26-000026:S",
+      "filingDate": "2026-10-05",
+      "insiderName": "Herrington Douglas J",
+      "insiderTitle": "CEO Worldwide Amazon Stores",
+      "transactionType": "Sell",
+      "shares": 1000,
+      "pricePerShare": 251.5,
+      "totalValue": 0.252,
+      "accessionNumber": "0001936006-26-000026"
+    },
+    {
+      "id": "AMZN:0001936006-26-000024:S",
+      "filingDate": "2026-09-03",
+      "insiderName": "Herrington Douglas J",
+      "insiderTitle": "CEO Worldwide Amazon Stores",
+      "transactionType": "Sell",
+      "shares": 1000,
+      "pricePerShare": 254.77,
+      "totalValue": 0.255,
+      "accessionNumber": "0001936006-26-000024"
+    },
+    {
+      "id": "AMZN:0001374545-26-000010:S",
+      "filingDate": "2026-08-25",
+      "insiderName": "Jassy Andrew R",
+      "insiderTitle": "President and CEO",
+      "transactionType": "Sell",
+      "shares": 20000,
+      "pricePerShare": 259.01,
+      "totalValue": 5.18,
+      "accessionNumber": "0001374545-26-000010"
+    }
+  ],
+  "META": [
+    {
+      "id": "META:0000950103-26-017904:S",
+      "filingDate": "2026-11-19",
+      "insiderName": "LI SUSAN J",
+      "insiderTitle": "Chief Financial Officer",
+      "transactionType": "Sell",
+      "shares": 9196,
+      "pricePerShare": 622.05,
+      "totalValue": 5.72,
+      "accessionNumber": "0000950103-26-017904"
+    },
+    {
+      "id": "META:0000950103-26-017902:S",
+      "filingDate": "2026-11-19",
+      "insiderName": "Mahoney Curtis J.",
+      "insiderTitle": "Chief Legal Officer",
+      "transactionType": "Sell",
+      "shares": 1559,
+      "pricePerShare": 625,
+      "totalValue": 0.974,
+      "accessionNumber": "0000950103-26-017902"
+    },
+    {
+      "id": "META:0000950103-26-017900:S",
+      "filingDate": "2026-11-19",
+      "insiderName": "Bosworth Andrew",
+      "insiderTitle": "Chief Technology Officer",
+      "transactionType": "Sell",
+      "shares": 7847,
+      "pricePerShare": 625,
+      "totalValue": 4.904,
+      "accessionNumber": "0000950103-26-017900"
+    },
+    {
+      "id": "META:0000950103-26-017701:S",
+      "filingDate": "2026-11-17",
+      "insiderName": "LI SUSAN J",
+      "insiderTitle": "Chief Financial Officer",
+      "transactionType": "Sell",
+      "shares": 2127,
+      "pricePerShare": 641.69,
+      "totalValue": 1.365,
+      "accessionNumber": "0000950103-26-017701"
+    },
+    {
+      "id": "META:0000950103-26-017696:S",
+      "filingDate": "2026-11-17",
+      "insiderName": "Olivan Javier",
+      "insiderTitle": "Chief Operating Officer",
+      "transactionType": "Sell",
+      "shares": 1568,
+      "pricePerShare": 640.39,
+      "totalValue": 1.004,
+      "accessionNumber": "0000950103-26-017696"
+    }
+  ],
+  "ORCL": [
+    {
+      "id": "ORCL:0001341439-26-000099:P",
+      "filingDate": "2026-10-01",
+      "insiderName": "RUSCKOWSKI STEPHEN H",
+      "insiderTitle": "Director",
+      "transactionType": "Buy",
+      "shares": 25000,
+      "pricePerShare": 139.35,
+      "totalValue": 3.484,
+      "accessionNumber": "0001341439-26-000099"
+    },
+    {
+      "id": "ORCL:0001341439-26-000096:S",
+      "filingDate": "2026-09-23",
+      "insiderName": "Smith Maria",
+      "insiderTitle": "EVP, Chief  Accounting Officer",
+      "transactionType": "Sell",
+      "shares": 2631,
+      "pricePerShare": 151.7,
+      "totalValue": 0.399,
+      "accessionNumber": "0001341439-26-000096"
+    }
+  ],
+  "AMD": [
+    {
+      "id": "AMD:0000002488-26-000213:S",
+      "filingDate": "2026-11-18",
+      "insiderName": "Su Lisa T",
+      "insiderTitle": "Chair, President &amp; CEO",
+      "transactionType": "Sell",
+      "shares": 70000,
+      "pricePerShare": 507,
+      "totalValue": 35.49,
+      "accessionNumber": "0000002488-26-000213"
+    },
+    {
+      "id": "AMD:0000002488-26-000211:S",
+      "filingDate": "2026-11-17",
+      "insiderName": "Norrod Forrest Eugene",
+      "insiderTitle": "EVP &amp; GM DSG",
+      "transactionType": "Sell",
+      "shares": 10000,
+      "pricePerShare": 506.07,
+      "totalValue": 5.061,
+      "accessionNumber": "0000002488-26-000211"
+    },
+    {
+      "id": "AMD:0000002488-26-000193:S",
+      "filingDate": "2026-11-13",
+      "insiderName": "Denzel Nora",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 9000,
+      "pricePerShare": 564.88,
+      "totalValue": 5.084,
+      "accessionNumber": "0000002488-26-000193"
+    },
+    {
+      "id": "AMD:0000002488-26-000184:S",
+      "filingDate": "2026-10-19",
+      "insiderName": "Norrod Forrest Eugene",
+      "insiderTitle": "EVP &amp; GM DSG",
+      "transactionType": "Sell",
+      "shares": 17262,
+      "pricePerShare": 540.7,
+      "totalValue": 9.334,
+      "accessionNumber": "0000002488-26-000184"
+    },
+    {
+      "id": "AMD:0000002488-26-000180:S",
+      "filingDate": "2026-09-17",
+      "insiderName": "Norrod Forrest Eugene",
+      "insiderTitle": "EVP &amp; GM DSG",
+      "transactionType": "Sell",
+      "shares": 17261,
+      "pricePerShare": 503.05,
+      "totalValue": 8.683,
+      "accessionNumber": "0000002488-26-000180"
+    },
+    {
+      "id": "AMD:0000002488-26-000178:S",
+      "filingDate": "2026-09-14",
+      "insiderName": "Su Lisa T",
+      "insiderTitle": "Chair, President &amp; CEO",
+      "transactionType": "Sell",
+      "shares": 95000,
+      "pricePerShare": 506.8,
+      "totalValue": 48.146,
+      "accessionNumber": "0000002488-26-000178"
+    },
+    {
+      "id": "AMD:0001452385-26-000008:S",
+      "filingDate": "2026-08-27",
+      "insiderName": "Hu Jean X.",
+      "insiderTitle": "EVP, CFO and Treasurer",
+      "transactionType": "Sell",
+      "shares": 15000,
+      "pricePerShare": 474.08,
+      "totalValue": 7.111,
+      "accessionNumber": "0001452385-26-000008"
+    }
+  ],
+  "AVGO": [
+    {
+      "id": "AVGO:0001104659-26-110983:S",
+      "filingDate": "2026-09-25",
+      "insiderName": "SAMUELI HENRY",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 702190,
+      "pricePerShare": 356.04,
+      "totalValue": 250.006,
+      "accessionNumber": "0001104659-26-110983"
+    },
+    {
+      "id": "AVGO:0001730168-26-000070:S",
+      "filingDate": "2026-07-14",
+      "insiderName": "Brazeal Mark David",
+      "insiderTitle": "Chief Legal &amp; Corp Affairs Ofc",
+      "transactionType": "Sell",
+      "shares": 25000,
+      "pricePerShare": 401.33,
+      "totalValue": 10.033,
+      "accessionNumber": "0001730168-26-000070"
+    },
+    {
+      "id": "AVGO:0001730168-26-000068:S",
+      "filingDate": "2026-07-10",
+      "insiderName": "DELLY GAYLA J",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 1890,
+      "pricePerShare": 385.38,
+      "totalValue": 0.728,
+      "accessionNumber": "0001730168-26-000068"
+    },
+    {
+      "id": "AVGO:0001730168-26-000066:S",
+      "filingDate": "2026-07-10",
+      "insiderName": "Brazeal Mark David",
+      "insiderTitle": "Chief Legal &amp; Corp Affairs Ofc",
+      "transactionType": "Sell",
+      "shares": 25000,
+      "pricePerShare": 379.19,
+      "totalValue": 9.48,
+      "accessionNumber": "0001730168-26-000066"
+    },
+    {
+      "id": "AVGO:0001359561-26-000004:S",
+      "filingDate": "2026-07-01",
+      "insiderName": "PAGE JUSTINE",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 1602,
+      "pricePerShare": 373.86,
+      "totalValue": 0.599,
+      "accessionNumber": "0001359561-26-000004"
+    },
+    {
+      "id": "AVGO:0001730168-26-000064:S",
+      "filingDate": "2026-06-29",
+      "insiderName": "Brazeal Mark David",
+      "insiderTitle": "Chief Legal &amp; Corp Affairs Ofc",
+      "transactionType": "Sell",
+      "shares": 25000,
+      "pricePerShare": 387,
+      "totalValue": 9.675,
+      "accessionNumber": "0001730168-26-000064"
+    },
+    {
+      "id": "AVGO:0001104659-26-078348:S",
+      "filingDate": "2026-06-26",
+      "insiderName": "SAMUELI HENRY",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 654241,
+      "pricePerShare": 382.13,
+      "totalValue": 250.006,
+      "accessionNumber": "0001104659-26-078348"
+    },
+    {
+      "id": "AVGO:0001730168-26-000062:S",
+      "filingDate": "2026-06-18",
+      "insiderName": "Brazeal Mark David",
+      "insiderTitle": "Chief Legal &amp; Corp Affairs Ofc",
+      "transactionType": "Sell",
+      "shares": 8152,
+      "pricePerShare": 389.59,
+      "totalValue": 3.176,
+      "accessionNumber": "0001730168-26-000062"
+    }
+  ],
+  "QCOM": [
+    {
+      "id": "QCOM:0000804328-26-000133:S",
+      "filingDate": "2026-11-19",
+      "insiderName": "Palkhiwala Akash J.",
+      "insiderTitle": "EVP, CFO &amp; COO",
+      "transactionType": "Sell",
+      "shares": 2500,
+      "pricePerShare": 161.7,
+      "totalValue": 0.404,
+      "accessionNumber": "0000804328-26-000133"
+    },
+    {
+      "id": "QCOM:0000804328-26-000132:S",
+      "filingDate": "2026-11-09",
+      "insiderName": "ACE HEATHER S",
+      "insiderTitle": "EVP, Chief HR Officer",
+      "transactionType": "Sell",
+      "shares": 3200,
+      "pricePerShare": 165.42,
+      "totalValue": 0.529,
+      "accessionNumber": "0000804328-26-000132"
+    },
+    {
+      "id": "QCOM:0000804328-26-000130:S",
+      "filingDate": "2026-11-06",
+      "insiderName": "CHAPLIN ANN C",
+      "insiderTitle": "EVP, GenCounsel&amp;CorpSecretary",
+      "transactionType": "Sell",
+      "shares": 1501,
+      "pricePerShare": 161.54,
+      "totalValue": 0.242,
+      "accessionNumber": "0000804328-26-000130"
+    }
+  ],
+  "TXN": [
+    {
+      "id": "TXN:0001646850-26-000006:S",
+      "filingDate": "2026-11-13",
+      "insiderName": "Hobby Jean M.",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 8758,
+      "pricePerShare": 308.92,
+      "totalValue": 2.706,
+      "accessionNumber": "0001646850-26-000006"
+    },
+    {
+      "id": "TXN:0000097476-26-000178:S",
+      "filingDate": "2026-10-30",
+      "insiderName": "KIRK RONALD",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 6065,
+      "pricePerShare": 310.39,
+      "totalValue": 1.883,
+      "accessionNumber": "0000097476-26-000178"
+    },
+    {
+      "id": "TXN:0000097476-26-000176:S",
+      "filingDate": "2026-10-29",
+      "insiderName": "CLARK JANET F",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 4306,
+      "pricePerShare": 302.46,
+      "totalValue": 1.302,
+      "accessionNumber": "0000097476-26-000176"
+    },
+    {
+      "id": "TXN:0000097476-26-000174:S",
+      "filingDate": "2026-10-29",
+      "insiderName": "PATSLEY PAMELA H",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 4532,
+      "pricePerShare": 301.56,
+      "totalValue": 1.367,
+      "accessionNumber": "0000097476-26-000174"
+    },
+    {
+      "id": "TXN:0000097476-26-000172:S",
+      "filingDate": "2026-10-29",
+      "insiderName": "SANCHEZ ROBERT E",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 6065,
+      "pricePerShare": 302.21,
+      "totalValue": 1.833,
+      "accessionNumber": "0000097476-26-000172"
+    },
+    {
+      "id": "TXN:0000097476-26-000156:S",
+      "filingDate": "2026-08-31",
+      "insiderName": "Abraham Tsedeniya",
+      "insiderTitle": "Sr. Vice President",
+      "transactionType": "Sell",
+      "shares": 7000,
+      "pricePerShare": 264.63,
+      "totalValue": 1.852,
+      "accessionNumber": "0000097476-26-000156"
+    },
+    {
+      "id": "TXN:0001319699-26-000004:S",
+      "filingDate": "2026-05-29",
+      "insiderName": "Craighead Martin S",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 10000,
+      "pricePerShare": 320.43,
+      "totalValue": 3.204,
+      "accessionNumber": "0001319699-26-000004"
+    },
+    {
+      "id": "TXN:0000097476-26-000141:S",
+      "filingDate": "2026-05-15",
+      "insiderName": "BAHAI AHMAD",
+      "insiderTitle": "Sr. Vice President",
+      "transactionType": "Sell",
+      "shares": 5000,
+      "pricePerShare": 309.13,
+      "totalValue": 1.546,
+      "accessionNumber": "0000097476-26-000141"
+    }
+  ],
+  "ANET": [
+    {
+      "id": "ANET:0001596532-26-000269:S",
+      "filingDate": "2026-11-20",
+      "insiderName": "BECHTOLSHEIM ANDREAS",
+      "insiderTitle": "10% Owner",
+      "transactionType": "Sell",
+      "shares": 300000,
+      "pricePerShare": 187.04,
+      "totalValue": 56.111,
+      "accessionNumber": "0001596532-26-000269"
+    },
+    {
+      "id": "ANET:0001596532-26-000265:S",
+      "filingDate": "2026-11-17",
+      "insiderName": "CHEW LEWIS",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 2500,
+      "pricePerShare": 196.89,
+      "totalValue": 0.492,
+      "accessionNumber": "0001596532-26-000265"
+    },
+    {
+      "id": "ANET:0001596532-26-000262:S",
+      "filingDate": "2026-11-10",
+      "insiderName": "BECHTOLSHEIM ANDREAS",
+      "insiderTitle": "10% Owner",
+      "transactionType": "Sell",
+      "shares": 260000,
+      "pricePerShare": 168.96,
+      "totalValue": 43.928,
+      "accessionNumber": "0001596532-26-000262"
+    },
+    {
+      "id": "ANET:0001596532-26-000260:S",
+      "filingDate": "2026-11-09",
+      "insiderName": "BECHTOLSHEIM ANDREAS",
+      "insiderTitle": "10% Owner",
+      "transactionType": "Sell",
+      "shares": 260000,
+      "pricePerShare": 165.45,
+      "totalValue": 43.017,
+      "accessionNumber": "0001596532-26-000260"
+    },
+    {
+      "id": "ANET:0001596532-26-000258:S",
+      "filingDate": "2026-11-04",
+      "insiderName": "TEMPLETON MARK B",
+      "insiderTitle": "Director",
+      "transactionType": "Sell",
+      "shares": 5000,
+      "pricePerShare": 165.85,
+      "totalValue": 0.829,
+      "accessionNumber": "0001596532-26-000258"
+    },
+    {
+      "id": "ANET:0001596532-26-000256:S",
+      "filingDate": "2026-11-03",
+      "insiderName": "BECHTOLSHEIM ANDREAS",
+      "insiderTitle": "10% Owner",
+      "transactionType": "Sell",
+      "shares": 267892,
+      "pricePerShare": 171.19,
+      "totalValue": 45.859,
+      "accessionNumber": "0001596532-26-000256"
+    },
+    {
+      "id": "ANET:0001596532-26-000248:S",
+      "filingDate": "2026-10-22",
+      "insiderName": "Duda Kenneth",
+      "insiderTitle": "President and CTO",
+      "transactionType": "Sell",
+      "shares": 43333,
+      "pricePerShare": 180.91,
+      "totalValue": 7.839,
+      "accessionNumber": "0001596532-26-000248"
+    },
+    {
+      "id": "ANET:0001596532-26-000244:S",
+      "filingDate": "2026-10-13",
+      "insiderName": "Ullal Jayshree",
+      "insiderTitle": "CEO and Chairperson",
+      "transactionType": "Sell",
+      "shares": 158543,
+      "pricePerShare": 217.09,
+      "totalValue": 34.418,
+      "accessionNumber": "0001596532-26-000244"
+    }
+  ],
+  "CRWD": [
+    {
+      "id": "CRWD:0000950103-26-017861:S",
+      "filingDate": "2026-11-19",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 20000,
+      "pricePerShare": 225.38,
+      "totalValue": 4.508,
+      "accessionNumber": "0000950103-26-017861"
+    },
+    {
+      "id": "CRWD:0001778564-26-000211:S",
+      "filingDate": "2026-11-17",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 20000,
+      "pricePerShare": 223.48,
+      "totalValue": 4.47,
+      "accessionNumber": "0001778564-26-000211"
+    },
+    {
+      "id": "CRWD:0001778564-26-000209:S",
+      "filingDate": "2026-11-13",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 2538,
+      "pricePerShare": 229.5,
+      "totalValue": 0.582,
+      "accessionNumber": "0001778564-26-000209"
+    },
+    {
+      "id": "CRWD:0001778564-26-000208:S",
+      "filingDate": "2026-11-13",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 27462,
+      "pricePerShare": 228.05,
+      "totalValue": 6.263,
+      "accessionNumber": "0001778564-26-000208"
+    },
+    {
+      "id": "CRWD:0001778564-26-000205:S",
+      "filingDate": "2026-11-10",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 20000,
+      "pricePerShare": 222.35,
+      "totalValue": 4.447,
+      "accessionNumber": "0001778564-26-000205"
+    },
+    {
+      "id": "CRWD:0000950103-26-017094:S",
+      "filingDate": "2026-11-06",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 20000,
+      "pricePerShare": 231.2,
+      "totalValue": 4.624,
+      "accessionNumber": "0000950103-26-017094"
+    },
+    {
+      "id": "CRWD:0001778564-26-000203:S",
+      "filingDate": "2026-11-04",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 3000,
+      "pricePerShare": 248.93,
+      "totalValue": 0.747,
+      "accessionNumber": "0001778564-26-000203"
+    },
+    {
+      "id": "CRWD:0001778564-26-000202:S",
+      "filingDate": "2026-11-04",
+      "insiderName": "Kurtz George",
+      "insiderTitle": "PRESIDENT AND CEO",
+      "transactionType": "Sell",
+      "shares": 45395,
+      "pricePerShare": 247.67,
+      "totalValue": 11.243,
+      "accessionNumber": "0001778564-26-000202"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { GitCompareArrows } from "lucide-react";
+import { GitCompareArrows, Star } from "lucide-react";
 import {
   type CompanySnapshot,
   computeAnnualMetrics,
@@ -12,22 +12,34 @@ import {
   formatPct,
   solveReverseDcf,
 } from "@/lib/finance";
+import { useWatchlist } from "@/lib/watchlist";
+import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { TrueFcfChart } from "@/components/TrueFcfChart";
 import { TrueFcfWaterfall } from "@/components/TrueFcfWaterfall";
+import { BuybackRealityCard } from "@/components/BuybackRealityCard";
 import { FinancialLedgerTable } from "@/components/FinancialLedgerTable";
 import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
+import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
 
-type ActiveTab = "fcf" | "dcf" | "diffs";
+type ActiveTab = "fcf" | "dcf" | "diffs" | "insiders";
 
 interface CompanyWorkspaceProps {
   company: CompanySnapshot;
+  insiderTrades?: InsiderTradeItem[];
+  sectorBenchmark?: SectorBenchmark | null;
 }
 
-export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
+export function CompanyWorkspace({
+  company,
+  insiderTrades = [],
+  sectorBenchmark = null,
+}: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("fcf");
+  const watchlist = useWatchlist();
+  const isStarred = watchlist.has(company.ticker);
 
   // Restore shared tab from URL query string (e.g. ?tab=dcf&wacc=10&mult=25)
   useEffect(() => {
@@ -54,6 +66,7 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
       if (e.key === "1") setActiveTab("fcf");
       else if (e.key === "2") setActiveTab("dcf");
       else if (e.key === "3") setActiveTab("diffs");
+      else if (e.key === "4") setActiveTab("insiders");
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -116,6 +129,11 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
       label: "Filing Diff Radar",
       badge: String(company.filingDiffs.length),
     },
+    {
+      id: "insiders",
+      label: "Insider Form 4",
+      badge: insiderTrades.length > 0 ? String(insiderTrades.length) : undefined,
+    },
   ];
 
   return (
@@ -146,6 +164,22 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
                 <GitCompareArrows className="h-3 w-3" />
                 Compare
               </Link>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={() => watchlist.toggle(company.ticker)}
+                className={`inline-flex items-center gap-1 font-medium transition-colors cursor-pointer ${
+                  isStarred
+                    ? "text-[var(--amber)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Star
+                  className="h-3 w-3"
+                  fill={isStarred ? "currentColor" : "none"}
+                />
+                {isStarred ? "Watchlisted" : "Watchlist"}
+              </button>
             </div>
 
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
@@ -215,6 +249,11 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
               </span>
               <span className="font-mono-num">
                 {formatPct(latest.trueFcfMargin)} margin
+                {sectorBenchmark && (
+                  <span className="ml-1 opacity-75">
+                    (med {formatPct(sectorBenchmark.medianTrueFcfMargin)})
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -235,7 +274,12 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
                 {formatCurrencyCompact(latest.sbc)}
               </span>
               <span className="font-mono-num">
-                {formatPct(latest.sbcPctReportedFcf, false, 0)} of Rep. FCF
+                {formatPct(latest.sbcPctReportedFcf, false, 0)} of FCF
+                {sectorBenchmark && (
+                  <span className="ml-1 opacity-75">
+                    (med {formatPct(sectorBenchmark.medianSbcPctRevenue)})
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -337,6 +381,10 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
                 <div>
                   <TrueFcfChart company={company} series={series} />
                   <TrueFcfWaterfall period={latest} />
+                  <BuybackRealityCard
+                    series={series}
+                    marketCap={company.marketCap}
+                  />
                   <FinancialLedgerTable
                     ticker={company.ticker}
                     series={series}
@@ -361,6 +409,19 @@ export function CompanyWorkspace({ company }: CompanyWorkspaceProps) {
               hidden={activeTab !== "diffs"}
             >
               {activeTab === "diffs" && <FilingDiffRadar company={company} />}
+            </div>
+
+            <div
+              role="tabpanel"
+              aria-labelledby="tab-insiders"
+              hidden={activeTab !== "insiders"}
+            >
+              {activeTab === "insiders" && (
+                <InsiderRadar
+                  ticker={company.ticker}
+                  trades={insiderTrades}
+                />
+              )}
             </div>
           </div>
         </section>
