@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileSpreadsheet, Plus, X } from "lucide-react";
+import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { TopNav } from "@/components/TopNav";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { exportComparisonCard } from "@/lib/export-card";
 import { exportComparisonCsv } from "@/lib/export-csv";
+import { buildComparisonMarkdown } from "@/lib/export-markdown";
 
 const PRESETS: Array<{ label: string; tickers: string[] }> = [
   { label: "AI & Cloud", tickers: ["PLTR", "NVDA", "MSFT", "ORCL"] },
@@ -17,21 +18,22 @@ const PRESETS: Array<{ label: string; tickers: string[] }> = [
 
 interface CompareStudioProps {
   entries: SearchIndexEntry[];
+  initialTickers?: string[];
 }
 
-export function CompareStudio({ entries }: CompareStudioProps) {
+export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
   const byTicker = useMemo(
     () => new Map(entries.map((e) => [e.ticker, e])),
     [entries]
   );
 
-  const [selectedTickers, setSelectedTickers] = useState<string[]>([
-    "PLTR",
-    "SNOW",
-    "NVDA",
-    "COST",
-  ]);
+  const [selectedTickers, setSelectedTickers] = useState<string[]>(
+    initialTickers && initialTickers.length > 0
+      ? initialTickers
+      : ["PLTR", "SNOW", "NVDA", "COST"]
+  );
   const [addQuery, setAddQuery] = useState("");
+  const [copiedMd, setCopiedMd] = useState(false);
   const hydratedRef = useRef(false);
 
   // Hydrate ?t=PLTR,SNOW,NOW from URL on mount
@@ -123,7 +125,34 @@ export function CompareStudio({ entries }: CompareStudioProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    buildComparisonMarkdown(selectedItems, window.location.origin)
+                  );
+                  setCopiedMd(true);
+                  window.setTimeout(() => setCopiedMd(false), 1800);
+                } catch {
+                  // Ignore clipboard errors
+                }
+              }}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              {copiedMd ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
+                  Copied MD
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Reddit / MD
+                </>
+              )}
+            </button>
             <button
               type="button"
               onClick={() => exportComparisonCsv(selectedItems)}

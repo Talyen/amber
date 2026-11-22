@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { GitCompareArrows, Star } from "lucide-react";
+import { Check, Copy, GitCompareArrows, Star } from "lucide-react";
 import {
   type CompanySnapshot,
   computeAnnualMetrics,
@@ -12,6 +12,7 @@ import {
   formatPct,
   solveReverseDcf,
 } from "@/lib/finance";
+import { buildTickerMarkdown } from "@/lib/export-markdown";
 import { useWatchlist } from "@/lib/watchlist";
 import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
@@ -45,6 +46,7 @@ export function CompanyWorkspace({
 }: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
+  const [copiedMd, setCopiedMd] = useState(false);
   const watchlist = useWatchlist();
   const isStarred = watchlist.has(company.ticker);
 
@@ -211,6 +213,39 @@ export function CompanyWorkspace({
                   fill={isStarred ? "currentColor" : "none"}
                 />
                 {isStarred ? "Watchlisted" : "Watchlist"}
+              </button>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      buildTickerMarkdown(
+                        company,
+                        series,
+                        baselineDcf.impliedRevenueCagrPct,
+                        window.location.origin
+                      )
+                    );
+                    setCopiedMd(true);
+                    window.setTimeout(() => setCopiedMd(false), 1800);
+                  } catch {
+                    // Ignore clipboard errors
+                  }
+                }}
+                className="inline-flex items-center gap-1 font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                {copiedMd ? (
+                  <>
+                    <Check className="h-3 w-3 text-[var(--positive)]" />
+                    Copied MD
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3" />
+                    Copy MD
+                  </>
+                )}
               </button>
             </div>
 

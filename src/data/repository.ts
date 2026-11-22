@@ -309,3 +309,44 @@ export async function getSectorBenchmark(
     ),
   };
 }
+
+export interface MarketInsiderFeedItem extends InsiderTradeItem {
+  ticker: string;
+}
+
+export async function getRecentMarketInsiders(): Promise<
+  MarketInsiderFeedItem[]
+> {
+  const db = getDb();
+  if (!db) return [];
+
+  const cachedFetch = unstable_cache(
+    async () => {
+      try {
+        const rows = await db
+          .select()
+          .from(insiderTrades)
+          .orderBy(desc(insiderTrades.filingDate))
+          .limit(40);
+        return rows.map((r) => ({
+          id: r.id,
+          ticker: r.ticker,
+          filingDate: r.filingDate,
+          insiderName: r.insiderName,
+          insiderTitle: r.insiderTitle,
+          transactionType: r.transactionType === "Buy" ? "Buy" : "Sell",
+          shares: r.shares,
+          pricePerShare: r.pricePerShare,
+          totalValue: r.totalValue,
+          accessionNumber: r.accessionNumber,
+        })) as MarketInsiderFeedItem[];
+      } catch {
+        return [];
+      }
+    },
+    ["amber-market-insiders"],
+    { revalidate: 86400, tags: ["companies"] }
+  );
+
+  return await cachedFetch();
+}

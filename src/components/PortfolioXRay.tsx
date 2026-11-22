@@ -31,6 +31,8 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   );
 
   const [addQuery, setAddQuery] = useState("");
+  const [pasteInput, setPasteInput] = useState("");
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [inputMode, setInputMode] = useState<"weight" | "dollars">("weight");
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [dollars, setDollars] = useState<Record<string, number>>({});
@@ -219,6 +221,34 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     }
   }
 
+  function applyQuickPaste(e: React.FormEvent) {
+    e.preventDefault();
+    const tokens = pasteInput
+      .split(/[,\n;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const parsedTickers: string[] = [];
+    const parsedWeights: Record<string, number> = {};
+
+    for (const token of tokens) {
+      // Matches "NVDA 30%", "NVDA:30", or "NVDA"
+      const m = token.match(/^([A-Za-z0-9.-]{1,10})(?:[\s:=]+(\d+(?:\.\d+)?)\s*%?)?$/);
+      if (!m) continue;
+      const ticker = m[1].toUpperCase();
+      if (!byTicker.has(ticker) || parsedTickers.includes(ticker)) continue;
+      parsedTickers.push(ticker);
+      parsedWeights[ticker] = m[2] ? Math.max(1, parseFloat(m[2])) : 10;
+    }
+
+    if (parsedTickers.length > 0) {
+      setSharedTickers(parsedTickers);
+      setWeights(parsedWeights);
+      setInputMode("weight");
+      setPasteOpen(false);
+      setPasteInput("");
+    }
+  }
+
   function handleExportPng() {
     exportPortfolioXRayCard({
       holdings: holdings.map((h) => ({
@@ -307,6 +337,14 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
 
             <button
               type="button"
+              onClick={() => setPasteOpen((prev) => !prev)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              Quick Paste
+            </button>
+
+            <button
+              type="button"
               onClick={handleExportPng}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
             >
@@ -315,6 +353,28 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             </button>
           </div>
         </section>
+
+        {pasteOpen && (
+          <form
+            onSubmit={applyQuickPaste}
+            className="mt-4 flex flex-col gap-2 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-4 sm:flex-row sm:items-center"
+          >
+            <input
+              type="text"
+              value={pasteInput}
+              onChange={(e) => setPasteInput(e.target.value)}
+              placeholder="Paste tickers & optional weights (e.g. NVDA 30%, MSFT 25%, PLTR 20%, COST 25%)"
+              aria-label="Quick paste portfolio tickers"
+              className="h-9 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="h-9 shrink-0 rounded-md bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
+            >
+              Run X-Ray
+            </button>
+          </form>
+        )}
 
         {/* 4 Weighted Portfolio KPIs */}
         <section className="mt-6 grid grid-cols-2 gap-3.5 lg:grid-cols-4">

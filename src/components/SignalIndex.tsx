@@ -257,13 +257,22 @@ export function SignalIndex({
           </div>
 
           {activeLens && (
-            <div className="mt-3 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-3 text-xs text-[var(--text-primary)]">
-              <span className="font-semibold text-[var(--amber)]">
-                Why {activeLens.title} matters:{" "}
-              </span>
-              <span className="text-[var(--text-secondary)]">
-                {activeLens.whyItMatters}
-              </span>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-3 text-xs text-[var(--text-primary)]">
+              <div>
+                <span className="font-semibold text-[var(--amber)]">
+                  Why {activeLens.title} matters:{" "}
+                </span>
+                <span className="text-[var(--text-secondary)]">
+                  {activeLens.whyItMatters}
+                </span>
+              </div>
+              <Link
+                href={`/lenses/${activeLens.id}`}
+                className="inline-flex shrink-0 items-center gap-1 font-semibold text-[var(--amber)] hover:underline"
+              >
+                Open full lens page
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
           )}
         </section>
