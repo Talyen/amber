@@ -195,6 +195,11 @@ dd {
   text-wrap: pretty;
 }
 
+/* Crisp, slightly bolder stroke weight on Lucide UI icons */
+svg.lucide {
+  stroke-width: 2.25;
+}
+
 /* Financial tabular numerals everywhere */
 .font-mono-num {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
