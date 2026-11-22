@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { getCompany } from "@/data/universe";
+import { getCompanySnapshot } from "@/data/repository";
 import {
   computeAnnualMetrics,
   computeEnterpriseValue,
@@ -22,7 +22,7 @@ export default async function OpenGraphImage({
   params: Promise<{ ticker: string }>;
 }) {
   const { ticker } = await params;
-  const company = getCompany(ticker);
+  const company = await getCompanySnapshot(ticker);
 
   if (!company) {
     return new ImageResponse(

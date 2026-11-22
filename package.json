@@ -8,10 +8,15 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "ingest:edgar": "node --experimental-strip-types scripts/ingest-edgar.ts"
+    "ingest:edgar": "node --experimental-strip-types scripts/ingest-edgar.ts",
+    "ingest:diffs": "node --experimental-strip-types scripts/extract-filing-diffs.ts",
+    "db:push": "drizzle-kit push",
+    "db:seed": "node --experimental-strip-types scripts/seed-neon.ts"
   },
   "dependencies": {
     "@microsoft/focusgroup-polyfill": "^1.0.2",
+    "@neondatabase/serverless": "^1.2.1",
+    "drizzle-orm": "^0.45.4",
     "lucide-react": "^0.511.0",
     "next": "^15.3.2",
     "react": "^19.1.0",
@@ -22,6 +27,7 @@
     "@types/node": "^22.15.18",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.4",
+    "drizzle-kit": "^0.31.11",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3"
   }

@@ -696,6 +696,20 @@
     },
     "filingDiffs": [
       {
+        "id": "aapl-10k-diff-2026-11-03",
+        "filingType": "10-K",
+        "filingDate": "2026-11-03",
+        "accessionNumber": "0000320193-26-000026",
+        "section": "Item 1A — Risk Factors (10-K Text Diff)",
+        "category": "Risk Factors",
+        "materiality": "High",
+        "headline": "New supply chain language added in latest 10-K (2026-11-03)",
+        "summary": "Automated 10-K comparison between 2025-10-31 and 2026-11-03 flagged newly introduced Risk Factor language referencing supply chain.",
+        "priorExcerpt": "In addition, the Company's global supply chain is large and complex and a majority of the Company's supplier facilities, including manufacturing and assembly sites, are located outside the U.S.",
+        "currentExcerpt": "Changing the Company's business and supply chain in response to new or changed restrictions on international trade can be expensive, time-consuming and disruptive.",
+        "signalNote": "Extracted deterministically by comparing consecutive SEC EDGAR 10-K Item 1A filings."
+      },
+      {
         "id": "aapl-xbrl-sbc",
         "filingType": "10-K",
         "filingDate": "2026-11-03",
@@ -897,6 +911,20 @@
       "sbcDragPct": 1.8
     },
     "filingDiffs": [
+      {
+        "id": "amzn-10k-diff-2026-02-06",
+        "filingType": "10-K",
+        "filingDate": "2026-02-06",
+        "accessionNumber": "0001018724-26-000004",
+        "section": "Item 1A — Risk Factors (10-K Text Diff)",
+        "category": "Risk Factors",
+        "materiality": "High",
+        "headline": "New artificial intelligence language added in latest 10-K (2026-02-06)",
+        "summary": "Automated 10-K comparison between 2025-02-07 and 2026-02-06 flagged newly introduced Risk Factor language referencing artificial intelligence.",
+        "priorExcerpt": "In addition, new and enhanced technologies, including search, web and infrastructure computing services, practical applications of artificial intelligence and machine learning, digital content, satellites, and electronic devices continue to increase our compet",
+        "currentExcerpt": "The internet and other technologies including artificial intelligence facilitate competitive entry and comparison shopping, which enhances the ability of new, smaller, or lesser-known businesses to compete against us.",
+        "signalNote": "Extracted deterministically by comparing consecutive SEC EDGAR 10-K Item 1A filings."
+      },
       {
         "id": "amzn-xbrl-sbc",
         "filingType": "10-K",
@@ -1705,6 +1733,20 @@
       "sbcDragPct": 14.8
     },
     "filingDiffs": [
+      {
+        "id": "crwd-10k-diff-2026-03-05",
+        "filingType": "10-K",
+        "filingDate": "2026-03-05",
+        "accessionNumber": "0001535527-26-000010",
+        "section": "Item 1A — Risk Factors (10-K Text Diff)",
+        "category": "Risk Factors",
+        "materiality": "High",
+        "headline": "New data center language added in latest 10-K (2026-03-05)",
+        "summary": "Automated 10-K comparison between 2025-03-10 and 2026-03-05 flagged newly introduced Risk Factor language referencing data center.",
+        "priorExcerpt": "further improve our Falcon platform, including our cloud modules, and IT infrastructure, including expanding and optimizing our data centers, to support our business needs;",
+        "currentExcerpt": "cyberattacks, including denial of service attacks, targeted at us, our data centers, or the infrastructure of the internet;",
+        "signalNote": "Extracted deterministically by comparing consecutive SEC EDGAR 10-K Item 1A filings."
+      },
       {
         "id": "crwd-xbrl-sbc",
         "filingType": "10-K",

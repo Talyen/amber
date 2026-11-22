@@ -16,7 +16,11 @@ type SortKey =
   | "netDilutionCagr"
   | "impliedCagr";
 
-export function SignalIndex() {
+export function SignalIndex({
+  entries = SEARCH_INDEX,
+}: {
+  entries?: SearchIndexEntry[];
+}) {
   const [sortKey, setSortKey] = useState<SortKey>("marketCap");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [filter, setFilter] = useState("");
@@ -32,45 +36,45 @@ export function SignalIndex() {
 
   const steepestSbc = useMemo(
     () =>
-      [...SEARCH_INDEX]
+      [...entries]
         .sort((a, b) => b.sbcPctRevenue - a.sbcPctRevenue)
         .slice(0, 5),
-    []
+    [entries]
   );
 
   const cleanestCash = useMemo(
     () =>
-      [...SEARCH_INDEX]
+      [...entries]
         .filter((c) => c.trueFcfMargin > 0)
         .sort((a, b) => b.trueFcfMargin - a.trueFcfMargin)
         .slice(0, 5),
-    []
+    [entries]
   );
 
   const steepestImplied = useMemo(
     () =>
-      [...SEARCH_INDEX]
+      [...entries]
         .sort((a, b) => b.impliedCagr - a.impliedCagr)
         .slice(0, 5),
-    []
+    [entries]
   );
 
   const rows = useMemo<SearchIndexEntry[]>(() => {
     const q = filter.trim().toLowerCase();
     const filtered = q
-      ? SEARCH_INDEX.filter(
+      ? entries.filter(
           (c) =>
             c.ticker.toLowerCase().includes(q) ||
             c.name.toLowerCase().includes(q) ||
             c.sector.toLowerCase().includes(q)
         )
-      : SEARCH_INDEX;
+      : entries;
 
     return [...filtered].sort((a, b) => {
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [filter, sortKey, sortDir]);
+  }, [entries, filter, sortKey, sortDir]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
