@@ -10,8 +10,10 @@ import {
   FileDiff,
   GitCompareArrows,
   LayoutDashboard,
+  PieChart,
   Star,
   UserCheck,
+  Users,
 } from "lucide-react";
 import {
   type CompanySnapshot,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/finance";
 import { buildTickerMarkdown } from "@/lib/export-markdown";
 import { useWatchlist } from "@/lib/watchlist";
+import type { SearchIndexEntry } from "@/data/universe";
 import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { CompanyBriefing } from "@/components/CompanyBriefing";
@@ -47,12 +50,14 @@ interface CompanyWorkspaceProps {
   company: CompanySnapshot;
   insiderTrades?: InsiderTradeItem[];
   sectorBenchmark?: SectorBenchmark | null;
+  sectorPeers?: SearchIndexEntry[];
 }
 
 export function CompanyWorkspace({
   company,
   insiderTrades = [],
   sectorBenchmark = null,
+  sectorPeers = [],
 }: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
@@ -212,8 +217,16 @@ export function CompanyWorkspace({
                 ].join(",")}`}
                 className="inline-flex items-center gap-1 font-medium text-[var(--amber)] hover:underline"
               >
-                <GitCompareArrows className="h-3 w-3" />
+                <GitCompareArrows className="h-3.5 w-3.5" />
                 Compare
+              </Link>
+              <span>·</span>
+              <Link
+                href={`/portfolio?add=${company.ticker}`}
+                className="inline-flex items-center gap-1 font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--amber)]"
+              >
+                <PieChart className="h-3.5 w-3.5" />
+                Add to Portfolio
               </Link>
               <span>·</span>
               <button
@@ -472,12 +485,69 @@ export function CompanyWorkspace({
                     series={series}
                     onNavigateTab={(t) => setActiveTab(t)}
                   />
-                  <MoatQualityCard company={company} series={series} />
                   <RevenueSankey
                     ticker={company.ticker}
                     companyName={company.name}
                     period={latest}
                   />
+                  <MoatQualityCard company={company} series={series} />
+
+                  {sectorPeers.length > 0 && (
+                    <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+                          <Users className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
+                          Closest {company.sector} Peers
+                        </h3>
+                        <Link
+                          href={`/compare?t=${[
+                            company.ticker,
+                            ...sectorPeers.slice(0, 3).map((p) => p.ticker),
+                          ].join(",")}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-[var(--amber)] hover:underline"
+                        >
+                          <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
+                          Compare all 4
+                        </Link>
+                      </div>
+
+                      <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {sectorPeers.map((peer) => (
+                          <Link
+                            key={peer.ticker}
+                            href={`/t/${peer.ticker}`}
+                            className="group rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3.5 transition-colors hover:border-[var(--amber-border)]"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono-num text-xs font-bold text-[var(--amber)]">
+                                {peer.ticker}
+                              </span>
+                              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                                {formatCurrencyCompact(peer.marketCap)}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 truncate text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                              {peer.name}
+                            </div>
+                            <div className="mt-2.5 flex items-center justify-between border-t border-[var(--border)] pt-2 text-[11px]">
+                              <span className="text-[var(--text-muted)]">
+                                True FCF{" "}
+                                <strong className="font-mono-num text-[var(--text-primary)]">
+                                  {formatPct(peer.trueFcfMargin)}
+                                </strong>
+                              </span>
+                              <span className="text-[var(--text-muted)]">
+                                10Y{" "}
+                                <strong className="font-mono-num text-[var(--amber)]">
+                                  {formatPct(peer.impliedCagr)}
+                                </strong>
+                              </span>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                 </div>
               )}
             </div>

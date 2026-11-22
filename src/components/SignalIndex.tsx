@@ -21,7 +21,6 @@ import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
-import { NotableSignalsFeed } from "@/components/NotableSignalsFeed";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
@@ -209,11 +208,8 @@ export function SignalIndex({
           </div>
         </section>
 
-        {/* Market-Wide Notable Signals Feed */}
-        <NotableSignalsFeed entries={entries} />
-
         {/* Curated Discovery Lenses ("Start Exploring") */}
-        <section aria-label="Curated discovery lenses" className="mt-8">
+        <section aria-label="Curated discovery lenses" className="mt-7">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
               <Sparkles className="h-4 w-4 text-[var(--amber)]" />

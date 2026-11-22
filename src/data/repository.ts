@@ -506,3 +506,76 @@ export async function getArenaPortfolioById(
   const all = await getArenaLeaderboard();
   return all.find((p) => p.id === id);
 }
+
+async function fetchSpyBenchmarks(): Promise<Record<string, number>> {
+  try {
+    const res = await fetch(
+      "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=3y&interval=1mo",
+      {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)" },
+      }
+    );
+    if (!res.ok) return {};
+    const json = (await res.json()) as {
+      chart?: {
+        result?: Array<{
+          meta?: { regularMarketPrice?: number };
+          timestamp?: number[];
+          indicators?: {
+            adjclose?: Array<{ adjclose?: Array<number | null> }>;
+            quote?: Array<{ close?: Array<number | null> }>;
+          };
+        }>;
+      };
+    };
+    const r = json.chart?.result?.[0];
+    if (!r) return {};
+    const ts = r.timestamp ?? [];
+    const closes =
+      r.indicators?.adjclose?.[0]?.adjclose ??
+      r.indicators?.quote?.[0]?.close ??
+      [];
+    const monthly: Record<string, number> = {};
+    for (let i = 0; i < ts.length; i++) {
+      const c = closes[i];
+      if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
+      const d = new Date(ts[i] * 1000);
+      const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      monthly[ym] = c;
+    }
+    const latestPrice =
+      r.meta?.regularMarketPrice ??
+      closes.filter((x): x is number => typeof x === "number").at(-1);
+    if (!latestPrice) return {};
+
+    const pct = (start?: number, end?: number) =>
+      start && end && start > 0
+        ? Number((((end - start) / start) * 100).toFixed(2))
+        : undefined;
+
+    const out: Record<string, number> = {};
+    const pairs: Array<[string, number | undefined, number | undefined]> = [
+      ["2026", monthly["2025-12"], latestPrice],
+      ["2025", monthly["2024-12"], monthly["2025-12"]],
+      ["2026-11", monthly["2026-10"], latestPrice],
+      ["2026-10", monthly["2026-09"], monthly["2026-10"]],
+      ["2026-09", monthly["2026-08"], monthly["2026-09"]],
+    ];
+    for (const [k, s, e] of pairs) {
+      const val = pct(s, e);
+      if (typeof val === "number") out[k] = val;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function getSpyBenchmarks(): Promise<Record<string, number>> {
+  const cachedFetch = unstable_cache(
+    async () => fetchSpyBenchmarks(),
+    ["amber-spy-benchmarks"],
+    { revalidate: 3600, tags: ["arena"] }
+  );
+  return await cachedFetch();
+}

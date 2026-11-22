@@ -4,6 +4,7 @@ import {
   getAllTickers,
   getCompanySnapshot,
   getInsiderTrades,
+  getSearchIndex,
   getSectorBenchmark,
 } from "@/data/repository";
 import { CompanyWorkspace } from "@/components/CompanyWorkspace";
@@ -34,7 +35,7 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${company.ticker} — ${company.name}`,
+    title: `${company.ticker} | ${company.name}`,
     description: `${company.name} (${company.ticker}) SBC-adjusted True Free Cash Flow, Reverse DCF implied growth, and SEC ${company.lastFiling.type} filing diffs.`,
   };
 }
@@ -47,16 +48,27 @@ export default async function TickerPage({ params }: TickerPageProps) {
     notFound();
   }
 
-  const [insiderTrades, sectorBenchmark] = await Promise.all([
+  const [insiderTrades, sectorBenchmark, searchIndex] = await Promise.all([
     getInsiderTrades(company.ticker),
     getSectorBenchmark(company.sector),
+    getSearchIndex(),
   ]);
+
+  const sectorPeers = searchIndex
+    .filter((c) => c.sector === company.sector && c.ticker !== company.ticker)
+    .sort(
+      (a, b) =>
+        Math.abs(a.marketCap - company.marketCap) -
+        Math.abs(b.marketCap - company.marketCap)
+    )
+    .slice(0, 4);
 
   return (
     <CompanyWorkspace
       company={company}
       insiderTrades={insiderTrades}
       sectorBenchmark={sectorBenchmark}
+      sectorPeers={sectorPeers}
     />
   );
 }

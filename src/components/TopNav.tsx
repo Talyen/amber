@@ -125,7 +125,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           <button
             type="button"
             onClick={handleCopyLink}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+            className="hidden h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer md:inline-flex"
           >
             {copied ? (
               <>

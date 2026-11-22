@@ -19,6 +19,7 @@ import { formatPct } from "@/lib/finance";
 
 interface ArenaLeaderboardProps {
   portfolios: ArenaPortfolioView[];
+  benchmarks?: Record<string, number>;
 }
 
 type Timeframe = "monthly" | "yearly" | "all";
@@ -45,7 +46,10 @@ function formatMonthKey(ym: string): string {
   return MONTH_NAMES[idx] ? `${MONTH_NAMES[idx]} ${y}` : ym;
 }
 
-export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
+export function ArenaLeaderboard({
+  portfolios,
+  benchmarks = {},
+}: ArenaLeaderboardProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
@@ -118,6 +122,14 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
     (timeframe === "monthly" && selectedMonth !== availableMonths[0]) ||
     (timeframe === "yearly" && selectedYear !== availableYears[0]);
 
+  const activeBenchmarkKey =
+    timeframe === "monthly"
+      ? selectedMonth
+      : timeframe === "yearly"
+        ? selectedYear
+        : availableYears[0] ?? "2026";
+  const spyBenchmark = benchmarks[activeBenchmarkKey];
+
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <TopNav activeRoute="arena" />
@@ -175,7 +187,21 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
             })}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {typeof spyBenchmark === "number" && (
+              <div className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs">
+                <span className="text-[var(--text-muted)]">S&amp;P 500</span>
+                <span
+                  className={`font-mono-num font-semibold ${
+                    spyBenchmark >= 0
+                      ? "text-[var(--positive)]"
+                      : "text-[var(--negative)]"
+                  }`}
+                >
+                  {formatPct(spyBenchmark, true)}
+                </span>
+              </div>
+            )}
             {(
               [
                 { id: "all", label: "All", icon: Layers },
@@ -361,16 +387,23 @@ export function ArenaLeaderboard({ portfolios }: ArenaLeaderboardProps) {
                   <div className="text-[11px] text-[var(--text-muted)]">
                     {p.isFinalized ? "Period Return" : "Total Return"}
                   </div>
-                  <div
-                    className={`font-mono-num text-2xl font-semibold tracking-[-0.02em] ${
-                      p.totalReturnPct > 0
-                        ? "text-[var(--positive)]"
-                        : p.totalReturnPct < 0
-                          ? "text-[var(--negative)]"
-                          : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {formatPct(p.totalReturnPct, true)}
+                  <div className="text-right">
+                    <div
+                      className={`font-mono-num text-2xl font-semibold tracking-[-0.02em] ${
+                        p.totalReturnPct > 0
+                          ? "text-[var(--positive)]"
+                          : p.totalReturnPct < 0
+                            ? "text-[var(--negative)]"
+                            : "text-[var(--text-primary)]"
+                      }`}
+                    >
+                      {formatPct(p.totalReturnPct, true)}
+                    </div>
+                    {typeof spyBenchmark === "number" && (
+                      <div className="font-mono-num mt-0.5 text-[11px] text-[var(--text-muted)]">
+                        {formatPct(p.totalReturnPct - spyBenchmark, true)} vs SPY
+                      </div>
+                    )}
                   </div>
                 </div>
               </Link>

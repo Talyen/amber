@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, RefreshCw } from "lucide-react";
+import { ArrowLeft, Bot, PieChart, RefreshCw } from "lucide-react";
 import { getArenaPortfolioById } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -78,21 +78,34 @@ export default async function ArenaDetailPage({
             </div>
           </div>
 
-          <div className="sm:text-right">
-            <div className="text-xs text-[var(--text-muted)]">
-              Total Return
+          <div className="flex flex-col items-start gap-2 sm:items-end sm:text-right">
+            <div>
+              <div className="text-xs text-[var(--text-muted)]">
+                Total Return
+              </div>
+              <div
+                className={`font-mono-num mt-0.5 text-4xl font-semibold tracking-[-0.03em] ${
+                  portfolio.totalReturnPct > 0
+                    ? "text-[var(--positive)]"
+                    : portfolio.totalReturnPct < 0
+                      ? "text-[var(--negative)]"
+                      : "text-[var(--text-primary)]"
+                }`}
+              >
+                {formatPct(portfolio.totalReturnPct, true)}
+              </div>
             </div>
-            <div
-              className={`font-mono-num mt-0.5 text-4xl font-semibold tracking-[-0.03em] ${
-                portfolio.totalReturnPct > 0
-                  ? "text-[var(--positive)]"
-                  : portfolio.totalReturnPct < 0
-                    ? "text-[var(--negative)]"
-                    : "text-[var(--text-primary)]"
-              }`}
+            <Link
+              href={`/portfolio?h=${encodeURIComponent(
+                portfolio.positions
+                  .map((p) => `${p.ticker}:${Math.round(p.weightPct)}`)
+                  .join(",")
+              )}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white"
             >
-              {formatPct(portfolio.totalReturnPct, true)}
-            </div>
+              <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
+              Analyze in Portfolio
+            </Link>
           </div>
         </section>
 

@@ -6,6 +6,7 @@ import {
   Plus,
   X,
   AlertTriangle,
+  ArrowRight,
   Banknote,
   CheckCircle2,
   ClipboardPaste,
@@ -15,9 +16,11 @@ import {
   Percent,
   PieChart,
   TrendingUp,
+  Trophy,
   Users,
 } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
+import { authClient } from "@/lib/auth-client";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { LockPortfolioModal } from "@/components/LockPortfolioModal";
@@ -31,6 +34,7 @@ interface PortfolioXRayProps {
 }
 
 export function PortfolioXRay({ entries }: PortfolioXRayProps) {
+  const { data: session } = authClient.useSession();
   const watchlist = useWatchlist();
   const byTicker = useMemo(
     () => new Map(entries.map((e) => [e.ticker, e])),
@@ -44,12 +48,37 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [dollars, setDollars] = useState<Record<string, number>>({});
   const [sharedTickers, setSharedTickers] = useState<string[] | null>(null);
+  const [myArena, setMyArena] = useState<{
+    id: string;
+    title: string;
+    handle: string;
+    nav: number;
+  } | null>(null);
   const hydratedRef = useRef(false);
 
-  // Hydrate shareable ?h=AAPL:25,MSFT:25,NVDA:20 URL on mount
+  // Fetch signed-in user's Arena status banner
+  useEffect(() => {
+    if (!session?.user) {
+      setMyArena(null);
+      return;
+    }
+    let active = true;
+    fetch("/api/arena/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { portfolio?: { id: string; title: string; handle: string; nav: number } | null } | null) => {
+        if (active) setMyArena(data?.portfolio ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [session?.user]);
+
+  // Hydrate shareable ?h=AAPL:25,MSFT:25 or ?add=NVDA URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const raw = params.get("h");
+    const addParam = params.get("add")?.trim().toUpperCase();
     if (raw) {
       const parsedTickers: string[] = [];
       const parsedWeights: Record<string, number> = {};
@@ -66,9 +95,14 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
         setSharedTickers(parsedTickers);
         setWeights(parsedWeights);
       }
+    } else if (addParam && byTicker.has(addParam)) {
+      setSharedTickers((prev) => {
+        const base = prev ?? (watchlist.tickers.length > 0 ? watchlist.tickers : STARTER_TICKERS);
+        return base.includes(addParam) ? base : [addParam, ...base];
+      });
     }
     hydratedRef.current = true;
-  }, [byTicker]);
+  }, [byTicker, watchlist.tickers]);
 
   const activeTickers =
     sharedTickers && sharedTickers.length > 0
@@ -277,6 +311,27 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       <TopNav activeRoute="portfolio" />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
+        {myArena && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Trophy className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
+              <span className="font-semibold text-[var(--text-primary)]">
+                Your Arena Portfolio: {myArena.title}
+              </span>
+              <span className="font-mono-num text-[var(--text-secondary)]">
+                @{myArena.handle}
+              </span>
+            </div>
+            <Link
+              href={`/arena/${myArena.id}`}
+              className="inline-flex items-center gap-1 font-semibold text-[var(--amber)] hover:underline"
+            >
+              View Leaderboard Entry
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+        )}
+
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
             <div className="flex flex-wrap items-center gap-2">

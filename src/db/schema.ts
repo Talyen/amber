@@ -239,3 +239,20 @@ export const arenaRebalances = pgTable(
   },
   (table) => [index("arena_reb_portfolio_idx").on(table.portfolioId)]
 );
+
+export const userWatchlists = pgTable(
+  "user_watchlists",
+  {
+    id: text("id").primaryKey(), // `${userId}:${ticker}`
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ticker: text("ticker")
+      .notNull()
+      .references(() => companies.ticker, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("user_watchlist_user_idx").on(table.userId)]
+);
