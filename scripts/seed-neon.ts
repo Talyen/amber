@@ -70,6 +70,7 @@ async function run() {
     lastFilingPeriodEnd: c.lastFiling.periodEnd,
     lastFilingAccession: c.lastFiling.accessionNumber,
     defaultDcf: c.defaultDcf,
+    priceHistory: c.priceHistory ?? null,
     updatedAt: new Date(),
   }));
 
@@ -93,6 +94,7 @@ async function run() {
           lastFilingPeriodEnd: sql`excluded.last_filing_period_end`,
           lastFilingAccession: sql`excluded.last_filing_accession`,
           defaultDcf: sql`excluded.default_dcf`,
+          priceHistory: sql`excluded.price_history`,
           updatedAt: sql`excluded.updated_at`,
         },
       });
@@ -116,6 +118,7 @@ async function run() {
       sgaExpense: a.sgaExpense ?? null,
       operatingIncome: a.operatingIncome ?? null,
       netIncome: a.netIncome ?? null,
+      stockholdersEquity: a.stockholdersEquity ?? null,
     }))
   );
 
@@ -138,6 +141,7 @@ async function run() {
           sgaExpense: sql`excluded.sga_expense`,
           operatingIncome: sql`excluded.operating_income`,
           netIncome: sql`excluded.net_income`,
+          stockholdersEquity: sql`excluded.stockholders_equity`,
         },
       });
   }

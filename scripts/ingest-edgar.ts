@@ -597,6 +597,12 @@ async function ingestCandidate(
       ["NetIncomeLoss"],
       "USD"
     );
+    const equityMap = extractAnnualSeries(
+      facts,
+      ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+      "USD",
+      false
+    );
 
     const years = [...revMap.keys()]
       .filter((y) => ocfMap.has(y))
@@ -638,6 +644,7 @@ async function ingestCandidate(
       const sgaVal = sgaMap.get(yr)?.val;
       const opVal = opIncMap.get(yr)?.val;
       const niVal = netIncMap.get(yr)?.val;
+      const eqVal = equityMap.get(yr)?.val;
 
       return {
         fiscalYear: `FY${yr.slice(2)}`,
@@ -652,6 +659,7 @@ async function ingestCandidate(
         sgaExpense: sgaVal !== undefined ? Math.round(Math.abs(sgaVal) / 1e6) : null,
         operatingIncome: opVal !== undefined ? Math.round(opVal / 1e6) : null,
         netIncome: niVal !== undefined ? Math.round(niVal / 1e6) : null,
+        stockholdersEquity: eqVal !== undefined ? Math.round(eqVal / 1e6) : null,
       };
     });
 

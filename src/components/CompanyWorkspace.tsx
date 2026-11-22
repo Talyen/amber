@@ -16,6 +16,7 @@ import { useWatchlist } from "@/lib/watchlist";
 import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { CompanyBriefing } from "@/components/CompanyBriefing";
+import { MoatQualityCard } from "@/components/MoatQualityCard";
 import { RevenueSankey } from "@/components/RevenueSankey";
 import { TrueFcfChart } from "@/components/TrueFcfChart";
 import { TrueFcfWaterfall } from "@/components/TrueFcfWaterfall";
@@ -23,6 +24,7 @@ import { BuybackRealityCard } from "@/components/BuybackRealityCard";
 import { FinancialLedgerTable } from "@/components/FinancialLedgerTable";
 import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
 import { ScenarioBuilder } from "@/components/ScenarioBuilder";
+import { PriceVsFundamentalsChart } from "@/components/PriceVsFundamentalsChart";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
@@ -416,6 +418,7 @@ export function CompanyWorkspace({
                     series={series}
                     onNavigateTab={(t) => setActiveTab(t)}
                   />
+                  <MoatQualityCard company={company} series={series} />
                   <RevenueSankey
                     ticker={company.ticker}
                     companyName={company.name}
@@ -483,6 +486,8 @@ export function CompanyWorkspace({
                   ) : (
                     <ReverseDcfStudio company={company} latest={latest} />
                   )}
+
+                  <PriceVsFundamentalsChart company={company} series={series} />
                 </div>
               )}
             </div>

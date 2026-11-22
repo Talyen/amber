@@ -16,6 +16,11 @@ export interface DefaultDcfJson {
   sbcDragPct: number;
 }
 
+export interface AnnualPricePointJson {
+  fiscalYear: string;
+  price: number;
+}
+
 export const companies = pgTable("companies", {
   ticker: text("ticker").primaryKey(),
   cik: text("cik").notNull().unique(),
@@ -32,6 +37,7 @@ export const companies = pgTable("companies", {
   lastFilingPeriodEnd: text("last_filing_period_end").notNull(),
   lastFilingAccession: text("last_filing_accession").notNull(),
   defaultDcf: jsonb("default_dcf").$type<DefaultDcfJson>().notNull(),
+  priceHistory: jsonb("price_history").$type<AnnualPricePointJson[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -57,6 +63,7 @@ export const annualFinancials = pgTable(
     sgaExpense: doublePrecision("sga_expense"), // $M (optional)
     operatingIncome: doublePrecision("operating_income"), // $M (optional)
     netIncome: doublePrecision("net_income"), // $M (optional)
+    stockholdersEquity: doublePrecision("stockholders_equity"), // $M (optional, for ROIC)
   },
   (table) => [
     uniqueIndex("annual_ticker_fy_idx").on(table.ticker, table.fiscalYear),

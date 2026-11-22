@@ -536,3 +536,121 @@ export function exportComparisonCard(items: ComparisonExportItem[]) {
     `amber-compare-${items.map((i) => i.ticker.toLowerCase()).join("-")}.png`
   );
 }
+
+export interface PortfolioExportPayload {
+  holdings: Array<{ ticker: string; weightPct: number; impliedCagr: number; trueFcfMargin: number }>;
+  wImplied: number;
+  wTrueMargin: number;
+  wSbcPct: number;
+  wDilution: number;
+  topSector: [string, number] | null;
+}
+
+export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
+  const width = 1200;
+  const height = 675;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.scale(scale, scale);
+  const theme = getExportTheme();
+
+  ctx.fillStyle = theme.bg;
+  ctx.fillRect(0, 0, width, height);
+
+  drawRoundedRect(ctx, 24, 24, width - 48, height - 48, 16);
+  ctx.fillStyle = theme.surface;
+  ctx.fill();
+  ctx.strokeStyle = theme.border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = theme.amber;
+  ctx.font = '600 13px "JetBrains Mono", ui-monospace, monospace';
+  ctx.textAlign = "left";
+  ctx.fillText(
+    `PORTFOLIO X-RAY  ·  ${payload.holdings.length} HOLDINGS`,
+    56,
+    72
+  );
+
+  ctx.fillStyle = theme.textPrimary;
+  ctx.font = '600 28px "Inter", system-ui, -apple-system, sans-serif';
+  ctx.fillText("What This Portfolio Is Really Betting On", 56, 108);
+
+  // 4 KPI boxes
+  const kpis = [
+    { label: "WEIGHTED IMPLIED 10Y GROWTH", val: formatPct(payload.wImplied), color: theme.amber },
+    { label: "WEIGHTED TRUE FCF MARGIN", val: formatPct(payload.wTrueMargin), color: theme.textPrimary },
+    { label: "WEIGHTED SBC BURDEN", val: formatPct(payload.wSbcPct), color: theme.sbcBar },
+    {
+      label: "WEIGHTED NET DILUTION",
+      val: formatPct(payload.wDilution, true),
+      color: payload.wDilution > 1 ? theme.negativeBar : theme.textPrimary,
+    },
+  ];
+
+  kpis.forEach((k, i) => {
+    const x = 56 + i * 276;
+    drawRoundedRect(ctx, x, 142, 258, 118, 10);
+    ctx.fillStyle = theme.bg;
+    ctx.fill();
+    ctx.strokeStyle = theme.border;
+    ctx.stroke();
+
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = '600 11px "Inter", system-ui, sans-serif';
+    ctx.fillText(k.label, x + 20, 174);
+
+    ctx.fillStyle = k.color;
+    ctx.font = '700 34px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillText(k.val, x + 20, 226);
+  });
+
+  // Top holdings bar list
+  ctx.fillStyle = theme.textSecondary;
+  ctx.font = '600 13px "Inter", system-ui, sans-serif';
+  ctx.fillText("TOP HOLDINGS & WEIGHTS", 56, 304);
+
+  payload.holdings.slice(0, 6).forEach((h, idx) => {
+    const y = 324 + idx * 44;
+    drawRoundedRect(ctx, 56, y, 1088, 34, 6);
+    ctx.fillStyle = idx % 2 === 0 ? theme.bg : theme.surface;
+    ctx.fill();
+    ctx.strokeStyle = theme.border;
+    ctx.stroke();
+
+    ctx.fillStyle = theme.amber;
+    ctx.font = '700 14px "JetBrains Mono", ui-monospace, monospace';
+    ctx.textAlign = "left";
+    ctx.fillText(h.ticker, 76, y + 22);
+
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = '500 14px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillText(`${h.weightPct.toFixed(0)}% weight`, 180, y + 22);
+
+    ctx.fillStyle = theme.textSecondary;
+    ctx.fillText(`True FCF Margin ${formatPct(h.trueFcfMargin)}`, 420, y + 22);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = theme.textPrimary;
+    ctx.fillText(`Implied 10Y: ${formatPct(h.impliedCagr)}`, 1120, y + 22);
+    ctx.textAlign = "left";
+  });
+
+  drawAmberWatermark(
+    ctx,
+    width,
+    height,
+    theme,
+    payload.topSector
+      ? `Top Sector: ${payload.topSector[0]} (${payload.topSector[1].toFixed(0)}%) · SEC EDGAR 10-K/10-Q`
+      : `Source: SEC EDGAR 10-K/10-Q · Amber Portfolio X-Ray`
+  );
+
+  triggerDownload(canvas, "amber-portfolio-xray.png");
+}

@@ -6,12 +6,18 @@ export interface AnnualFinancials {
   sbc: number; // $M (Stock-Based Compensation)
   buybacks: number; // $M (Share repurchases)
   dilutedShares: number; // Millions
-  // Optional Income Statement breakdown for Automated Sankey Diagram ($M)
+  // Optional Income Statement & Balance Sheet fields for Sankey & ROIC ($M)
   grossProfit?: number | null;
   rdExpense?: number | null;
   sgaExpense?: number | null;
   operatingIncome?: number | null;
   netIncome?: number | null;
+  stockholdersEquity?: number | null;
+}
+
+export interface AnnualPricePoint {
+  fiscalYear: string; // e.g. "FY22"
+  price: number; // $
 }
 
 export interface FilingDiffItem {
@@ -51,6 +57,7 @@ export interface CompanySnapshot {
     accessionNumber: string;
   };
   annuals: AnnualFinancials[];
+  priceHistory?: AnnualPricePoint[];
   defaultDcf: {
     wacc: number; // % e.g. 10.0
     terminalMultiple: number; // x True FCF e.g. 22

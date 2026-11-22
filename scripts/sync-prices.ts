@@ -32,14 +32,23 @@ interface YahooChartResponse {
         regularMarketPrice?: number;
         chartPreviousClose?: number;
       };
+      timestamp?: number[];
+      indicators?: {
+        adjclose?: Array<{ adjclose?: Array<number | null> }>;
+        quote?: Array<{ close?: Array<number | null> }>;
+      };
     }>;
   };
 }
 
-async function fetchLatestClose(ticker: string): Promise<number | null> {
-  // Yahoo uses '-' instead of '.' for class shares (e.g. BRK-B)
+interface PriceFetchResult {
+  latestPrice: number;
+  byYear: Map<string, number>; // e.g. "2024" -> 134.2
+}
+
+async function fetchPriceAndHistory(ticker: string): Promise<PriceFetchResult | null> {
   const symbol = ticker.replace(/\./g, "-");
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5y&interval=1mo`;
 
   try {
     const res = await fetch(url, {
@@ -50,11 +59,32 @@ async function fetchLatestClose(ticker: string): Promise<number | null> {
     });
     if (!res.ok) return null;
     const json = (await res.json()) as YahooChartResponse;
-    const meta = json.chart?.result?.[0]?.meta;
-    const price = meta?.regularMarketPrice ?? meta?.chartPreviousClose ?? null;
-    return typeof price === "number" && Number.isFinite(price) && price > 0
-      ? Number(price.toFixed(2))
-      : null;
+    const result = json.chart?.result?.[0];
+    const meta = result?.meta;
+    const latestPrice = meta?.regularMarketPrice ?? meta?.chartPreviousClose ?? null;
+    if (typeof latestPrice !== "number" || !Number.isFinite(latestPrice) || latestPrice <= 0) {
+      return null;
+    }
+
+    const byYear = new Map<string, number>();
+    const timestamps = result?.timestamp ?? [];
+    const closes =
+      result?.indicators?.adjclose?.[0]?.adjclose ??
+      result?.indicators?.quote?.[0]?.close ??
+      [];
+
+    for (let i = 0; i < timestamps.length; i++) {
+      const c = closes[i];
+      if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
+      const yr = new Date(timestamps[i] * 1000).getUTCFullYear();
+      // Keep the latest monthly close recorded in each calendar year
+      byYear.set(String(yr), Number(c.toFixed(2)));
+    }
+
+    return {
+      latestPrice: Number(latestPrice.toFixed(2)),
+      byYear,
+    };
   } catch {
     return null;
   }
@@ -85,21 +115,39 @@ async function run() {
 
   for (let i = 0; i < snapshots.length; i += concurrency) {
     const batch = snapshots.slice(i, i + concurrency);
-    const prices = await Promise.all(
-      batch.map((c) => fetchLatestClose(c.ticker))
+    const results = await Promise.all(
+      batch.map((c) => fetchPriceAndHistory(c.ticker))
     );
 
     for (let j = 0; j < batch.length; j++) {
       const company = batch[j];
-      const livePrice = prices[j];
-      if (!livePrice) continue;
+      const fetched = results[j];
+      if (!fetched) continue;
 
       const latestShares =
         company.annuals[company.annuals.length - 1]?.dilutedShares ?? 0;
       if (latestShares <= 0) continue;
 
-      company.price = livePrice;
-      company.marketCap = Math.round(livePrice * latestShares);
+      company.price = fetched.latestPrice;
+      company.marketCap = Math.round(fetched.latestPrice * latestShares);
+
+      // Map 5-year historical closing prices to each fiscal year in annuals
+      const history: Array<{ fiscalYear: string; price: number }> = [];
+      for (const row of company.annuals) {
+        if (row.fiscalYear === "TTM") {
+          history.push({ fiscalYear: "TTM", price: fetched.latestPrice });
+          continue;
+        }
+        const fullYear = `20${row.fiscalYear.replace(/^FY/i, "")}`;
+        const yrPrice = fetched.byYear.get(fullYear);
+        if (yrPrice) {
+          history.push({ fiscalYear: row.fiscalYear, price: yrPrice });
+        }
+      }
+      if (history.length >= 2) {
+        company.priceHistory = history;
+      }
+
       updatedCount++;
     }
 
@@ -161,6 +209,7 @@ async function run() {
             .set({
               price: c.price,
               marketCap: c.marketCap,
+              priceHistory: c.priceHistory ?? null,
               updatedAt: new Date(),
             })
             .where(eq(companiesTable.ticker, c.ticker))

@@ -1,12 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Plus, X, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Plus,
+  X,
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  DollarSign,
+  Percent,
+} from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { formatPct } from "@/lib/finance";
+import { exportPortfolioXRayCard } from "@/lib/export-card";
 
 const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "PLTR"];
 
@@ -22,11 +31,43 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   );
 
   const [addQuery, setAddQuery] = useState("");
+  const [inputMode, setInputMode] = useState<"weight" | "dollars">("weight");
   const [weights, setWeights] = useState<Record<string, number>>({});
+  const [dollars, setDollars] = useState<Record<string, number>>({});
+  const [sharedTickers, setSharedTickers] = useState<string[] | null>(null);
+  const hydratedRef = useRef(false);
+
+  // Hydrate shareable ?h=AAPL:25,MSFT:25,NVDA:20 URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("h");
+    if (raw) {
+      const parsedTickers: string[] = [];
+      const parsedWeights: Record<string, number> = {};
+      for (const pair of raw.split(",")) {
+        const [tRaw, wRaw] = pair.split(":");
+        const t = (tRaw ?? "").trim().toUpperCase();
+        const w = parseFloat(wRaw ?? "10");
+        if (byTicker.has(t) && !parsedTickers.includes(t)) {
+          parsedTickers.push(t);
+          parsedWeights[t] = Number.isFinite(w) && w > 0 ? w : 10;
+        }
+      }
+      if (parsedTickers.length > 0) {
+        setSharedTickers(parsedTickers);
+        setWeights(parsedWeights);
+      }
+    }
+    hydratedRef.current = true;
+  }, [byTicker]);
 
   const activeTickers =
-    watchlist.tickers.length > 0 ? watchlist.tickers : STARTER_TICKERS;
-  const usingStarter = watchlist.tickers.length === 0;
+    sharedTickers && sharedTickers.length > 0
+      ? sharedTickers
+      : watchlist.tickers.length > 0
+        ? watchlist.tickers
+        : STARTER_TICKERS;
+  const usingStarter = !sharedTickers && watchlist.tickers.length === 0;
 
   const holdings = useMemo(
     () =>
@@ -36,11 +77,37 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     [activeTickers, byTicker]
   );
 
+  const totalDollars = useMemo(() => {
+    if (inputMode !== "dollars") return 0;
+    return holdings.reduce(
+      (sum, h) => sum + Math.max(0, dollars[h.ticker] ?? 10_000),
+      0
+    );
+  }, [holdings, dollars, inputMode]);
+
   const normalizedWeights = useMemo(() => {
-    const raw = holdings.map((h) => Math.max(1, weights[h.ticker] ?? 10));
+    const raw = holdings.map((h) =>
+      inputMode === "dollars"
+        ? Math.max(0, dollars[h.ticker] ?? 10_000)
+        : Math.max(1, weights[h.ticker] ?? 10)
+    );
     const sum = raw.reduce((a, b) => a + b, 0) || 1;
     return new Map(holdings.map((h, i) => [h.ticker, raw[i] / sum]));
-  }, [holdings, weights]);
+  }, [holdings, weights, dollars, inputMode]);
+
+  // Keep ?h= synced cleanly in URL so Share button captures exact portfolio & weights
+  useEffect(() => {
+    if (!hydratedRef.current || holdings.length === 0) return;
+    if (usingStarter && Object.keys(weights).length === 0 && inputMode === "weight") {
+      return;
+    }
+    const encoded = holdings
+      .map((h) => `${h.ticker}:${Math.round((normalizedWeights.get(h.ticker) ?? 0) * 100)}`)
+      .join(",");
+    const url = new URL(window.location.href);
+    url.searchParams.set("h", encoded);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [holdings, normalizedWeights, usingStarter, weights, inputMode]);
 
   const metrics = useMemo(() => {
     let wImplied = 0;
@@ -61,6 +128,22 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     const sectors = [...sectorWeights.entries()].sort((a, b) => b[1] - a[1]);
     const highGrowthCount = holdings.filter((h) => h.impliedCagr >= 16).length;
     const highSbcCount = holdings.filter((h) => h.sbcPctRevenue >= 12).length;
+
+    const valuationStance =
+      wImplied <= 10.5
+        ? {
+            label: "Attractive Bar",
+            tone: "text-[var(--positive)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
+          }
+        : wImplied <= 16
+          ? {
+              label: "Balanced Expectations",
+              tone: "text-[var(--amber)] bg-[var(--amber-soft)] ring-[var(--amber-border)]",
+            }
+          : {
+              label: "Stretched / High Bar",
+              tone: "text-[var(--negative)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
+            };
 
     const flags: Array<{ tone: "warn" | "ok"; text: string }> = [];
     if (sectors[0] && sectors[0][1] >= 45) {
@@ -98,6 +181,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       wSbcPct,
       wDilution,
       sectors,
+      valuationStance,
       flags,
     };
   }, [holdings, normalizedWeights]);
@@ -116,11 +200,39 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   }, [addQuery, entries, activeTickers]);
 
   function addToPortfolio(ticker: string) {
-    if (usingStarter) {
-      for (const s of STARTER_TICKERS) watchlist.toggle(s);
+    if (sharedTickers) {
+      setSharedTickers((prev) => (prev ? [...prev, ticker] : [ticker]));
+    } else {
+      if (usingStarter) {
+        for (const s of STARTER_TICKERS) watchlist.toggle(s);
+      }
+      watchlist.toggle(ticker);
     }
-    watchlist.toggle(ticker);
     setAddQuery("");
+  }
+
+  function removeFromPortfolio(ticker: string) {
+    if (sharedTickers) {
+      setSharedTickers((prev) => (prev ? prev.filter((t) => t !== ticker) : null));
+    } else {
+      watchlist.toggle(ticker);
+    }
+  }
+
+  function handleExportPng() {
+    exportPortfolioXRayCard({
+      holdings: holdings.map((h) => ({
+        ticker: h.ticker,
+        weightPct: (normalizedWeights.get(h.ticker) ?? 0) * 100,
+        impliedCagr: h.impliedCagr,
+        trueFcfMargin: h.trueFcfMargin,
+      })),
+      wImplied: metrics.wImplied,
+      wTrueMargin: metrics.wTrueMargin,
+      wSbcPct: metrics.wSbcPct,
+      wDilution: metrics.wDilution,
+      topSector: metrics.sectors[0] ?? null,
+    });
   }
 
   return (
@@ -130,59 +242,77 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-              PORTFOLIO X-RAY
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono-num text-xs font-semibold text-[var(--amber)]">
+                PORTFOLIO X-RAY
+              </span>
+              <span
+                className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${metrics.valuationStance.tone}`}
+              >
+                {metrics.valuationStance.label}
+              </span>
             </div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
               See what your watchlist is really betting on
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {usingStarter
                 ? "Showing a sample 5-stock portfolio. Star any company across Amber (or add a ticker on the right) to X-Ray your own holdings—stored privately in your browser."
-                : `Analyzing your ${holdings.length} watchlisted companies with weighted expectations, cash quality, and sector concentration.`}
+                : `Analyzing your ${holdings.length} holdings with weighted expectations, cash quality, and sector concentration.`}
             </p>
           </div>
 
-          {/* Quick Add Ticker */}
-          <div className="relative shrink-0">
-            <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
-              <Plus className="h-3.5 w-3.5 text-[var(--amber)]" />
-              <input
-                type="text"
-                value={addQuery}
-                onChange={(e) => setAddQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && suggestions[0]) {
-                    e.preventDefault();
-                    addToPortfolio(suggestions[0].ticker);
-                  }
-                }}
-                placeholder="Add ticker to X-Ray…"
-                aria-label="Add ticker to portfolio X-Ray"
-                className="w-40 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-              />
+          {/* Add Ticker + Export PNG */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="relative">
+              <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+                <Plus className="h-3.5 w-3.5 text-[var(--amber)]" />
+                <input
+                  type="text"
+                  value={addQuery}
+                  onChange={(e) => setAddQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && suggestions[0]) {
+                      e.preventDefault();
+                      addToPortfolio(suggestions[0].ticker);
+                    }
+                  }}
+                  placeholder="Add ticker to X-Ray…"
+                  aria-label="Add ticker to portfolio X-Ray"
+                  className="w-36 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none sm:w-40"
+                />
+              </div>
+
+              {suggestions.length > 0 && (
+                <ul className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-xl">
+                  {suggestions.map((s) => (
+                    <li key={s.ticker}>
+                      <button
+                        type="button"
+                        onClick={() => addToPortfolio(s.ticker)}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-[var(--surface-subtle)] cursor-pointer"
+                      >
+                        <span className="font-mono-num font-semibold text-[var(--amber)]">
+                          {s.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-secondary)]">
+                          {s.name}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
-            {suggestions.length > 0 && (
-              <ul className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-xl">
-                {suggestions.map((s) => (
-                  <li key={s.ticker}>
-                    <button
-                      type="button"
-                      onClick={() => addToPortfolio(s.ticker)}
-                      className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-[var(--surface-subtle)] cursor-pointer"
-                    >
-                      <span className="font-mono-num font-semibold text-[var(--amber)]">
-                        {s.ticker}
-                      </span>
-                      <span className="truncate text-[var(--text-secondary)]">
-                        {s.name}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <button
+              type="button"
+              onClick={handleExportPng}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export PNG
+            </button>
           </div>
         </section>
 
@@ -295,6 +425,48 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
 
         {/* Holdings Allocation Table */}
         <section className="mt-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-[var(--text-secondary)]">
+              {inputMode === "dollars" ? (
+                <span>
+                  Total Portfolio Value:{" "}
+                  <strong className="font-mono-num text-[var(--text-primary)]">
+                    ${totalDollars.toLocaleString()}
+                  </strong>
+                </span>
+              ) : (
+                <span>Drag sliders to adjust relative holding weights</span>
+              )}
+            </div>
+
+            <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setInputMode("weight")}
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer ${
+                  inputMode === "weight"
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Percent className="h-3 w-3" />
+                Weights
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode("dollars")}
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer ${
+                  inputMode === "dollars"
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <DollarSign className="h-3 w-3" />
+                Dollar Value
+              </button>
+            </div>
+          </div>
+
           <div
             tabIndex={0}
             role="region"
@@ -305,7 +477,9 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               <thead>
                 <tr>
                   <th scope="col">Holding</th>
-                  <th scope="col">Weight</th>
+                  <th scope="col">
+                    {inputMode === "dollars" ? "Allocation ($)" : "Weight"}
+                  </th>
                   <th scope="col">True FCF Margin</th>
                   <th scope="col">SBC / Rev</th>
                   <th scope="col">Dilution (4Y)</th>
@@ -335,24 +509,53 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                           </span>
                         </Link>
                       </th>
-                      <td data-label="Weight" className="font-mono-num">
-                        <div className="inline-flex items-center gap-2">
-                          <input
-                            type="range"
-                            min={1}
-                            max={50}
-                            value={weights[h.ticker] ?? 10}
-                            onChange={(e) =>
-                              setWeights((prev) => ({
-                                ...prev,
-                                [h.ticker]: parseInt(e.target.value, 10),
-                              }))
-                            }
-                            aria-label={`${h.ticker} relative weight`}
-                            className="amber-range w-20"
-                          />
-                          <span className="w-10 text-right">{pct.toFixed(0)}%</span>
-                        </div>
+                      <td
+                        data-label={inputMode === "dollars" ? "Allocation ($)" : "Weight"}
+                        className="font-mono-num"
+                      >
+                        {inputMode === "dollars" ? (
+                          <div className="inline-flex items-center gap-2">
+                            <span className="text-[var(--text-muted)]">$</span>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1000}
+                              value={dollars[h.ticker] ?? 10000}
+                              onChange={(e) =>
+                                setDollars((prev) => ({
+                                  ...prev,
+                                  [h.ticker]: Math.max(
+                                    0,
+                                    parseInt(e.target.value || "0", 10)
+                                  ),
+                                }))
+                              }
+                              aria-label={`${h.ticker} dollar allocation`}
+                              className="h-7 w-24 rounded border border-[var(--border)] bg-[var(--bg)] px-2 text-right text-xs text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
+                            />
+                            <span className="w-9 text-right text-[11px] text-[var(--text-muted)]">
+                              {pct.toFixed(0)}%
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2">
+                            <input
+                              type="range"
+                              min={1}
+                              max={50}
+                              value={weights[h.ticker] ?? 10}
+                              onChange={(e) =>
+                                setWeights((prev) => ({
+                                  ...prev,
+                                  [h.ticker]: parseInt(e.target.value, 10),
+                                }))
+                              }
+                              aria-label={`${h.ticker} relative weight`}
+                              className="amber-range w-20"
+                            />
+                            <span className="w-10 text-right">{pct.toFixed(0)}%</span>
+                          </div>
+                        )}
                       </td>
                       <td data-label="True FCF Margin" className="font-mono-num">
                         {formatPct(h.trueFcfMargin)}
@@ -376,7 +579,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                         <td data-label="Remove">
                           <button
                             type="button"
-                            onClick={() => watchlist.toggle(h.ticker)}
+                            onClick={() => removeFromPortfolio(h.ticker)}
                             aria-label={`Remove ${h.ticker}`}
                             className="text-[var(--text-muted)] hover:text-[var(--negative)] cursor-pointer"
                           >
