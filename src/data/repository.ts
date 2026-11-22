@@ -369,6 +369,8 @@ export interface ArenaPortfolioView {
   thesis: string;
   isBot: boolean;
   botTheme: string | null;
+  periodKey: string; // "2026-11" or "2025"
+  isFinalized: boolean;
   lockedAt: string; // ISO date string
   totalReturnPct: number;
   positions: ArenaPositionView[];
@@ -425,6 +427,10 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
 
       positions.sort((a, b) => b.weightPct - a.weightPct);
 
+      const isoDate = port.lockedAt.toISOString();
+      const resolvedPeriodKey = port.periodKey ?? isoDate.slice(0, 7);
+      const isFinalized = typeof port.finalReturnPct === "number";
+
       views.push({
         id: port.id,
         handle: port.handle,
@@ -432,8 +438,12 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
         thesis: port.thesis,
         isBot: port.isBot === 1,
         botTheme: port.botTheme,
-        lockedAt: port.lockedAt.toISOString(),
-        totalReturnPct: Number(weightedReturn.toFixed(2)),
+        periodKey: resolvedPeriodKey,
+        isFinalized,
+        lockedAt: isoDate,
+        totalReturnPct: Number(
+          (isFinalized ? port.finalReturnPct! : weightedReturn).toFixed(2)
+        ),
         positions,
       });
     }

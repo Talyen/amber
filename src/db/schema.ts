@@ -143,6 +143,8 @@ export const arenaPortfolios = pgTable("arena_portfolios", {
   thesis: text("thesis").notNull(),
   isBot: integer("is_bot").notNull().default(0), // 1 = Strategy Bot, 0 = Community
   botTheme: text("bot_theme"),
+  periodKey: text("period_key"), // e.g. "2026-11" (monthly) or "2025" (yearly)
+  finalReturnPct: doublePrecision("final_return_pct"), // Set when a past period closes; null = live
   lockedAt: timestamp("locked_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

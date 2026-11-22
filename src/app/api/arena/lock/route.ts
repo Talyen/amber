@@ -95,6 +95,7 @@ export async function POST(request: Request) {
   const totalWeight = [...deduped.values()].reduce((a, b) => a + b, 0);
   const id = `${handle.toLowerCase().replace(/[^a-z0-9]/g, "")}-${crypto.randomBytes(3).toString("hex")}`;
   const lockedAt = new Date();
+  const periodKey = lockedAt.toISOString().slice(0, 7); // e.g. "2026-11"
 
   await db.insert(arenaPortfolios).values({
     id,
@@ -103,6 +104,8 @@ export async function POST(request: Request) {
     thesis: thesis || `Locked ${tickers.length}-stock conviction basket.`,
     isBot: 0,
     botTheme: null,
+    periodKey,
+    finalReturnPct: null,
     lockedAt,
   });
 

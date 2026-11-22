@@ -1,12 +1,12 @@
 /**
- * Seeds 6 transparent Thematic Strategy Bots into Neon Postgres `arena_portfolios`
- * so the Verified Portfolio Arena is alive, educational, and benchmarked on Day 1.
+ * Seeds 6 transparent Thematic Strategy Bots into Neon Postgres across:
+ *   - Live Yearly (2026 YTD)
+ *   - Past Year Winner Archive (2025 Final)
+ *   - Live Monthly (2026-11)
+ *   - Past Month Winner Archives (2026-10 Final, 2026-09 Final)
  *
- * Uses each ticker's real prior-year historical close (from `price_history`) when
- * available so bot YTD/All-Time performance reflects genuine market returns.
- *
- * Usage:
- *   set -a && source .env.local && set +a && node --experimental-strip-types scripts/seed-arena-bots.ts
+ * Uses real Yahoo Finance monthly closing prices so every historical and live
+ * return reflects actual market performance.
  */
 
 import { neon } from "@neondatabase/serverless";
@@ -14,70 +14,159 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { inArray, sql } from "drizzle-orm";
 import { arenaPortfolios, arenaPositions, companies } from "../src/db/schema.ts";
 
-interface BotSpec {
-  id: string;
+interface BotTemplate {
+  slug: string;
   handle: string;
   title: string;
   botTheme: string;
   thesis: string;
-  lockedAt: Date;
   tickers: string[];
 }
 
-const BOTS: BotSpec[] = [
+const BOTS: BotTemplate[] = [
   {
-    id: "bot-cash-machines",
+    slug: "cash-machines",
     handle: "CashMachineBot",
     title: "Elite True FCF Margin Basket",
     botTheme: "Cash Machines",
     thesis: "Equal-weight basket of wide-moat businesses converting >30% of revenue into real cash after SBC.",
-    lockedAt: new Date("2026-01-02T14:30:00Z"),
     tickers: ["V", "MA", "NVDA", "FICO", "AAPL"],
   },
   {
-    id: "bot-buyback-cannibals",
+    slug: "buyback-cannibals",
     handle: "BuybackCannibalBot",
     title: "Relentless Share Retirees",
     botTheme: "Buyback Cannibals",
     thesis: "Companies consistently shrinking their diluted share count every year via self-funded buybacks.",
-    lockedAt: new Date("2026-01-02T14:30:00Z"),
     tickers: ["AAPL", "V", "MA", "ORLY", "AZO"],
   },
   {
-    id: "bot-ai-infrastructure",
+    slug: "ai-infrastructure",
     handle: "AIInfraBot",
     title: "AI Compute & Cloud Backbone",
     botTheme: "AI Infrastructure",
     thesis: "Core picks-and-shovels powering hyperscale AI training, networking, and enterprise cloud.",
-    lockedAt: new Date("2026-01-02T14:30:00Z"),
     tickers: ["NVDA", "MSFT", "AVGO", "ANET", "ORCL"],
   },
   {
-    id: "bot-high-sbc-saas",
+    slug: "high-sbc-saas",
     handle: "HighSbcGrowthBot",
     title: "High-SBC Cloud Software",
     botTheme: "Hidden Dilution",
     thesis: "High-growth cloud & cybersecurity leaders where stock-based compensation heavily trails headline FCF.",
-    lockedAt: new Date("2026-01-02T14:30:00Z"),
     tickers: ["PLTR", "SNOW", "CRWD", "DDOG", "NET"],
   },
   {
-    id: "bot-modest-expectations",
+    slug: "modest-expectations",
     handle: "ValueHawkBot",
     title: "Cash-Rich, Low Expectations",
     botTheme: "Modest Expectations",
     thesis: "Profitable, cash-generative franchises priced for single-digit long-term growth.",
-    lockedAt: new Date("2026-01-02T14:30:00Z"),
     tickers: ["GOOGL", "HD", "UNH", "QCOM", "ADBE"],
   },
   {
-    id: "bot-quality-compounders",
+    slug: "quality-compounders",
     handle: "CompounderBot",
     title: "All-Weather Quality Compounders",
     botTheme: "Quality Compounders",
     thesis: "Durable consumer & enterprise franchises with high ROIC and disciplined capital allocation.",
-    lockedAt: new Date("2026-01-02T14:30:00Z"),
     tickers: ["COST", "MSFT", "V", "NFLX", "INTU"],
+  },
+];
+
+interface MonthlyMap {
+  // key "YYYY-MM" -> month-end close
+  [ym: string]: number;
+}
+
+async function fetchMonthlyCloses(ticker: string): Promise<MonthlyMap> {
+  const symbol = ticker.replace(/\./g, "-");
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=3y&interval=1mo`;
+  const out: MonthlyMap = {};
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)" },
+    });
+    if (!res.ok) return out;
+    const json = (await res.json()) as {
+      chart?: {
+        result?: Array<{
+          timestamp?: number[];
+          indicators?: {
+            adjclose?: Array<{ adjclose?: Array<number | null> }>;
+            quote?: Array<{ close?: Array<number | null> }>;
+          };
+        }>;
+      };
+    };
+    const r = json.chart?.result?.[0];
+    const ts = r?.timestamp ?? [];
+    const closes =
+      r?.indicators?.adjclose?.[0]?.adjclose ??
+      r?.indicators?.quote?.[0]?.close ??
+      [];
+
+    for (let i = 0; i < ts.length; i++) {
+      const c = closes[i];
+      if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
+      const d = new Date(ts[i] * 1000);
+      const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      out[ym] = Number(c.toFixed(2));
+    }
+  } catch {
+    // Ignore transient errors
+  }
+  return out;
+}
+
+interface PeriodSpec {
+  key: string; // e.g. "2026-11", "2026-10", "2026-09", "2026", "2025"
+  idSuffix: string;
+  lockedAt: Date;
+  entryYm: string; // Month-end close used as entry price
+  exitYm: string | null; // null = live (use current Neon price); non-null = finalized period
+}
+
+const PERIODS: PeriodSpec[] = [
+  // Active 2026 Yearly (keeps existing bot IDs cleanly)
+  {
+    key: "2026",
+    idSuffix: "",
+    lockedAt: new Date("2026-01-02T14:30:00Z"),
+    entryYm: "2025-12",
+    exitYm: null,
+  },
+  // Past Year 2025 Final
+  {
+    key: "2025",
+    idSuffix: "-2025",
+    lockedAt: new Date("2025-01-02T14:30:00Z"),
+    entryYm: "2024-12",
+    exitYm: "2025-12",
+  },
+  // Active Current Month: Nov 2026
+  {
+    key: "2026-11",
+    idSuffix: "-2026-11",
+    lockedAt: new Date("2026-11-02T14:30:00Z"),
+    entryYm: "2026-10",
+    exitYm: null,
+  },
+  // Past Month: Oct 2026 Final
+  {
+    key: "2026-10",
+    idSuffix: "-2026-10",
+    lockedAt: new Date("2026-10-01T14:30:00Z"),
+    entryYm: "2026-09",
+    exitYm: "2026-10",
+  },
+  // Past Month: Sep 2026 Final
+  {
+    key: "2026-09",
+    idSuffix: "-2026-09",
+    lockedAt: new Date("2026-09-01T14:30:00Z"),
+    entryYm: "2026-08",
+    exitYm: "2026-09",
   },
 ];
 
@@ -90,71 +179,100 @@ async function run() {
 
   const db = drizzle(neon(url));
   const allTickers = [...new Set(BOTS.flatMap((b) => b.tickers))];
-  const rows = await db
-    .select({
-      ticker: companies.ticker,
-      price: companies.price,
-      priceHistory: companies.priceHistory,
-    })
+  const compRows = await db
+    .select({ ticker: companies.ticker, price: companies.price })
     .from(companies)
     .where(inArray(companies.ticker, allTickers));
+  const livePriceMap = new Map(compRows.map((r) => [r.ticker, r.price]));
 
-  const compMap = new Map(rows.map((r) => [r.ticker, r]));
+  console.log(
+    `[amber-arena] Fetching 3Y monthly closes for ${allTickers.length} bot tickers...`
+  );
+  const monthlyByTicker = new Map<string, MonthlyMap>();
+  for (let i = 0; i < allTickers.length; i += 5) {
+    const batch = allTickers.slice(i, i + 5);
+    const results = await Promise.all(batch.map((t) => fetchMonthlyCloses(t)));
+    batch.forEach((t, idx) => monthlyByTicker.set(t, results[idx]));
+    await new Promise((r) => setTimeout(r, 200));
+  }
 
-  for (const bot of BOTS) {
-    const validTickers = bot.tickers.filter((t) => compMap.has(t));
-    if (validTickers.length < 3) continue;
+  let seeded = 0;
+  for (const period of PERIODS) {
+    for (const bot of BOTS) {
+      const validTickers = bot.tickers.filter((t) => livePriceMap.has(t));
+      if (validTickers.length < 3) continue;
 
-    await db
-      .insert(arenaPortfolios)
-      .values({
-        id: bot.id,
-        handle: bot.handle,
-        title: bot.title,
-        thesis: bot.thesis,
-        isBot: 1,
-        botTheme: bot.botTheme,
-        lockedAt: bot.lockedAt,
-      })
-      .onConflictDoUpdate({
-        target: arenaPortfolios.id,
-        set: {
-          title: sql`excluded.title`,
-          thesis: sql`excluded.thesis`,
-          botTheme: sql`excluded.bot_theme`,
-        },
+      const id = `bot-${bot.slug}${period.idSuffix}`;
+      const weight = Number((100 / validTickers.length).toFixed(2));
+
+      const posEntries = validTickers.map((ticker) => {
+        const mMap = monthlyByTicker.get(ticker) ?? {};
+        const live = livePriceMap.get(ticker)!;
+        const entryPrice = mMap[period.entryYm] ?? live;
+        const exitPrice = period.exitYm ? (mMap[period.exitYm] ?? live) : live;
+        const ret =
+          entryPrice > 0 ? ((exitPrice - entryPrice) / entryPrice) * 100 : 0;
+        return { ticker, entryPrice, ret };
       });
 
-    const weight = Number((100 / validTickers.length).toFixed(2));
-    for (const ticker of validTickers) {
-      const c = compMap.get(ticker)!;
-      // Use FY25/prior-year close from real priceHistory as 2026 YTD entry price when available
-      const hist = c.priceHistory ?? [];
-      const fy25 =
-        hist.find((h) => h.fiscalYear === "FY25") ??
-        (hist.length >= 2 ? hist[hist.length - 2] : null);
-      const entryPrice = fy25?.price ?? c.price;
+      const finalReturnPct = period.exitYm
+        ? Number(
+            (
+              posEntries.reduce((s, p) => s + p.ret, 0) / posEntries.length
+            ).toFixed(2)
+          )
+        : null;
 
       await db
-        .insert(arenaPositions)
+        .insert(arenaPortfolios)
         .values({
-          id: `${bot.id}:${ticker}`,
-          portfolioId: bot.id,
-          ticker,
-          weightPct: weight,
-          entryPrice,
+          id,
+          handle: bot.handle,
+          title: bot.title,
+          thesis: bot.thesis,
+          isBot: 1,
+          botTheme: bot.botTheme,
+          periodKey: period.key,
+          finalReturnPct,
+          lockedAt: period.lockedAt,
         })
         .onConflictDoUpdate({
-          target: arenaPositions.id,
+          target: arenaPortfolios.id,
           set: {
-            weightPct: sql`excluded.weight_pct`,
-            entryPrice: sql`excluded.entry_price`,
+            title: sql`excluded.title`,
+            thesis: sql`excluded.thesis`,
+            botTheme: sql`excluded.bot_theme`,
+            periodKey: sql`excluded.period_key`,
+            finalReturnPct: sql`excluded.final_return_pct`,
+            lockedAt: sql`excluded.locked_at`,
           },
         });
+
+      for (const p of posEntries) {
+        await db
+          .insert(arenaPositions)
+          .values({
+            id: `${id}:${p.ticker}`,
+            portfolioId: id,
+            ticker: p.ticker,
+            weightPct: weight,
+            entryPrice: p.entryPrice,
+          })
+          .onConflictDoUpdate({
+            target: arenaPositions.id,
+            set: {
+              weightPct: sql`excluded.weight_pct`,
+              entryPrice: sql`excluded.entry_price`,
+            },
+          });
+      }
+      seeded++;
     }
   }
 
-  console.log(`[amber-arena] ✓ Seeded ${BOTS.length} Thematic Strategy Bots into Neon.`);
+  console.log(
+    `[amber-arena] ✓ Seeded ${seeded} bot entries across Monthly (Nov/Oct/Sep 2026) and Yearly (2026/2025) leaderboards.`
+  );
 }
 
 run();
