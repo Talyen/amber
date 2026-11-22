@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowUpDown, ArrowRight, Star } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ArrowRight,
+  Layers,
+  Star,
+} from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
@@ -10,15 +17,9 @@ import { CommandSearch } from "@/components/CommandSearch";
 import { NotableSignalsFeed } from "@/components/NotableSignalsFeed";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
-import { DISCOVERY_LENSES } from "@/lib/insights";
+import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
 
-type SortKey =
-  | "marketCap"
-  | "trueFcf"
-  | "trueFcfMargin"
-  | "sbcPctRevenue"
-  | "netDilutionCagr"
-  | "impliedCagr";
+type SortKey = IndexSortKey;
 
 export function SignalIndex({
   entries = SEARCH_INDEX,
@@ -31,6 +32,7 @@ export function SignalIndex({
   const [selectedSector, setSelectedSector] = useState<string>("All");
   const [activeLensId, setActiveLensId] = useState<string | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [groupBySector, setGroupBySector] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
 
@@ -38,6 +40,22 @@ export function SignalIndex({
     () => DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null,
     [activeLensId]
   );
+
+  function selectLens(lensId: string | null) {
+    if (!lensId || lensId === activeLensId) {
+      setActiveLensId(null);
+      setSortKey("marketCap");
+      setSortDir("desc");
+    } else {
+      const found = DISCOVERY_LENSES.find((l) => l.id === lensId);
+      setActiveLensId(lensId);
+      if (found) {
+        setSortKey(found.defaultSortKey);
+        setSortDir(found.defaultSortDir);
+      }
+    }
+    setVisibleLimit(30);
+  }
 
   const sectors = useMemo(() => {
     const counts = new Map<string, number>();
@@ -116,10 +134,6 @@ export function SignalIndex({
       );
     });
 
-    if (activeLens && sortKey === "marketCap" && sortDir === "desc") {
-      return [...filtered].sort(activeLens.sort);
-    }
-
     return [...filtered].sort((a, b) => {
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
@@ -127,6 +141,26 @@ export function SignalIndex({
   }, [entries, filter, selectedSector, activeLens, watchlistOnly, watchlist, sortKey, sortDir]);
 
   const visibleRows = rows.slice(0, visibleLimit);
+
+  const groupedBySector = useMemo(() => {
+    if (!groupBySector) return [];
+    const map = new Map<string, SearchIndexEntry[]>();
+    for (const c of visibleRows) {
+      const list = map.get(c.sector) ?? [];
+      list.push(c);
+      map.set(c.sector, list);
+    }
+    return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
+  }, [groupBySector, visibleRows]);
+
+  const sortColumns: Array<{ key: SortKey; label: string }> = [
+    { key: "marketCap", label: "Mkt Cap" },
+    { key: "trueFcf", label: "True FCF" },
+    { key: "trueFcfMargin", label: "True Margin" },
+    { key: "sbcPctRevenue", label: "SBC / Rev" },
+    { key: "netDilutionCagr", label: "Dilution (4Y)" },
+    { key: "impliedCagr", label: "Implied 10Y" },
+  ];
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -176,7 +210,7 @@ export function SignalIndex({
             {activeLens && (
               <button
                 type="button"
-                onClick={() => setActiveLensId(null)}
+                onClick={() => selectLens(null)}
                 className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
               >
                 Clear lens
@@ -192,10 +226,7 @@ export function SignalIndex({
                 <button
                   key={lens.id}
                   type="button"
-                  onClick={() => {
-                    setActiveLensId(isSelected ? null : lens.id);
-                    setVisibleLimit(30);
-                  }}
+                  onClick={() => selectLens(lens.id)}
                   className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
                     isSelected
                       ? "border-[var(--amber-border)] bg-[var(--amber-soft)]"
@@ -251,17 +282,32 @@ export function SignalIndex({
               </p>
             </div>
 
-            <input
-              type="search"
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setVisibleLimit(30);
-              }}
-              placeholder="Filter table…"
-              aria-label="Filter coverage table"
-              className="h-8 w-52 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setGroupBySector((prev) => !prev)}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                  groupBySector
+                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Group by Sector
+              </button>
+
+              <input
+                type="search"
+                value={filter}
+                onChange={(e) => {
+                  setFilter(e.target.value);
+                  setVisibleLimit(30);
+                }}
+                placeholder="Filter table…"
+                aria-label="Filter coverage table"
+                className="h-8 w-48 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Watchlist + Sector Filter Pills */}
@@ -322,70 +368,144 @@ export function SignalIndex({
               <thead>
                 <tr>
                   <th scope="col">Company</th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("marketCap")}
-                      className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      Mkt Cap
-                      <ArrowUpDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("trueFcf")}
-                      className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      True FCF
-                      <ArrowUpDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("trueFcfMargin")}
-                      className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      True Margin
-                      <ArrowUpDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("sbcPctRevenue")}
-                      className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      SBC / Rev
-                      <ArrowUpDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("netDilutionCagr")}
-                      className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      Dilution (4Y)
-                      <ArrowUpDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("impliedCagr")}
-                      className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] cursor-pointer"
-                    >
-                      Implied 10Y
-                      <ArrowUpDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </th>
+                  {sortColumns.map((col) => {
+                    const isSorted = sortKey === col.key;
+                    return (
+                      <th
+                        key={col.key}
+                        scope="col"
+                        aria-sort={
+                          isSorted
+                            ? sortDir === "desc"
+                              ? "descending"
+                              : "ascending"
+                            : "none"
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          className={`inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                            isSorted
+                              ? "font-semibold text-[var(--amber)]"
+                              : "hover:text-[var(--text-primary)]"
+                          }`}
+                        >
+                          {col.label}
+                          {isSorted ? (
+                            sortDir === "desc" ? (
+                              <ArrowDown className="h-3 w-3 text-[var(--amber)]" />
+                            ) : (
+                              <ArrowUp className="h-3 w-3 text-[var(--amber)]" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-45" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((c) => {
+                {groupBySector
+                  ? groupedBySector.map(([sector, sectorRows]) => (
+                      <Fragment key={sector}>
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="!bg-[var(--surface-subtle)] !py-2 !text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                          >
+                            {sector}{" "}
+                            <span className="font-mono-num ml-1 opacity-75">
+                              ({sectorRows.length})
+                            </span>
+                          </td>
+                        </tr>
+                        {sectorRows.map((c) => {
+                          const starred = watchlist.has(c.ticker);
+                          return (
+                            <tr key={c.ticker}>
+                              <th scope="row">
+                                <div className="inline-flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => watchlist.toggle(c.ticker)}
+                                    aria-label={
+                                      starred
+                                        ? `Remove ${c.ticker} from watchlist`
+                                        : `Add ${c.ticker} to watchlist`
+                                    }
+                                    className={`transition-colors cursor-pointer ${
+                                      starred
+                                        ? "text-[var(--amber)]"
+                                        : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
+                                    }`}
+                                  >
+                                    <Star
+                                      className="h-3.5 w-3.5"
+                                      fill={starred ? "currentColor" : "none"}
+                                    />
+                                  </button>
+                                  <Link
+                                    href={`/t/${c.ticker}`}
+                                    className="group inline-flex items-center gap-2 hover:text-[var(--amber)]"
+                                  >
+                                    <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
+                                      {c.ticker}
+                                    </span>
+                                    <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                                      {c.name}
+                                    </span>
+                                  </Link>
+                                </div>
+                              </th>
+                              <td data-label="Mkt Cap" className="font-mono-num">
+                                {formatCurrencyCompact(c.marketCap)}
+                              </td>
+                              <td
+                                data-label="True FCF"
+                                className={`font-mono-num font-semibold ${
+                                  c.trueFcf >= 0
+                                    ? "text-[var(--amber)]"
+                                    : "text-[var(--negative)]"
+                                }`}
+                              >
+                                {formatCurrencyCompact(c.trueFcf)}
+                              </td>
+                              <td data-label="True Margin" className="font-mono-num">
+                                {formatPct(c.trueFcfMargin)}
+                              </td>
+                              <td
+                                data-label="SBC / Rev"
+                                className="font-mono-num text-[var(--sbc)]"
+                              >
+                                {formatPct(c.sbcPctRevenue)}
+                              </td>
+                              <td
+                                data-label="Dilution (4Y)"
+                                className={`font-mono-num ${
+                                  c.netDilutionCagr > 1.5
+                                    ? "text-[var(--negative)]"
+                                    : c.netDilutionCagr < -0.5
+                                      ? "text-[var(--positive)]"
+                                      : "text-[var(--text-secondary)]"
+                                }`}
+                              >
+                                {formatPct(c.netDilutionCagr, true)}
+                              </td>
+                              <td
+                                data-label="Implied 10Y"
+                                className="font-mono-num font-medium"
+                              >
+                                {formatPct(c.impliedCagr)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))
+                  : visibleRows.map((c) => {
                   const starred = watchlist.has(c.ticker);
                   return (
                   <tr key={c.ticker}>

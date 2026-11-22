@@ -280,11 +280,21 @@ export function buildCompanyBriefing(
   };
 }
 
+export type IndexSortKey =
+  | "marketCap"
+  | "trueFcf"
+  | "trueFcfMargin"
+  | "sbcPctRevenue"
+  | "netDilutionCagr"
+  | "impliedCagr";
+
 export interface DiscoveryLens {
   id: string;
   title: string;
   subtitle: string;
   whyItMatters: string;
+  defaultSortKey: IndexSortKey;
+  defaultSortDir: "desc" | "asc";
   filter: (entry: SearchIndexEntry) => boolean;
   sort: (a: SearchIndexEntry, b: SearchIndexEntry) => number;
 }
@@ -296,6 +306,8 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     subtitle: "High real cash margins, low dilution",
     whyItMatters:
       "Businesses that convert >22% of revenue into real cash after stock comp tend to self-fund growth and weather downturns.",
+    defaultSortKey: "trueFcfMargin",
+    defaultSortDir: "desc",
     filter: (c) =>
       c.revenue >= 500 &&
       c.trueFcfMargin >= 22 &&
@@ -309,6 +321,8 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     subtitle: "Steadily shrinking their share count",
     whyItMatters:
       "Companies that retire 2%+ of their shares every year increase your ownership stake automatically—even when revenue grows modestly.",
+    defaultSortKey: "netDilutionCagr",
+    defaultSortDir: "asc",
     filter: (c) =>
       c.revenue >= 500 &&
       c.netDilutionCagr <= -1.5 &&
@@ -321,6 +335,8 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     subtitle: "Steepest market-implied 10Y growth",
     whyItMatters:
       "Great companies can still be risky stocks when the share price already bakes in 18%+ annual growth for the next decade.",
+    defaultSortKey: "impliedCagr",
+    defaultSortDir: "desc",
     filter: (c) =>
       c.revenue >= 300 &&
       c.impliedCagr >= 15 &&
@@ -333,6 +349,8 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     subtitle: "Headline FCF masked by heavy stock comp",
     whyItMatters:
       "Standard screeners ignore stock-based compensation—these companies look much more profitable before you count what employees are paid in equity.",
+    defaultSortKey: "sbcPctRevenue",
+    defaultSortDir: "desc",
     filter: (c) =>
       c.revenue >= 300 &&
       c.sbcPctRevenue >= 12 &&
@@ -345,6 +363,8 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     subtitle: "Cash-generative stocks with a low bar",
     whyItMatters:
       "Profitable businesses where the market is only pricing in single-digit long-term growth—leaving room for upside surprises.",
+    defaultSortKey: "impliedCagr",
+    defaultSortDir: "asc",
     filter: (c) =>
       c.revenue >= 1000 &&
       c.trueFcfMargin >= 12 &&
