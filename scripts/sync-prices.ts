@@ -16,9 +16,9 @@ import path from "node:path";
 import { buildSearchIndexEntry } from "../src/data/search-index.ts";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq } from "drizzle-orm";
-import { companies as companiesTable } from "../src/db/schema.ts";
-import type { CompanySnapshot } from "../src/lib/finance.ts";
+import { eq, sql } from "drizzle-orm";
+import { annualFinancials, companies as companiesTable } from "../src/db/schema.ts";
+import type { EdgarSnapshot } from "./ingest-edgar.ts";
 
 interface YahooChartResponse {
   chart?: {
@@ -116,7 +116,7 @@ async function run() {
 
   const snapshots = JSON.parse(
     fs.readFileSync(companiesPath, "utf8")
-  ) as CompanySnapshot[];
+  ) as EdgarSnapshot[];
 
   console.log(
     `[amber-prices] Syncing latest EOD prices for ${snapshots.length} companies...`
@@ -125,7 +125,7 @@ async function run() {
   const dbUrl = process.env.DATABASE_URL;
   const db = dbUrl ? drizzle(neon(dbUrl)) : null;
 
-  const refreshed: Pick<CompanySnapshot, "ticker" | "price" | "marketCap" | "priceHistory">[] = [];
+  const refreshed: Pick<EdgarSnapshot, "ticker" | "price" | "marketCap" | "priceHistory" | "edgarFallback">[] = [];
   const concurrency = 6;
 
   for (let i = 0; i < snapshots.length; i += concurrency) {
@@ -172,6 +172,7 @@ async function run() {
         price: company.price,
         marketCap: company.marketCap,
         priceHistory: history.length >= 2 ? history : undefined,
+        edgarFallback: company.edgarFallback,
       });
     }
 
@@ -198,8 +199,19 @@ async function run() {
             .update(companiesTable)
             .set({
               price: c.price,
-              marketCap: c.marketCap,
-              priceHistory: c.priceHistory,
+              // A fallback snapshot may carry an older share count and fiscal window.
+              marketCap: c.edgarFallback ? sql`coalesce(
+                round(${c.price} * (
+                  select ${annualFinancials.dilutedShares}
+                  from ${annualFinancials}
+                  where ${annualFinancials.ticker} = ${c.ticker}
+                    and ${annualFinancials.dilutedShares} > 0
+                  order by ${annualFinancials.sortOrder} desc
+                  limit 1
+                )),
+                ${companiesTable.marketCap}
+              )` : c.marketCap,
+              priceHistory: c.edgarFallback ? undefined : c.priceHistory,
               updatedAt: new Date(),
             })
             .where(eq(companiesTable.ticker, c.ticker))

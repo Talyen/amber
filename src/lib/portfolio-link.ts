@@ -14,6 +14,17 @@ export function parsePortfolioHoldings(
   return holdings;
 }
 
-export function serializePortfolioHoldings(weights: ReadonlyMap<string, number>) {
-  return [...weights].map(([ticker, weight]) => `${ticker}:${weight * 100}`).join(",");
+export function serializePortfolioHoldings(
+  weights: ReadonlyMap<string, number>,
+  unit: "fraction" | "percent" = "fraction"
+) {
+  const scale = unit === "fraction" ? 100 : 1;
+  return [...weights].map(([ticker, weight]) => `${ticker}:${weight * scale}`).join(",");
+}
+
+export function arenaPortfolioAnalysisHref(
+  positions: readonly { ticker: string; weightPct: number }[]
+) {
+  const weights = new Map(positions.map(({ ticker, weightPct }) => [ticker, weightPct]));
+  return `/portfolio?h=${encodeURIComponent(serializePortfolioHoldings(weights, "percent"))}`;
 }

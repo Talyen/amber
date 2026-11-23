@@ -4,6 +4,9 @@ import { getDb } from "@/db";
 import { arenaPortfolios, arenaPositions, arenaRebalances, companies } from "@/db/schema";
 import { getSearchIndex } from "@/data/repository";
 import type { SearchIndexEntry } from "@/data/search-index";
+import { arenaEquityWindow, buildArenaEquityCurve } from "@/lib/arena-equity";
+
+export type { EquityCurvePoint } from "@/lib/arena-equity";
 
 export interface ArenaPositionView {
   ticker: string;
@@ -106,7 +109,7 @@ function buildArenaPortfolioView(
     return {
       ticker: p.ticker,
       companyName: live?.name ?? p.ticker,
-      weightPct: Number(p.weightPct.toFixed(1)),
+      weightPct: p.weightPct,
       entryPrice: p.entryPrice,
       currentPrice,
       returnPct: Number(ret.toFixed(2)),
@@ -209,7 +212,7 @@ export async function getArenaLeaderboard(): Promise<ArenaPortfolioView[]> {
   if (!process.env.DATABASE_URL) return [];
   const cachedFetch = unstable_cache(
     async () => queryArenaLeaderboardFromDb(),
-    ["amber-arena-leaderboard-v2"],
+    ["amber-arena-leaderboard-v3"],
     { revalidate: 3600, tags: ["arena", "companies"] }
   );
   return await cachedFetch();
@@ -276,7 +279,7 @@ export async function getArenaPortfolioById(
   if (!process.env.DATABASE_URL) return undefined;
   const cachedFetch = unstable_cache(
     async () => queryArenaPortfolioByIdFromDb(id),
-    ["amber-arena-portfolio-v2", id],
+    ["amber-arena-portfolio-v3", id],
     { revalidate: 600, tags: ["arena", "companies"] }
   );
   return (await cachedFetch()) ?? undefined;
@@ -369,22 +372,16 @@ export async function getSpyBenchmarks(): Promise<Record<string, number>> {
   return await cachedFetch();
 }
 
-export interface EquityCurvePoint {
-  date: string; // e.g. "2026-01" or "2026-11-10"
-  portfolioPct: number;
-  spyPct: number;
-}
-
 async function fetchEquityCurveFromYahoo(
   positions: Array<{ ticker: string; weightPct: number }>,
-  periodKey: string,
-  lockedAtIso: string
-): Promise<EquityCurvePoint[]> {
+  { start, end, monthly }: NonNullable<ReturnType<typeof arenaEquityWindow>>
+) {
   try {
-    const isMonthly = /^\d{4}-\d{2}$/.test(periodKey);
-    const range = isMonthly ? "3mo" : "2y";
-    const interval = isMonthly ? "1d" : "1mo";
-
+    const query = new URLSearchParams({
+      period1: String(start),
+      period2: String(end),
+      interval: "1d",
+    });
     const tickers = [...new Set([...positions.map((p) => p.ticker), "SPY"])];
     const seriesByTicker = new Map<string, Map<string, number>>();
 
@@ -393,7 +390,7 @@ async function fetchEquityCurveFromYahoo(
         try {
           const sym = ticker.replace(/\./g, "-");
           const res = await fetch(
-            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}`,
+            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?${query}`,
             { headers: { "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)" } }
           );
           if (!res.ok) return;
@@ -418,9 +415,8 @@ async function fetchEquityCurveFromYahoo(
           for (let i = 0; i < ts.length; i++) {
             const c = closes[i];
             if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
-            const d = new Date(ts[i] * 1000).toISOString();
-            const key = isMonthly ? d.slice(0, 10) : d.slice(0, 7);
-            map.set(key, c);
+            const date = new Date(ts[i] * 1000).toISOString().slice(0, 10);
+            map.set(date, c);
           }
           seriesByTicker.set(ticker, map);
         } catch {
@@ -429,83 +425,23 @@ async function fetchEquityCurveFromYahoo(
       })
     );
 
-    const spyMap = seriesByTicker.get("SPY");
-    if (!spyMap || spyMap.size < 2) return [];
-
-    // Filter dates to the active period window
-    const startCutoff = isMonthly
-      ? `${periodKey}-01`
-      : periodKey === "2025"
-        ? "2025-01"
-        : lockedAtIso.slice(0, 7);
-    const endCutoff =
-      periodKey === "2025"
-        ? "2025-12"
-        : isMonthly
-          ? `${periodKey}-31`
-          : "2099-12";
-
-    const dates = [...spyMap.keys()]
-      .filter((d) => d >= startCutoff && d <= endCutoff)
-      .sort();
-
-    if (dates.length < 2) return [];
-
-    const spyBase = spyMap.get(dates[0])!;
-    const totalW = positions.reduce((s, p) => s + p.weightPct, 0) || 100;
-    const basePrices = new Map<string, number>();
-    for (const p of positions) {
-      const m = seriesByTicker.get(p.ticker);
-      const first = m?.get(dates[0]);
-      if (first && first > 0) basePrices.set(p.ticker, first);
-    }
-    if (basePrices.size === 0) return [];
-
-    const points: EquityCurvePoint[] = [];
-    for (const d of dates) {
-      const spyCur = spyMap.get(d);
-      if (!spyCur) continue;
-      const spyPct = ((spyCur - spyBase) / spyBase) * 100;
-
-      let portPct = 0;
-      let coveredW = 0;
-      for (const p of positions) {
-        const base = basePrices.get(p.ticker);
-        const cur = seriesByTicker.get(p.ticker)?.get(d);
-        if (base && cur) {
-          portPct += ((cur - base) / base) * 100 * (p.weightPct / totalW);
-          coveredW += p.weightPct / totalW;
-        }
-      }
-      if (coveredW > 0.5) {
-        points.push({
-          date: d,
-          portfolioPct: Number((portPct / coveredW).toFixed(2)),
-          spyPct: Number(spyPct.toFixed(2)),
-        });
-      }
-    }
-    return points;
+    return buildArenaEquityCurve(positions, seriesByTicker, { start, end, monthly });
   } catch {
     return [];
   }
 }
 
-export async function getArenaEquityCurve(
-  portfolio: ArenaPortfolioView
-): Promise<EquityCurvePoint[]> {
-  const key = `${portfolio.id}:${portfolio.periodKey}:${portfolio.positions.map((p) => p.ticker).join(",")}`;
+export async function getArenaEquityCurve(portfolio: ArenaPortfolioView) {
+  const window = arenaEquityWindow(portfolio);
+  if (!window) return [];
+
   const cachedFetch = unstable_cache(
-    async () =>
-      fetchEquityCurveFromYahoo(
-        portfolio.positions,
-        portfolio.periodKey,
-        portfolio.lockedAt
-      ),
-    ["amber-arena-curve", key],
+    fetchEquityCurveFromYahoo,
+    ["amber-arena-curve-v2", portfolio.id],
     { revalidate: 3600, tags: ["arena"] }
   );
-  return await cachedFetch();
+  const positions = portfolio.positions.map(({ ticker, weightPct }) => ({ ticker, weightPct }));
+  return await cachedFetch(positions, window);
 }
 
 export async function getArenaPortfoliosByHandle(

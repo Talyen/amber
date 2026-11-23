@@ -76,7 +76,7 @@ async function run() {
             <h2 style="margin:8px 0 4px;font-size:20px;">${item.name} (${item.ticker})</h2>
             <p style="margin:0 0 16px;font-size:14px;color:#52525B;">
               A new <strong>${item.filingType}</strong> was filed on ${item.filingDate} (EDGAR ${item.accession}).
-              True FCF, SBC dilution, and Risk Factor diffs have been updated.
+              View the filing and available analysis in Amber.
             </p>
             <a href="${siteUrl}/t/${item.ticker}" style="display:inline-block;padding:10px 16px;background:#B45309;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600;">
               Open ${item.ticker} in Amber →

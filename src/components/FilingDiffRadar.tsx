@@ -46,6 +46,9 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
       return rank[a.materiality] - rank[b.materiality];
     })
     .slice(0, 3);
+  const takeawaysMatchLatest = topTakeaways.every(
+    (diff) => diff.accessionNumber === company.lastFiling.accessionNumber
+  );
 
   return (
     <div className="space-y-5">
@@ -53,11 +56,13 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
         <section className="rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-4 sm:p-5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--amber)]">
-              Key Filing Takeaways ({company.lastFiling.type})
+              Key Filing Takeaways{takeawaysMatchLatest && ` (${company.lastFiling.type})`}
             </h2>
-            <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-              Filed {company.lastFiling.date}
-            </span>
+            {takeawaysMatchLatest && (
+              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                Filed {company.lastFiling.date}
+              </span>
+            )}
           </div>
           <ul className="mt-2.5 space-y-1.5 text-xs text-[var(--text-primary)]">
             {topTakeaways.map((d) => (

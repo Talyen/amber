@@ -6,6 +6,10 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: amber-sec-ingest
+  cancel-in-progress: false
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
@@ -30,6 +34,7 @@ jobs:
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
           UNIVERSE_LIMIT: "750"
+          AMBER_INGEST_UNIVERSE_PATH: ${{ runner.temp }}/amber-ingest-universe.json
         run: pnpm ingest:edgar
 
       - name: Sync Latest EOD Share Prices & Market Caps
@@ -40,6 +45,7 @@ jobs:
       - name: Upsert into Neon Postgres (when configured)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AMBER_INGEST_UNIVERSE_PATH: ${{ runner.temp }}/amber-ingest-universe.json
         run: pnpm db:seed
 
       - name: Extract Incremental 10-K Prose Diffs (2-Stage Neon-Backed)

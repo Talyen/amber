@@ -72,6 +72,9 @@ export default async function TickerPage({ params }: TickerPageProps) {
 
   const { latest, enterpriseValue, netDilutionCagr, reverseDcf } =
     computeCompanyValuation(company);
+  const latestFilingDiff = company.filingDiffs.find(
+    (diff) => diff.accessionNumber === company.lastFiling.accessionNumber
+  );
 
   const faqJsonLd = {
     "@context": "https://schema.org",
@@ -99,9 +102,9 @@ export default async function TickerPage({ params }: TickerPageProps) {
         acceptedAnswer: {
           "@type": "Answer",
           text:
-            company.filingDiffs.length > 0
-              ? `${company.filingDiffs[0].headline}: ${company.filingDiffs[0].summary}`
-              : `${company.name} last filed a ${company.lastFiling.type} on ${company.lastFiling.date} reporting ${formatCurrencyCompact(latest.revenue)} in revenue and ${formatCurrencyCompact(latest.trueFcf)} in True Free Cash Flow.`,
+            latestFilingDiff
+              ? `${latestFilingDiff.headline}: ${latestFilingDiff.summary}`
+              : `${company.name} last filed a ${company.lastFiling.type} on ${company.lastFiling.date}. Amber’s latest available financials show ${formatCurrencyCompact(latest.revenue)} in revenue and ${formatCurrencyCompact(latest.trueFcf)} in True Free Cash Flow.`,
         },
       },
     ],

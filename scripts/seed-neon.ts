@@ -10,15 +10,17 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import {
   annualFinancials,
   companies,
   filingDiffs,
 } from "../src/db/schema.ts";
 import type { CompanySnapshot } from "../src/lib/finance.ts";
+import type { EdgarSnapshot } from "./ingest-edgar.ts";
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -26,6 +28,16 @@ function chunk<T>(arr: T[], size: number): T[][] {
     out.push(arr.slice(i, i + size));
   }
   return out;
+}
+
+export function selectFinancialSnapshots(
+  snapshots: EdgarSnapshot[],
+  existingFallbackTickers: ReadonlySet<string>
+) {
+  return snapshots.filter((company) =>
+    company.annuals.length > 0 &&
+    (!company.edgarFallback || !existingFallbackTickers.has(company.ticker))
+  );
 }
 
 async function run() {
@@ -43,7 +55,15 @@ async function run() {
   );
   const snapshots = JSON.parse(
     fs.readFileSync(companiesPath, "utf8")
-  ) as CompanySnapshot[];
+  ) as EdgarSnapshot[];
+
+  const universePath = process.env.AMBER_INGEST_UNIVERSE_PATH;
+  const universe: unknown = universePath
+    ? JSON.parse(fs.readFileSync(universePath, "utf8"))
+    : [];
+  if (!Array.isArray(universe) || !universe.every((ticker) => typeof ticker === "string" && ticker.length > 0)) {
+    throw new Error("Invalid EDGAR universe file.");
+  }
 
   const client = neon(url);
   const db = drizzle(client);
@@ -55,7 +75,16 @@ async function run() {
 
   const hasQuote = (c: Pick<CompanySnapshot, "price" | "marketCap">) =>
     Number.isFinite(c.price) && c.price > 0 && Number.isFinite(c.marketCap) && c.marketCap > 0;
-  const financialSnapshots = snapshots.filter((c) => c.annuals.length > 0);
+  const fallbackTickers = snapshots.filter((c) => c.edgarFallback).map((c) => c.ticker);
+  const existingFallbacks = fallbackTickers.length > 0
+    ? await db.select({ ticker: companies.ticker }).from(companies)
+        .where(inArray(companies.ticker, fallbackTickers))
+    : [];
+  const existingFallbackTickers = new Set(existingFallbacks.map(({ ticker }) => ticker));
+  const financialSnapshots = selectFinancialSnapshots(snapshots, existingFallbackTickers);
+  if (existingFallbackTickers.size > 0) {
+    console.log(`[amber-seed] Preserving saved financials for ${existingFallbackTickers.size} fallback ticker(s).`);
+  }
   const missingQuotes = financialSnapshots.filter((c) => !hasQuote(c)).map((c) => c.ticker);
   const savedQuotes = missingQuotes.length > 0
     ? await db.select({
@@ -70,16 +99,19 @@ async function run() {
     const saved = quoteByTicker.get(company.ticker);
     return saved && hasQuote(saved) ? [{ ...company, ...saved }] : [];
   });
-  if (validSnapshots.length < snapshots.length) {
+  const skippedInvalid = snapshots.length - existingFallbackTickers.size - validSnapshots.length;
+  if (skippedInvalid > 0) {
     console.warn(
-      `[amber-seed] Skipping ${snapshots.length - validSnapshots.length} ticker(s) with missing financial periods or invalid EOD valuation.`
+      `[amber-seed] Skipping ${skippedInvalid} ticker(s) with missing financial periods or invalid EOD valuation.`
     );
   }
 
   // Keep existing quotes; sync-prices owns market data updates after the first insert.
   // Replace each company's financial window in the same transaction as its filing metadata.
   let seededAnnualCount = 0;
-  for (const batch of chunk(validSnapshots, 30)) {
+  const fresh = validSnapshots.filter((company) => !company.edgarFallback);
+  const fallback = validSnapshots.filter((company) => company.edgarFallback);
+  for (const batch of [...chunk(fresh, 30), ...chunk(fallback, 30)]) {
     const companyRows = batch.map((c) => ({
       ticker: c.ticker,
       cik: c.cik,
@@ -128,53 +160,57 @@ async function run() {
       }))
     );
 
+    const insertCompanies = db.insert(companies).values(companyRows);
+    const insertAnnuals = db.insert(annualFinancials).values(annualRows);
+    if (batch[0].edgarFallback) {
+      // A concurrent insert aborts this whole batch, preserving the newer row.
+      await db.batch([insertCompanies, insertAnnuals]);
+      seededAnnualCount += annualRows.length;
+      continue;
+    }
+
+    const olderFiling = sql`excluded.last_filing_date < ${companies.lastFilingDate}`;
     await db.batch([
-      db
-        .insert(companies)
-        .values(companyRows)
-        .onConflictDoUpdate({
-          target: companies.ticker,
-          set: {
-            name: sql`excluded.name`,
-            exchange: sql`excluded.exchange`,
-            sector: sql`excluded.sector`,
-            tagline: sql`excluded.tagline`,
-            cashAndEquiv: sql`excluded.cash_and_equiv`,
-            totalDebt: sql`excluded.total_debt`,
-            lastFilingType: sql`excluded.last_filing_type`,
-            lastFilingDate: sql`excluded.last_filing_date`,
-            lastFilingPeriodEnd: sql`excluded.last_filing_period_end`,
-            lastFilingAccession: sql`excluded.last_filing_accession`,
-            defaultDcf: sql`excluded.default_dcf`,
-            quarterlyFinancials: sql`excluded.quarterly_financials`,
-            isActive: true,
-            updatedAt: sql`excluded.updated_at`,
-          },
-        }),
-      db
-        .insert(annualFinancials)
-        .values(annualRows)
-        .onConflictDoUpdate({
-          target: annualFinancials.id,
-          set: {
-            sortOrder: sql`excluded.sort_order`,
-            revenue: sql`excluded.revenue`,
-            operatingCashFlow: sql`excluded.operating_cash_flow`,
-            capex: sql`excluded.capex`,
-            sbc: sql`excluded.sbc`,
-            buybacks: sql`excluded.buybacks`,
-            dilutedShares: sql`excluded.diluted_shares`,
-            grossProfit: sql`excluded.gross_profit`,
-            rdExpense: sql`excluded.rd_expense`,
-            sgaExpense: sql`excluded.sga_expense`,
-            operatingIncome: sql`excluded.operating_income`,
-            netIncome: sql`excluded.net_income`,
-            stockholdersEquity: sql`excluded.stockholders_equity`,
-            periodEndDate: sql`excluded.period_end_date`,
-            cashAndEquiv: sql`excluded.cash_and_equiv`,
-            totalDebt: sql`excluded.total_debt`,
-          },
-        }),
+      insertCompanies.onConflictDoUpdate({
+        target: companies.ticker,
+        set: {
+          name: sql`excluded.name`,
+          exchange: sql`excluded.exchange`,
+          sector: sql`excluded.sector`,
+          tagline: sql`excluded.tagline`,
+          cashAndEquiv: sql`excluded.cash_and_equiv`,
+          totalDebt: sql`excluded.total_debt`,
+          lastFilingType: sql`case when ${olderFiling} then ${companies.lastFilingType} else excluded.last_filing_type end`,
+          lastFilingDate: sql`greatest(${companies.lastFilingDate}, excluded.last_filing_date)`,
+          lastFilingPeriodEnd: sql`case when ${olderFiling} then ${companies.lastFilingPeriodEnd} else excluded.last_filing_period_end end`,
+          lastFilingAccession: sql`case when ${olderFiling} then ${companies.lastFilingAccession} else excluded.last_filing_accession end`,
+          defaultDcf: sql`excluded.default_dcf`,
+          quarterlyFinancials: sql`excluded.quarterly_financials`,
+          isActive: true,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      }),
+      insertAnnuals.onConflictDoUpdate({
+        target: annualFinancials.id,
+        set: {
+          sortOrder: sql`excluded.sort_order`,
+          revenue: sql`excluded.revenue`,
+          operatingCashFlow: sql`excluded.operating_cash_flow`,
+          capex: sql`excluded.capex`,
+          sbc: sql`excluded.sbc`,
+          buybacks: sql`excluded.buybacks`,
+          dilutedShares: sql`excluded.diluted_shares`,
+          grossProfit: sql`excluded.gross_profit`,
+          rdExpense: sql`excluded.rd_expense`,
+          sgaExpense: sql`excluded.sga_expense`,
+          operatingIncome: sql`excluded.operating_income`,
+          netIncome: sql`excluded.net_income`,
+          stockholdersEquity: sql`excluded.stockholders_equity`,
+          periodEndDate: sql`excluded.period_end_date`,
+          cashAndEquiv: sql`excluded.cash_and_equiv`,
+          totalDebt: sql`excluded.total_debt`,
+        },
+      }),
       db.delete(annualFinancials).where(
         and(
           inArray(annualFinancials.ticker, batch.map((c) => c.ticker)),
@@ -185,9 +221,8 @@ async function run() {
     seededAnnualCount += annualRows.length;
   }
 
-  // Batch upsert filing diffs (100 per HTTP roundtrip)
-  // Note: Never deletes existing prose diffs ('llm' / 'text-diff') stored in Neon!
-  const diffRows = validSnapshots.flatMap((c) =>
+  // Batch filing diffs without deleting previously extracted prose.
+  const diffRowsFor = (snapshots: EdgarSnapshot[]) => snapshots.flatMap((c) =>
     c.filingDiffs.map((d) => ({
       id: d.id,
       ticker: c.ticker,
@@ -212,6 +247,8 @@ async function run() {
     }))
   );
 
+  const diffRows = diffRowsFor(fresh);
+  const fallbackDiffRows = diffRowsFor(fallback);
   for (const batch of chunk(diffRows, 100)) {
     await db
       .insert(filingDiffs)
@@ -219,6 +256,9 @@ async function run() {
       .onConflictDoUpdate({
         target: filingDiffs.id,
         set: {
+          filingType: sql`excluded.filing_type`,
+          filingDate: sql`excluded.filing_date`,
+          accessionNumber: sql`excluded.accession_number`,
           headline: sql`excluded.headline`,
           summary: sql`excluded.summary`,
           priorExcerpt: sql`excluded.prior_excerpt`,
@@ -228,21 +268,25 @@ async function run() {
         },
       });
   }
+  for (const batch of chunk(fallbackDiffRows, 100)) {
+    await db.insert(filingDiffs).values(batch).onConflictDoNothing();
+  }
 
-  // Soft-deactivate tickers absent from a full universe ingest (never hard-delete,
-  //    so user watchlists, filing alerts, and active Arena positions are never cascade-wiped)
-  const validTickers = validSnapshots.map((c) => c.ticker);
-  if (validTickers.length >= 50) {
+  // Use the directory selection so failed company fetches leave existing rows active.
+  const selectedTickers = new Set(universe);
+  if (validSnapshots.length >= 50 && validSnapshots.every((company) => selectedTickers.has(company.ticker))) {
     await db
       .update(companies)
       .set({ isActive: false, updatedAt: new Date() })
-      .where(notInArray(companies.ticker, validTickers));
+      .where(and(eq(companies.isActive, true), notInArray(companies.ticker, universe)));
   }
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(
-    `[amber-seed] ✓ Batch-seeded ${snapshots.length} companies (${seededAnnualCount} financial periods, ${diffRows.length} diffs) into Neon in ${elapsed}s.`
+    `[amber-seed] ✓ Batch-seeded ${validSnapshots.length} companies (${seededAnnualCount} financial periods, ${diffRows.length + fallbackDiffRows.length} diffs) into Neon in ${elapsed}s.`
   );
 }
 
-run();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run();
+}

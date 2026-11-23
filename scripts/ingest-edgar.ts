@@ -16,6 +16,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { buildSearchIndexEntry } from "../src/data/search-index.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 import {
@@ -30,6 +31,17 @@ import {
 const SEC_USER_AGENT =
   process.env.SEC_USER_AGENT ?? "AmberFinance research@amber.example";
 const UNIVERSE_LIMIT = Number(process.env.UNIVERSE_LIMIT ?? "125");
+const SEC_REQUEST_SPACING_MS = 140;
+
+export type EdgarSnapshot = CompanySnapshot & { edgarFallback?: true };
+type PeriodicFiling = CompanySnapshot["lastFiling"];
+
+function fallbackSnapshot(existing?: CompanySnapshot, curated?: CompanySnapshot): EdgarSnapshot | null {
+  const snapshot = existing && (!curated || existing.lastFiling.date >= curated.lastFiling.date)
+    ? existing
+    : curated;
+  return snapshot ? { ...snapshot, edgarFallback: true } : null;
+}
 
 interface CuratedMeta {
   ticker: string;
@@ -194,6 +206,43 @@ async function fetchSecJson<T>(url: string, retries = 3): Promise<T> {
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(`Failed fetching ${url}`);
+}
+
+interface SecRecentFilings {
+  form: string[];
+  filingDate: string[];
+  reportDate: string[];
+  accessionNumber: string[];
+}
+
+async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling): Promise<PeriodicFiling> {
+  // Submissions supplies filing metadata even when usable XBRL facts arrive later.
+  await new Promise((resolve) => setTimeout(resolve, SEC_REQUEST_SPACING_MS));
+  try {
+    const { filings } = await fetchSecJson<{ filings?: { recent?: SecRecentFilings } }>(
+      `https://data.sec.gov/submissions/CIK${cik.padStart(10, "0")}.json`,
+      1
+    );
+    const recent = filings?.recent;
+    if (!recent) return fallback;
+
+    let latest: PeriodicFiling | undefined;
+    for (const [index, form] of recent.form.entries()) {
+      if (!/^(10-[KQ]|20-F|40-F)(\/A)?$/.test(form)) continue;
+      const date = recent.filingDate[index];
+      const periodEnd = recent.reportDate[index];
+      const accessionNumber = recent.accessionNumber[index];
+      if (!date || !periodEnd || !accessionNumber) continue;
+      if (latest && (date < latest.date || (date === latest.date && periodEnd <= latest.periodEnd))) continue;
+      latest = { type: form.startsWith("10-Q") ? "10-Q" : "10-K", date, periodEnd, accessionNumber };
+    }
+    return latest && (
+      latest.date > fallback.date ||
+      (latest.date === fallback.date && latest.periodEnd >= fallback.periodEnd)
+    ) ? latest : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export function cleanCompanyName(raw: string): string {
@@ -415,68 +464,64 @@ function extractLatestInstant(
   return 0;
 }
 
-/**
- * Extracts the latest 10-Q YTD duration ending AFTER `latestFyEnd` along with
- * its matching prior-year comparative YTD period (~365d earlier, same span).
- * Enables exact TTM = Latest FY + Current YTD 10-Q - Prior YTD 10-Q.
- */
-function extractLatest10QYtdPair(
-  facts: CompanyFactsResponse,
-  tagCandidates: string[],
-  unit: "USD" | "shares",
-  latestFyEnd: string
-): {
+interface YtdWindow {
+  start: string;
+  end: string;
+  priorStart: string;
+  priorEnd: string;
+}
+
+interface YtdPair {
+  window: YtdWindow;
   currentVal: number;
   priorVal: number;
-  end: string;
-  filed: string;
-  accn: string;
-} | null {
+  filing: PeriodicFiling;
+}
+
+/** TTM uses the latest FY plus the difference between matching YTD windows. */
+function extract10QYtdPair(
+  facts: CompanyFactsResponse,
+  tagCandidates: string[],
+  latestFyEnd: string,
+  window?: YtdWindow
+): YtdPair | null {
   const gaap = facts.facts?.["us-gaap"];
   if (!gaap) return null;
 
   for (const tag of tagCandidates) {
-    const entries = gaap[tag]?.units?.[unit];
+    const entries = gaap[tag]?.units?.USD;
     if (!entries?.length) continue;
 
-    const tenQs = entries.filter(
-      (e) =>
-        (e.form === "10-Q" || e.form === "10-Q/A") &&
-        e.start &&
-        e.end > latestFyEnd
-    );
-    if (!tenQs.length) continue;
+    const current = entries.filter((fact): fact is XbrlFactUnit & { start: string } =>
+      (fact.form === "10-Q" || fact.form === "10-Q/A") &&
+      !!fact.start &&
+      (window
+        ? fact.start === window.start && fact.end === window.end
+        : daysBetween(latestFyEnd, fact.start) === 1 &&
+          daysBetween(fact.start, fact.end) >= 70 &&
+          daysBetween(fact.start, fact.end) <= 300)
+    ).sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))[0];
+    if (!current) continue;
 
-    // Pick the most recent 10-Q end date, preferring the YTD cumulative span (longest duration)
-    tenQs.sort(
-      (a, b) =>
-        b.end.localeCompare(a.end) ||
-        daysBetween(b.start!, b.end) - daysBetween(a.start!, a.end) ||
-        b.filed.localeCompare(a.filed)
-    );
-    const cur = tenQs[0];
-    const curSpan = daysBetween(cur.start!, cur.end);
-    if (curSpan < 70 || curSpan > 300) continue;
+    const span = daysBetween(current.start, current.end);
+    const prior = entries.filter((fact): fact is XbrlFactUnit & { start: string } => {
+      if (!fact.start) return false;
+      if (window) return fact.start === window.priorStart && fact.end === window.priorEnd;
+      const endDelta = daysBetween(fact.end, current.end);
+      return endDelta >= 345 && endDelta <= 385 &&
+        Math.abs(daysBetween(fact.start, fact.end) - span) <= 15;
+    }).sort((a, b) =>
+      Number(b.accn === current.accn) - Number(a.accn === current.accn) ||
+      b.filed.localeCompare(a.filed)
+    )[0];
+    if (!prior) continue;
 
-    // Find matching prior-year comparative YTD entry (~350–380 days earlier, similar span)
-    const priorCandidates = entries.filter((e) => {
-      if (!e.start) return false;
-      const span = daysBetween(e.start, e.end);
-      if (Math.abs(span - curSpan) > 15) return false;
-      const endDelta = daysBetween(e.end, cur.end);
-      return endDelta >= 345 && endDelta <= 385;
-    });
-
-    if (priorCandidates.length > 0) {
-      priorCandidates.sort((a, b) => b.filed.localeCompare(a.filed));
-      return {
-        currentVal: cur.val,
-        priorVal: priorCandidates[0].val,
-        end: cur.end,
-        filed: cur.filed,
-        accn: cur.accn,
-      };
-    }
+    return {
+      window: { start: current.start, end: current.end, priorStart: prior.start, priorEnd: prior.end },
+      currentVal: current.val,
+      priorVal: prior.val,
+      filing: { type: "10-Q", date: current.filed, periodEnd: current.end, accessionNumber: current.accn },
+    };
   }
 
   return null;
@@ -547,7 +592,8 @@ function buildAutoTagline(
 }
 
 function generateDeterministicDiffs(
-  company: Omit<CompanySnapshot, "filingDiffs">
+  company: Omit<CompanySnapshot, "filingDiffs">,
+  financialFiling: PeriodicFiling
 ): FilingDiffItem[] {
   const series = computeAnnualMetrics(company.annuals);
   const latest = series[series.length - 1];
@@ -567,9 +613,9 @@ function generateDeterministicDiffs(
   return [
     {
       id: `${company.ticker.toLowerCase()}-xbrl-sbc`,
-      filingType: "10-K",
-      filingDate: company.lastFiling.date,
-      accessionNumber: company.lastFiling.accessionNumber,
+      filingType: financialFiling.type,
+      filingDate: financialFiling.date,
+      accessionNumber: financialFiling.accessionNumber,
       section: "XBRL Cash Flow Statement: SBC Reconciliation",
       category: "Executive Comp",
       materiality: sbcMateriality,
@@ -581,7 +627,7 @@ function generateDeterministicDiffs(
       priorExcerpt: prev
         ? `${prev.fiscalYear} SEC 10-K: Reported FCF $${(prev.reportedFcf / 1000).toFixed(2)}B | SBC $${(prev.sbc / 1000).toFixed(2)}B (${prev.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(prev.trueFcf / 1000).toFixed(2)}B.`
         : "Prior fiscal year baseline unavailable in XBRL window.",
-      currentExcerpt: `${latest.fiscalYear} SEC 10-K: Reported FCF $${(latest.reportedFcf / 1000).toFixed(2)}B | SBC $${(latest.sbc / 1000).toFixed(2)}B (${latest.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(latest.trueFcf / 1000).toFixed(2)}B.`,
+      currentExcerpt: `${latest.fiscalYear} SEC ${financialFiling.type}: Reported FCF $${(latest.reportedFcf / 1000).toFixed(2)}B | SBC $${(latest.sbc / 1000).toFixed(2)}B (${latest.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(latest.trueFcf / 1000).toFixed(2)}B.`,
       signalNote:
         latest.sbcPctRevenue > 12
           ? "High SBC intensity materially widens the gap between headline FCF and owner earnings."
@@ -589,9 +635,9 @@ function generateDeterministicDiffs(
     },
     {
       id: `${company.ticker.toLowerCase()}-xbrl-dilution`,
-      filingType: "10-K",
-      filingDate: company.lastFiling.date,
-      accessionNumber: company.lastFiling.accessionNumber,
+      filingType: financialFiling.type,
+      filingDate: financialFiling.date,
+      accessionNumber: financialFiling.accessionNumber,
       section: "XBRL Equity & Cash Flow: Dilution vs. Buybacks",
       category: "Capital Allocation",
       materiality: capAllocMateriality,
@@ -671,11 +717,147 @@ async function resolveCandidates(): Promise<DirectoryCandidate[]> {
   return selected.slice(0, UNIVERSE_LIMIT);
 }
 
+export function extractSingleQuarterMap(
+  facts: CompanyFactsResponse,
+  tags: string[],
+  unit: "USD" | "shares"
+): Map<string, number> {
+  const quarters = new Map<string, number>();
+  const gaap = facts.facts?.["us-gaap"];
+  if (!gaap) return quarters;
+
+  const dayMs = 86_400_000;
+  for (const tag of tags) {
+    const entries = gaap[tag]?.units?.[unit] ?? [];
+    const standalone = new Map<string, XbrlFactUnit>();
+    const byStart = new Map<string, Map<string, XbrlFactUnit>>();
+
+    for (const entry of entries) {
+      if ((entry.form !== "10-Q" && entry.form !== "10-Q/A") || !entry.start) continue;
+      const days = (Date.parse(entry.end) - Date.parse(entry.start)) / dayMs;
+      if (!Number.isFinite(entry.val) || !(days >= 70 && days <= 300)) continue;
+
+      if (days <= 110) {
+        const previous = standalone.get(entry.end);
+        if (!previous || entry.filed > previous.filed) standalone.set(entry.end, entry);
+      }
+
+      // A YTD share count is a weighted average. Subtracting two averages
+      // does not give a standalone quarter's diluted share count.
+      if (unit === "shares") continue;
+      const byEnd = byStart.get(entry.start) ?? new Map<string, XbrlFactUnit>();
+      const previous = byEnd.get(entry.end);
+      if (!previous || entry.filed > previous.filed) byEnd.set(entry.end, entry);
+      byStart.set(entry.start, byEnd);
+    }
+
+    const forTag = new Map([...standalone].map(([end, entry]) => [end, entry.val]));
+    for (const byEnd of byStart.values()) {
+      const periods = [...byEnd.values()].sort((a, b) => a.end.localeCompare(b.end));
+      for (let i = 1; i < periods.length; i++) {
+        const previous = periods[i - 1];
+        const current = periods[i];
+        if (forTag.has(current.end)) continue;
+        const quarterDays = (Date.parse(current.end) - Date.parse(previous.end)) / dayMs;
+        if (quarterDays >= 65 && quarterDays <= 115) {
+          forTag.set(current.end, current.val - previous.val);
+        }
+      }
+    }
+
+    // Tags are ordered by preference. An alternate tag can fill a gap.
+    for (const [end, value] of forTag) {
+      if (!quarters.has(end)) quarters.set(end, value);
+    }
+  }
+
+  return quarters;
+}
+
+function formatQuarterLabel(isoEnd: string): string {
+  const yr = isoEnd.slice(2, 4);
+  const mo = Number(isoEnd.slice(5, 7));
+  const q = Math.min(4, Math.max(1, Math.ceil(mo / 3)));
+  return `${yr}Q${q}`;
+}
+
+function extractQuarterlySeries(
+  facts: CompanyFactsResponse,
+  fallbackShares: number,
+  ticker: string
+): AnnualFinancials[] {
+  const revMap = extractSingleQuarterMap(
+    facts,
+    [
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "Revenues",
+      "SalesRevenueNet",
+      "RevenueFromContractWithCustomerIncludingAssessedTax",
+    ],
+    "USD"
+  );
+  if (revMap.size < 4) return [];
+
+  const ocfMap = extractSingleQuarterMap(
+    facts,
+    [
+      "NetCashProvidedByUsedInOperatingActivities",
+      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    ],
+    "USD"
+  );
+  const capexMap = extractSingleQuarterMap(
+    facts,
+    [
+      "PaymentsToAcquirePropertyPlantAndEquipment",
+      "PaymentsToAcquireProductiveAssets",
+      "CapitalExpendituresIncurredButNotYetPaid",
+    ],
+    "USD"
+  );
+  const sbcMap = extractSingleQuarterMap(
+    facts,
+    ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
+    "USD"
+  );
+  const buybackMap = extractSingleQuarterMap(
+    facts,
+    ["PaymentsForRepurchaseOfCommonStock"],
+    "USD"
+  );
+  const shareMap = extractSingleQuarterMap(
+    facts,
+    ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+    "shares"
+  );
+
+  const endDates = [...revMap.keys()]
+    .filter((d) => (revMap.get(d) ?? 0) > 0 && ocfMap.has(d))
+    .sort()
+    .slice(-8);
+
+  if (endDates.length < 4) return [];
+
+  const rawQuarters: AnnualFinancials[] = endDates.map((d) => ({
+    fiscalYear: formatQuarterLabel(d),
+    revenue: Math.round((revMap.get(d) ?? 0) / 1e6),
+    operatingCashFlow: Math.round((ocfMap.get(d) ?? 0) / 1e6),
+    capex: Math.round(Math.abs(capexMap.get(d) ?? 0) / 1e6),
+    sbc: Math.round(Math.abs(sbcMap.get(d) ?? 0) / 1e6),
+    buybacks: Math.round(Math.abs(buybackMap.get(d) ?? 0) / 1e6),
+    dilutedShares: shareMap.has(d)
+      ? normalizeShareCountToMillions(shareMap.get(d) ?? 0, ticker)
+      : fallbackShares,
+  }));
+
+  return normalizeStockSplits(rawQuarters);
+}
+
 export async function ingestCandidate(
   candidate: DirectoryCandidate,
   curatedMap: Map<string, CompanySnapshot>,
   existingMap: Map<string, CompanySnapshot>
-): Promise<CompanySnapshot | null> {
+): Promise<EdgarSnapshot | null> {
   const curated = curatedMap.get(candidate.ticker);
   const existing = existingMap.get(candidate.ticker);
   const meta = CURATED_META[candidate.ticker];
@@ -839,8 +1021,7 @@ export async function ingestCandidate(
       .slice(-5);
 
     if (years.length < 3) {
-      if (curated) return curated;
-      return null;
+      return curated ? fallbackSnapshot(existing, curated) : null;
     }
 
     // Only accept recent (>=2024) instant share counts so stale 2010 DEI tags never overwrite modern diluted shares
@@ -927,23 +1108,24 @@ export async function ingestCandidate(
     });
 
     const latestAnnual = annuals[annuals.length - 1];
-    if (latestAnnual.revenue <= 0) return curated ?? null;
+    if (latestAnnual.revenue <= 0) return curated ? fallbackSnapshot(existing, curated) : null;
 
     const latestYearKey = years[years.length - 1];
     const latestMeta = revMap.get(latestYearKey) ?? ocfMap.get(latestYearKey)!;
 
     // Reject stale USD filings where the latest annual period ended prior to 2023
     if (latestMeta.end < "2023-01-01") {
-      return curated ?? null;
+      return curated ? fallbackSnapshot(existing, curated) : null;
     }
 
-    // Attempt to compute Trailing Twelve Months (TTM) from newer 10-Q filings
-    let lastFilingType: "10-K" | "10-Q" = "10-K";
-    let lastFilingDate = latestMeta.filed;
-    let lastFilingPeriodEnd = latestMeta.end;
-    let lastFilingAccession = latestMeta.accn;
+    let financialFiling: PeriodicFiling = {
+      type: "10-K",
+      date: latestMeta.filed,
+      periodEnd: latestMeta.end,
+      accessionNumber: latestMeta.accn,
+    };
 
-    const revQ = extractLatest10QYtdPair(
+    const revQ = extract10QYtdPair(
       facts,
       [
         "RevenueFromContractWithCustomerExcludingAssessedTax",
@@ -951,102 +1133,69 @@ export async function ingestCandidate(
         "SalesRevenueNet",
         "RevenueFromContractWithCustomerIncludingAssessedTax",
       ],
-      "USD",
       latestMeta.end
     );
-    const ocfQ = extractLatest10QYtdPair(
-      facts,
-      [
+
+    if (revQ && !isBankEarningsOcf) {
+      const getQuarterPair = (tags: string[]) =>
+        extract10QYtdPair(facts, tags, latestMeta.end, revQ.window);
+      const ocfQ = getQuarterPair([
         "NetCashProvidedByUsedInOperatingActivities",
         "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-      ],
-      "USD",
-      latestMeta.end
-    );
-
-    if (revQ && ocfQ && revQ.end === ocfQ.end) {
-      const capexQ = extractLatest10QYtdPair(
-        facts,
-        [
-          "PaymentsToAcquirePropertyPlantAndEquipment",
-          "PaymentsToAcquireOtherPropertyPlantAndEquipment",
-          "PaymentsToAcquireProductiveAssets",
-          "PaymentsToAcquireOtherProductiveAssets",
-          "PaymentsToExploreAndDevelopOilAndGasProperties",
-        ],
-        "USD",
-        latestMeta.end
-      );
-      const sbcQ = extractLatest10QYtdPair(
-        facts,
-        ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
-        "USD",
-        latestMeta.end
-      );
-      const buybackQ = extractLatest10QYtdPair(
-        facts,
-        ["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"],
-        "USD",
-        latestMeta.end
-      );
-
+      ]);
       const ttmRev = Math.round(
         latestAnnual.revenue + (revQ.currentVal - revQ.priorVal) / 1e6
       );
-      const ttmOcf = Math.round(
-        latestAnnual.operatingCashFlow + (ocfQ.currentVal - ocfQ.priorVal) / 1e6
-      );
-      const ttmCapex = Math.max(
-        0,
-        Math.round(
-          latestAnnual.capex +
-            (capexQ ? (Math.abs(capexQ.currentVal) - Math.abs(capexQ.priorVal)) / 1e6 : 0)
-        )
-      );
-      const ttmSbc = Math.max(
-        0,
-        Math.round(
-          latestAnnual.sbc +
-            (sbcQ ? (Math.abs(sbcQ.currentVal) - Math.abs(sbcQ.priorVal)) / 1e6 : 0)
-        )
-      );
-      const ttmBuybacks = Math.max(
-        0,
-        Math.round(
-          latestAnnual.buybacks +
-            (buybackQ
-              ? (Math.abs(buybackQ.currentVal) - Math.abs(buybackQ.priorVal)) / 1e6
-              : 0)
-        )
-      );
 
-      if (ttmRev > 0 && !isBankEarningsOcf) {
-        const gpQ = extractLatest10QYtdPair(facts, ["GrossProfit"], "USD", latestMeta.end);
-        const corQ = extractLatest10QYtdPair(
-          facts,
-          [
-            "CostOfGoodsAndServicesSold",
-            "CostOfRevenue",
-            "CostOfGoodsSold",
-            "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
-          ],
-          "USD",
-          latestMeta.end
+      if (ttmRev > 0 && ocfQ) {
+        const capexQ = getQuarterPair([
+          "PaymentsToAcquirePropertyPlantAndEquipment",
+          "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+          "PaymentsToAcquireProductiveAssets",
+          "PaymentsToAcquireOilAndGasProperties",
+          "PaymentsToExploreAndDevelopOilAndGasProperties",
+        ]);
+        const sbcQ = getQuarterPair(["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"]);
+        const buybackQ = getQuarterPair(["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"]);
+        const ttmOcf = Math.round(
+          latestAnnual.operatingCashFlow + (ocfQ.currentVal - ocfQ.priorVal) / 1e6
         );
-        const opIncQ = extractLatest10QYtdPair(facts, ["OperatingIncomeLoss"], "USD", latestMeta.end);
-        const netIncQ = extractLatest10QYtdPair(facts, ["NetIncomeLoss"], "USD", latestMeta.end);
-        const rdQ = extractLatest10QYtdPair(
-          facts,
-          ["ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"],
-          "USD",
-          latestMeta.end
+        // Keep the annual baseline when a cost has no matching YTD comparison.
+        const ttmCapex = Math.max(
+          0,
+          Math.round(
+            latestAnnual.capex +
+              (capexQ ? (Math.abs(capexQ.currentVal) - Math.abs(capexQ.priorVal)) / 1e6 : 0)
+          )
         );
-        const sgaQ = extractLatest10QYtdPair(
-          facts,
-          ["SellingGeneralAndAdministrativeExpense", "GeneralAndAdministrativeExpense"],
-          "USD",
-          latestMeta.end
+        const ttmSbc = Math.max(
+          0,
+          Math.round(
+            latestAnnual.sbc +
+              (sbcQ ? (Math.abs(sbcQ.currentVal) - Math.abs(sbcQ.priorVal)) / 1e6 : 0)
+          )
         );
+        const ttmBuybacks = Math.max(
+          0,
+          Math.round(
+            latestAnnual.buybacks +
+              (buybackQ
+                ? (Math.abs(buybackQ.currentVal) - Math.abs(buybackQ.priorVal)) / 1e6
+                : 0)
+          )
+        );
+
+        const gpQ = getQuarterPair(["GrossProfit"]);
+        const corQ = getQuarterPair([
+          "CostOfGoodsAndServicesSold",
+          "CostOfRevenue",
+          "CostOfGoodsSold",
+          "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+        ]);
+        const opIncQ = getQuarterPair(["OperatingIncomeLoss"]);
+        const netIncQ = getQuarterPair(["NetIncomeLoss"]);
+        const rdQ = getQuarterPair(["ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"]);
+        const sgaQ = getQuarterPair(["SellingGeneralAndAdministrativeExpense", "GeneralAndAdministrativeExpense"]);
 
         const ttmGp =
           latestAnnual.grossProfit != null
@@ -1080,6 +1229,7 @@ export async function ingestCandidate(
 
         annuals.push({
           fiscalYear: "TTM",
+          periodEndDate: revQ.window.end,
           revenue: ttmRev,
           operatingCashFlow: ttmOcf,
           capex: ttmCapex,
@@ -1095,10 +1245,7 @@ export async function ingestCandidate(
           operatingIncome: ttmOpInc,
           netIncome: ttmNetInc,
         });
-        lastFilingType = "10-Q";
-        lastFilingDate = revQ.filed;
-        lastFilingPeriodEnd = revQ.end;
-        lastFilingAccession = revQ.accn;
+        financialFiling = revQ.filing;
       }
     }
 
@@ -1146,146 +1293,6 @@ export async function ingestCandidate(
           ? totalDebtCombined
           : currentDebt;
 
-function extractSingleQuarterMap(
-  facts: CompanyFactsResponse,
-  tags: string[],
-  unit: "USD" | "shares"
-): Map<string, number> {
-  const out = new Map<string, number>();
-  const outFiled = new Map<string, string>();
-  const gaap = facts.facts?.["us-gaap"];
-  if (!gaap) return out;
-
-  for (const tag of tags) {
-    const entries = gaap[tag]?.units?.[unit];
-    if (!entries) continue;
-
-    // 1. Collect standalone ~90-day quarterly facts directly, preferring most recently filed (handles 10-Q/A)
-    for (const e of entries) {
-      if ((e.form !== "10-Q" && e.form !== "10-Q/A") || !e.start || !e.end) continue;
-      const days =
-        (Date.parse(e.end) - Date.parse(e.start)) / (1000 * 60 * 60 * 24);
-      if (days >= 70 && days <= 110 && Number.isFinite(e.val)) {
-        const prevFiled = outFiled.get(e.end);
-        if (!prevFiled || e.filed > prevFiled) {
-          out.set(e.end, e.val);
-          outFiled.set(e.end, e.filed);
-        }
-      }
-    }
-
-    // 2. For cash-flow items reported only as YTD cumulative (e.g. 6M/9M), differencing consecutive YTDs yields standalone quarters
-    if (out.size < 4) {
-      const ytdByStart = new Map<string, Array<{ end: string; days: number; val: number }>>();
-      for (const e of entries) {
-        if ((e.form !== "10-Q" && e.form !== "10-Q/A") || !e.start || !e.end) continue;
-        const days =
-          (Date.parse(e.end) - Date.parse(e.start)) / (1000 * 60 * 60 * 24);
-        if (days >= 70 && days <= 300 && Number.isFinite(e.val)) {
-          const list = ytdByStart.get(e.start) ?? [];
-          if (!list.some((x) => x.end === e.end)) {
-            list.push({ end: e.end, days, val: e.val });
-          }
-          ytdByStart.set(e.start, list);
-        }
-      }
-      for (const list of ytdByStart.values()) {
-        list.sort((a, b) => a.days - b.days);
-        for (let i = 0; i < list.length; i++) {
-          const cur = list[i];
-          if (out.has(cur.end)) continue;
-          if (cur.days <= 110) {
-            out.set(cur.end, cur.val);
-          } else if (i > 0 && cur.days - list[i - 1].days >= 65 && cur.days - list[i - 1].days <= 115) {
-            out.set(cur.end, cur.val - list[i - 1].val);
-          }
-        }
-      }
-    }
-    if (out.size >= 6) break;
-  }
-  return out;
-}
-
-function formatQuarterLabel(isoEnd: string): string {
-  const yr = isoEnd.slice(2, 4);
-  const mo = Number(isoEnd.slice(5, 7));
-  const q = Math.min(4, Math.max(1, Math.ceil(mo / 3)));
-  return `${yr}Q${q}`;
-}
-
-function extractQuarterlySeries(
-  facts: CompanyFactsResponse,
-  fallbackShares: number,
-  ticker: string
-): AnnualFinancials[] {
-  const revMap = extractSingleQuarterMap(
-    facts,
-    [
-      "RevenueFromContractWithCustomerExcludingAssessedTax",
-      "Revenues",
-      "SalesRevenueNet",
-      "RevenueFromContractWithCustomerIncludingAssessedTax",
-    ],
-    "USD"
-  );
-  if (revMap.size < 4) return [];
-
-  const ocfMap = extractSingleQuarterMap(
-    facts,
-    [
-      "NetCashProvidedByUsedInOperatingActivities",
-      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-    ],
-    "USD"
-  );
-  const capexMap = extractSingleQuarterMap(
-    facts,
-    [
-      "PaymentsToAcquirePropertyPlantAndEquipment",
-      "PaymentsToAcquireProductiveAssets",
-      "CapitalExpendituresIncurredButNotYetPaid",
-    ],
-    "USD"
-  );
-  const sbcMap = extractSingleQuarterMap(
-    facts,
-    ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
-    "USD"
-  );
-  const buybackMap = extractSingleQuarterMap(
-    facts,
-    ["PaymentsForRepurchaseOfCommonStock"],
-    "USD"
-  );
-  const shareMap = extractSingleQuarterMap(
-    facts,
-    ["WeightedAverageNumberOfDilutedSharesOutstanding"],
-    "shares"
-  );
-
-  const endDates = [...revMap.keys()]
-    .filter((d) => (revMap.get(d) ?? 0) > 0 && ocfMap.has(d))
-    .sort()
-    .slice(-8);
-
-  if (endDates.length < 4) return [];
-
-  const rawQuarters: AnnualFinancials[] = endDates.map((d) => ({
-    fiscalYear: formatQuarterLabel(d),
-    revenue: Math.round((revMap.get(d) ?? 0) / 1e6),
-    operatingCashFlow: Math.round((ocfMap.get(d) ?? 0) / 1e6),
-    capex: Math.round(Math.abs(capexMap.get(d) ?? 0) / 1e6),
-    sbc: Math.round(Math.abs(sbcMap.get(d) ?? 0) / 1e6),
-    buybacks: Math.round(Math.abs(buybackMap.get(d) ?? 0) / 1e6),
-    dilutedShares: shareMap.has(d)
-      ? normalizeShareCountToMillions(shareMap.get(d) ?? 0, ticker)
-      : fallbackShares,
-  }));
-
-  return normalizeStockSplits(rawQuarters);
-}
-
     // Normalize stock splits retroactively so Dilution (4Y) is never distorted by 5:1 / 10:1 / 50:1 splits
     const normalizedAnnuals = normalizeStockSplits(annuals);
 
@@ -1312,6 +1319,8 @@ function extractQuarterlySeries(
     const defaultDcf =
       curated?.defaultDcf ?? computeGroundedDefaultDcf(normalizedAnnuals);
 
+    const lastFiling = await fetchLatestPeriodicFiling(candidate.cik, revQ?.filing ?? financialFiling);
+
     const baseSnapshot: Omit<CompanySnapshot, "filingDiffs"> = {
       ticker: candidate.ticker,
       cik: candidate.cik,
@@ -1330,12 +1339,7 @@ function extractQuarterlySeries(
       marketCap,
       cashAndEquiv: Math.round(cashRaw / 1e6),
       totalDebt: Math.round(debtRaw / 1e6),
-      lastFiling: {
-        type: lastFilingType,
-        date: lastFilingDate,
-        periodEnd: lastFilingPeriodEnd,
-        accessionNumber: lastFilingAccession,
-      },
+      lastFiling,
       annuals: normalizedAnnuals,
       quarterlyFinancials: extractQuarterlySeries(
         facts,
@@ -1349,7 +1353,7 @@ function extractQuarterlySeries(
     const preservedTextDiffs = (existing?.filingDiffs ?? []).filter(
       (d) => d.id.includes("-10k-diff-") || d.id.includes("-llm-")
     );
-    const baseDiffs = curated?.filingDiffs ?? generateDeterministicDiffs(baseSnapshot);
+    const baseDiffs = curated?.filingDiffs ?? generateDeterministicDiffs(baseSnapshot, financialFiling);
     const seenIds = new Set(preservedTextDiffs.map((d) => d.id));
     const filingDiffs = [
       ...preservedTextDiffs,
@@ -1361,7 +1365,7 @@ function extractQuarterlySeries(
       filingDiffs,
     };
   } catch {
-    return curated ?? null;
+    return fallbackSnapshot(existing, curated);
   }
 }
 
@@ -1381,7 +1385,7 @@ async function run() {
     `[amber-ingest] Ingesting live SEC EDGAR 10-K XBRL for ${candidates.length} candidates...`
   );
 
-  const companies: CompanySnapshot[] = [];
+  const companies: EdgarSnapshot[] = [];
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
     const snap = await ingestCandidate(c, curatedMap, existingMap);
@@ -1394,14 +1398,14 @@ async function run() {
       }
     }
     // Respect SEC EDGAR fair-access limit (<10 req/sec)
-    await new Promise((r) => setTimeout(r, 140));
+    await new Promise((r) => setTimeout(r, SEC_REQUEST_SPACING_MS));
   }
 
   // Guarantee every flagship pilot ticker (e.g. PLTR, SNOW, SHOP) is present even if directory lookup missed it
   const presentTickers = new Set(companies.map((c) => c.ticker));
   for (const pilot of PILOT_TICKERS) {
     if (!presentTickers.has(pilot.ticker)) {
-      companies.push(pilot);
+      companies.push(fallbackSnapshot(existingMap.get(pilot.ticker), pilot)!);
     }
   }
 
@@ -1413,11 +1417,20 @@ async function run() {
     JSON.stringify(searchIndex, null, 2) + "\n"
   );
 
+  const universePath = process.env.AMBER_INGEST_UNIVERSE_PATH;
+  if (universePath) {
+    // Only a full directory selection can establish which tickers left the universe.
+    const universe = candidates.length === UNIVERSE_LIMIT
+      ? [...new Set([...candidates.map((candidate) => candidate.ticker), ...curatedMap.keys()])]
+      : [];
+    fs.writeFileSync(universePath, JSON.stringify(universe) + "\n");
+  }
+
   console.log(
     `[amber-ingest] ✓ Wrote ${companies.length} SEC-verified companies to src/data/generated/.`
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run();
 }

@@ -12,6 +12,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { sql } from "drizzle-orm";
@@ -21,6 +22,34 @@ import type { InsiderTradeItem } from "../src/components/InsiderRadar.tsx";
 
 const SEC_USER_AGENT =
   process.env.SEC_USER_AGENT ?? "AmberFinance research@amber.example";
+
+type InsiderTrade = InsiderTradeItem & { ticker: string };
+type InsiderFill = Omit<InsiderTrade, "pricePerShare" | "totalValue"> & {
+  price: number;
+  valueUsd: number;
+};
+
+function aggregateInsiderFills(fills: InsiderFill[]): InsiderTrade[] {
+  const byId = new Map<string, InsiderFill>();
+  for (const fill of fills) {
+    const previous = byId.get(fill.id);
+    if (!previous) {
+      byId.set(fill.id, fill);
+      continue;
+    }
+
+    const shares = previous.shares + fill.shares;
+    const valueUsd = previous.valueUsd + fill.valueUsd;
+    byId.set(fill.id, { ...previous, shares, valueUsd, price: valueUsd / shares });
+  }
+
+  return [...byId.values()].map(({ shares, price, valueUsd, ...filing }) => ({
+    ...filing,
+    shares: Math.round(shares),
+    pricePerShare: Number(price.toFixed(2)),
+    totalValue: Number((valueUsd / 1e6).toFixed(3)),
+  }));
+}
 
 function normalizeInsiderTitle(raw: string): string {
   const t = raw
@@ -38,12 +67,12 @@ function normalizeInsiderTitle(raw: string): string {
     .replace(/,\s*10%$/, "");
 }
 
-function parseOpenInsiderHtml(
+export function parseOpenInsiderHtml(
   html: string,
   validTickers: Set<string>,
   txType: "Buy" | "Sell"
-): Array<InsiderTradeItem & { ticker: string }> {
-  const results: Array<InsiderTradeItem & { ticker: string }> = [];
+): InsiderTrade[] {
+  const fills: InsiderFill[] = [];
   const trs = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
 
   for (const tr of trs) {
@@ -91,36 +120,21 @@ function parseOpenInsiderHtml(
     }
 
     const code = txType === "Buy" ? "P" : "S";
-    const id = `${ticker}:${accessionNumber}:${code}`;
-    const existingIdx = results.findIndex((r) => r.id === id);
-    if (existingIdx >= 0) {
-      // Aggregate multi-tranche fills within the same Form 4 filing
-      const prev = results[existingIdx];
-      const combinedShares = prev.shares + shares;
-      const combinedValUsd = prev.totalValue * 1e6 + valUsd;
-      results[existingIdx] = {
-        ...prev,
-        shares: combinedShares,
-        totalValue: Number((combinedValUsd / 1e6).toFixed(3)),
-        pricePerShare: Number((combinedValUsd / combinedShares).toFixed(2)),
-      };
-    } else {
-      results.push({
-        id,
-        ticker,
-        filingDate,
-        insiderName: insiderName || "Executive Insider",
-        insiderTitle,
-        transactionType: txType,
-        shares,
-        pricePerShare: Number(price.toFixed(2)),
-        totalValue: Number((valUsd / 1e6).toFixed(3)),
-        accessionNumber,
-      });
-    }
+    fills.push({
+      id: `${ticker}:${accessionNumber}:${code}`,
+      ticker,
+      filingDate,
+      insiderName: insiderName || "Executive Insider",
+      insiderTitle,
+      transactionType: txType,
+      shares,
+      price,
+      valueUsd: valUsd,
+      accessionNumber,
+    });
   }
 
-  return results;
+  return aggregateInsiderFills(fills);
 }
 
 async function fetchOpenInsiderBatch(
@@ -145,6 +159,47 @@ async function fetchOpenInsiderBatch(
   if (!res.ok) throw new Error(`OpenInsider HTTP ${res.status}`);
   const html = await res.text();
   return parseOpenInsiderHtml(html, validSet, txType);
+}
+
+export function parseSecForm4Xml(xml: string, ticker: string, accn: string, filingDate: string): InsiderTrade[] {
+  const ownerMatch = xml.match(/<rptOwnerName>([^<]+)<\/rptOwnerName>/i);
+  const titleMatch = xml.match(/<officerTitle>([^<]+)<\/officerTitle>/i);
+  const isDir = /<isDirector>\s*(1|true)\s*<\/isDirector>/i.test(xml);
+  const insiderName = ownerMatch ? ownerMatch[1].trim() : "Executive Insider";
+  const insiderTitle = normalizeInsiderTitle(
+    titleMatch ? titleMatch[1].trim() : isDir ? "Director" : "Executive Officer"
+  );
+
+  const fills: InsiderFill[] = [];
+  const txBlocks = [...xml.matchAll(/<nonDerivativeTransaction>([\s\S]*?)<\/nonDerivativeTransaction>/gi)];
+  for (const block of txBlocks) {
+    const body = block[1];
+    const code = body.match(/<transactionCode>\s*([A-Z])\s*<\/transactionCode>/i)?.[1]?.toUpperCase();
+    if (code !== "P" && code !== "S") continue;
+    const shares = parseFloat(
+      body.match(/<transactionShares>\s*<value>([^<]+)<\/value>/i)?.[1] ?? "0"
+    );
+    const price = parseFloat(
+      body.match(/<transactionPricePerShare>\s*<value>([^<]+)<\/value>/i)?.[1] ?? "0"
+    );
+    const valUsd = shares * price;
+    if (shares <= 0 || price <= 0 || !Number.isFinite(valUsd) || valUsd < (code === "P" ? 25_000 : 100_000)) continue;
+
+    fills.push({
+      id: `${ticker}:${accn}:${code}`,
+      ticker,
+      filingDate,
+      insiderName,
+      insiderTitle,
+      transactionType: code === "P" ? "Buy" : "Sell",
+      shares,
+      price,
+      valueUsd: valUsd,
+      accessionNumber: accn,
+    });
+  }
+
+  return aggregateInsiderFills(fills);
 }
 
 /**
@@ -198,41 +253,7 @@ async function fetchSecForm4Fallback(
       if (!xmlRes.ok) continue;
       const xml = await xmlRes.text();
 
-      const ownerMatch = xml.match(/<rptOwnerName>([^<]+)<\/rptOwnerName>/i);
-      const titleMatch = xml.match(/<officerTitle>([^<]+)<\/officerTitle>/i);
-      const isDir = /<isDirector>\s*(1|true)\s*<\/isDirector>/i.test(xml);
-      const insiderName = ownerMatch ? ownerMatch[1].trim() : "Executive Insider";
-      const insiderTitle = normalizeInsiderTitle(
-        titleMatch ? titleMatch[1].trim() : isDir ? "Director" : "Executive Officer"
-      );
-
-      const txBlocks = [...xml.matchAll(/<nonDerivativeTransaction>([\s\S]*?)<\/nonDerivativeTransaction>/gi)];
-      for (const block of txBlocks) {
-        const body = block[1];
-        const code = body.match(/<transactionCode>\s*([A-Z])\s*<\/transactionCode>/i)?.[1]?.toUpperCase();
-        if (code !== "P" && code !== "S") continue;
-        const shares = parseFloat(
-          body.match(/<transactionShares>\s*<value>([^<]+)<\/value>/i)?.[1] ?? "0"
-        );
-        const price = parseFloat(
-          body.match(/<transactionPricePerShare>\s*<value>([^<]+)<\/value>/i)?.[1] ?? "0"
-        );
-        const valUsd = shares * price;
-        if (!Number.isFinite(valUsd) || valUsd < (code === "P" ? 25_000 : 100_000)) continue;
-
-        out.push({
-          id: `${ticker}:${accn}:${code}`,
-          ticker,
-          filingDate,
-          insiderName,
-          insiderTitle,
-          transactionType: code === "P" ? "Buy" : "Sell",
-          shares: Math.round(shares),
-          pricePerShare: Number(price.toFixed(2)),
-          totalValue: Number((valUsd / 1e6).toFixed(3)),
-          accessionNumber: accn,
-        });
-      }
+      out.push(...parseSecForm4Xml(xml, ticker, accn, filingDate));
       await new Promise((r) => setTimeout(r, 150));
     }
   } catch {
@@ -390,4 +411,6 @@ async function run() {
   }
 }
 
-run();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run();
+}
