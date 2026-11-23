@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   annualFinancials,
@@ -485,5 +485,118 @@ export async function getRecentFilingDiffs(
     return await cachedFetch();
   } catch {
     return getStaticRecentFilingDiffs(limit);
+  }
+}
+
+export async function getFilingDiffsForTickers(
+  tickers: string[],
+  limit = 30
+): Promise<MarketFilingDiffItem[]> {
+  const normalized = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))];
+  if (normalized.length === 0) return [];
+
+  const staticFallback = () => {
+    const set = new Set(normalized);
+    return getStaticRecentFilingDiffs(500)
+      .filter((d) => set.has(d.ticker))
+      .slice(0, limit);
+  };
+
+  if (!process.env.DATABASE_URL) {
+    return staticFallback();
+  }
+
+  const key = [...normalized].sort().join(",");
+  const cachedFetch = unstable_cache(
+    async () => {
+      const db = getDb();
+      if (!db) throw new Error("DB unavailable");
+
+      const rows = await db
+        .select({
+          id: filingDiffs.id,
+          ticker: filingDiffs.ticker,
+          companyName: companies.name,
+          sector: companies.sector,
+          filingType: filingDiffs.filingType,
+          filingDate: filingDiffs.filingDate,
+          accessionNumber: filingDiffs.accessionNumber,
+          section: filingDiffs.section,
+          category: filingDiffs.category,
+          materiality: filingDiffs.materiality,
+          headline: filingDiffs.headline,
+          summary: filingDiffs.summary,
+          priorExcerpt: filingDiffs.priorExcerpt,
+          currentExcerpt: filingDiffs.currentExcerpt,
+          signalNote: filingDiffs.signalNote,
+          source: filingDiffs.source,
+        })
+        .from(filingDiffs)
+        .innerJoin(companies, eq(filingDiffs.ticker, companies.ticker))
+        .where(inArray(filingDiffs.ticker, normalized))
+        .orderBy(desc(filingDiffs.filingDate))
+        .limit(limit);
+
+      if (rows.length === 0) throw new Error("No trending diffs in DB");
+
+      return rows.map((r) => ({
+        ...r,
+        materiality: (r.materiality === "High" || r.materiality === "Medium"
+          ? r.materiality
+          : "Watch") as MarketFilingDiffItem["materiality"],
+      }));
+    },
+    ["amber-ticker-filing-diffs-v1", key, String(limit)],
+    { revalidate: 900, tags: ["filings", "companies"] }
+  );
+
+  try {
+    return await cachedFetch();
+  } catch {
+    return staticFallback();
+  }
+}
+
+export async function getInsiderTradesForTickers(
+  tickers: string[],
+  limit = 40
+): Promise<MarketInsiderFeedItem[]> {
+  const normalized = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))];
+  if (normalized.length === 0 || !process.env.DATABASE_URL) return [];
+
+  const key = [...normalized].sort().join(",");
+  const cachedFetch = unstable_cache(
+    async () => {
+      const db = getDb();
+      if (!db) return [];
+
+      const rows = await db
+        .select()
+        .from(insiderTrades)
+        .where(inArray(insiderTrades.ticker, normalized))
+        .orderBy(desc(insiderTrades.filingDate), desc(insiderTrades.totalValue))
+        .limit(limit);
+
+      return rows.map((r) => ({
+        id: r.id,
+        ticker: r.ticker,
+        filingDate: r.filingDate,
+        insiderName: r.insiderName,
+        insiderTitle: r.insiderTitle,
+        transactionType: (r.transactionType === "Buy" ? "Buy" : "Sell") as "Buy" | "Sell",
+        shares: r.shares,
+        pricePerShare: r.pricePerShare,
+        totalValue: r.totalValue,
+        accessionNumber: r.accessionNumber,
+      }));
+    },
+    ["amber-ticker-insiders-v1", key, String(limit)],
+    { revalidate: 900, tags: ["insiders"] }
+  );
+
+  try {
+    return await cachedFetch();
+  } catch {
+    return [];
   }
 }
