@@ -64,11 +64,13 @@ export function SignalIndex({
   initialLensId = null,
   recentDiffs = [],
   recentInsiders = [],
+  trendingTickers = [],
 }: {
   entries?: SearchIndexEntry[];
   initialLensId?: string | null;
   recentDiffs?: MarketFilingDiffItem[];
   recentInsiders?: MarketInsiderFeedItem[];
+  trendingTickers?: string[];
 }) {
   const initialLens = initialLensId
     ? DISCOVERY_LENSES.find((l) => l.id === initialLensId) ?? null
@@ -331,26 +333,69 @@ export function SignalIndex({
     },
   ];
 
+  const trendingRank = useMemo(
+    () => new Map(trendingTickers.map((t, idx) => [t, idx])),
+    [trendingTickers]
+  );
+
   const featuredDiff = useMemo(() => {
+    const trendingDiffs = recentDiffs
+      .filter((d) => trendingRank.has(d.ticker))
+      .sort(
+        (a, b) =>
+          (trendingRank.get(a.ticker) ?? 99) - (trendingRank.get(b.ticker) ?? 99) ||
+          b.filingDate.localeCompare(a.filingDate)
+      );
     return (
-      recentDiffs.find((d) => d.materiality === "High") ?? recentDiffs[0] ?? null
+      trendingDiffs.find((d) => d.materiality === "High") ??
+      trendingDiffs[0] ??
+      recentDiffs.find((d) => d.materiality === "High") ??
+      recentDiffs[0] ??
+      null
     );
-  }, [recentDiffs]);
+  }, [recentDiffs, trendingRank]);
 
   const featuredInsiderBuy = useMemo(() => {
     const buys = recentInsiders.filter((i) => i.transactionType === "Buy");
+    const trendingBuys = buys
+      .filter((b) => trendingRank.has(b.ticker))
+      .sort(
+        (a, b) =>
+          (trendingRank.get(a.ticker) ?? 99) - (trendingRank.get(b.ticker) ?? 99) ||
+          b.totalValue - a.totalValue
+      );
     return (
-      [...buys].sort((a, b) => b.totalValue - a.totalValue)[0] ?? null
+      trendingBuys[0] ??
+      [...buys].sort((a, b) => b.totalValue - a.totalValue)[0] ??
+      null
     );
-  }, [recentInsiders]);
+  }, [recentInsiders, trendingRank]);
 
   const featuredExpectation = useMemo(() => {
+    const usedTickers = new Set([
+      featuredDiff?.ticker,
+      featuredInsiderBuy?.ticker,
+    ]);
+    const trendingCandidates = leaderboardEligible
+      .filter(
+        (c) =>
+          trendingRank.has(c.ticker) &&
+          !usedTickers.has(c.ticker) &&
+          c.impliedCagr > 0 &&
+          c.impliedCagr < 60
+      )
+      .sort(
+        (a, b) =>
+          (trendingRank.get(a.ticker) ?? 99) - (trendingRank.get(b.ticker) ?? 99)
+      );
     return (
+      trendingCandidates[0] ??
       [...leaderboardEligible]
         .filter((c) => c.marketCap >= 50_000 && c.impliedCagr > 0 && c.impliedCagr < 60)
-        .sort((a, b) => b.impliedCagr - a.impliedCagr)[0] ?? null
+        .sort((a, b) => b.impliedCagr - a.impliedCagr)[0] ??
+      null
     );
-  }, [leaderboardEligible]);
+  }, [leaderboardEligible, trendingRank, featuredDiff, featuredInsiderBuy]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -378,12 +423,12 @@ export function SignalIndex({
           </div>
         </section>
 
-        {/* Recent Filings & Insider Activity */}
+        {/* Trending Filings & Insider Activity */}
         {!initialLensId && (featuredDiff || featuredInsiderBuy || featuredExpectation) && (
-          <section aria-label="Latest filings and insider activity" className="mt-7">
+          <section aria-label="Trending filings and insider activity" className="mt-7">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                Latest Filings &amp; Insider Activity
+                Trending Filings &amp; Insider Activity
               </h2>
               <Link
                 href="/feed"

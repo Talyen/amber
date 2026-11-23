@@ -204,17 +204,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Prevent awkward 1-2 word orphan line wraps on headings and body copy */
+/* Prevent awkward 1-3 word orphan line wraps site-wide */
 h1,
 h2,
 h3,
-h4 {
+h4,
+h5,
+h6,
+figcaption {
+  text-wrap: balance;
+}
+
+section > p,
+header > p {
   text-wrap: balance;
 }
 
 p,
 li,
-dd {
+dd,
+blockquote {
   text-wrap: pretty;
 }
 

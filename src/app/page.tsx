@@ -4,20 +4,23 @@ import {
   getRecentMarketInsiders,
   getSearchIndex,
 } from "@/data/repository";
+import { getTrendingTickers } from "@/lib/trending";
 
-export const revalidate = 3600;
+export const revalidate = 900;
 
 export default async function HomePage() {
-  const [entries, recentDiffs, recentInsiders] = await Promise.all([
+  const [entries, recentDiffs, recentInsiders, trending] = await Promise.all([
     getSearchIndex(),
-    getRecentFilingDiffs(30),
+    getRecentFilingDiffs(60),
     getRecentMarketInsiders(),
+    getTrendingTickers(),
   ]);
   return (
     <SignalIndex
       entries={entries}
       recentDiffs={recentDiffs}
       recentInsiders={recentInsiders}
+      trendingTickers={trending.map((t) => t.ticker)}
     />
   );
 }
