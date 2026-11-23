@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Check,
   GitCompareArrows,
@@ -16,6 +16,7 @@ import {
 import { AmberLogo } from "@/components/AmberLogo";
 import { AuthButton } from "@/components/AuthButton";
 import { CommandSearch } from "@/components/CommandSearch";
+import { setTheme, useSystemDark, useTheme } from "@/lib/theme";
 
 interface TopNavProps {
   activeTicker?: string;
@@ -46,34 +47,9 @@ const NAV_LINKS: Array<{
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
   const currentRoute = activeRoute ?? (activeTicker ? "ticker" : "index");
   const [copied, setCopied] = useState(false);
-  const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
-  const [systemDark, setSystemDark] = useState(false);
-  const [themeMounted, setThemeMounted] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setSystemDark(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
-    mq.addEventListener("change", onChange);
-
-    const saved = window.localStorage.getItem("amber-theme");
-    if (saved === "light" || saved === "dark") {
-      setTheme(saved);
-      document.documentElement.dataset.theme = saved;
-    }
-    setThemeMounted(true);
-
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  const isDark = theme === "system" ? systemDark : theme === "dark";
-
-  function toggleTheme() {
-    const next = isDark ? "light" : "dark";
-    setTheme(next);
-    document.documentElement.dataset.theme = next;
-    window.localStorage.setItem("amber-theme", next);
-  }
+  const theme = useTheme();
+  const systemDark = useSystemDark();
+  const isDark = theme === "dark" || (theme === "system" && systemDark);
 
   async function handleCopyLink() {
     const url = window.location.href;
@@ -153,11 +129,11 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
 
           <button
             type="button"
-            onClick={toggleTheme}
+            onClick={() => setTheme(isDark ? "light" : "dark")}
             aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
           >
-            {themeMounted ? (
+            {theme !== null ? (
               isDark ? (
                 <Sun className="h-3.5 w-3.5" />
               ) : (

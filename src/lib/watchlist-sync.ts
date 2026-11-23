@@ -1,6 +1,7 @@
 export interface SavedWatchlist {
   owner: string | null;
   tickers: string[];
+  guestTickers?: string[];
 }
 
 interface WatchlistEdit {
@@ -14,6 +15,7 @@ interface WatchlistSession {
   userId: string;
   controller: AbortController;
   confirmed: string[];
+  guestTickers: string[] | undefined;
   pending: WatchlistEdit[];
   queue: Promise<void>;
   loading: boolean;
@@ -37,8 +39,24 @@ export function createWatchlistSync({
 
   function publish(current: WatchlistSession) {
     if (session === current) {
-      write({ owner: current.userId, tickers: current.pending.reduce(applyEdit, current.confirmed) });
+      write({
+        owner: current.userId,
+        tickers: current.pending.reduce(applyEdit, current.confirmed),
+        ...(current.guestTickers ? { guestTickers: current.guestTickers } : {}),
+      });
     }
+  }
+
+  async function refresh(current: WatchlistSession) {
+    const { controller: { signal }, guestTickers } = current;
+    const remote = await request(signal);
+    signal.throwIfAborted();
+    const confirmed = remote.length === 0 && guestTickers
+      ? await request(signal, { tickers: guestTickers.slice(0, 30) })
+      : remote;
+    signal.throwIfAborted();
+    current.confirmed = confirmed;
+    current.guestTickers = undefined;
   }
 
   function connect(userId: string | null) {
@@ -46,17 +64,20 @@ export function createWatchlistSync({
     if (!userId) {
       session?.controller.abort();
       session = null;
-      if (cached.owner !== null) write({ owner: null, tickers: [] });
+      if (cached.owner !== null) write({ owner: null, tickers: cached.guestTickers ?? [] });
       return;
     }
 
     if (session?.userId !== userId) {
       session?.controller.abort();
-      const confirmed = cached.owner === null || cached.owner === userId ? cached.tickers : [];
+      const guest = cached.owner === null ? cached.tickers : cached.guestTickers;
+      const guestTickers = guest?.length ? guest : undefined;
+      const confirmed = guestTickers ?? (cached.owner === userId ? cached.tickers : []);
       session = {
         userId,
         controller: new AbortController(),
         confirmed,
+        guestTickers,
         pending: [],
         queue: Promise.resolve(),
         loading: false,
@@ -71,11 +92,7 @@ export function createWatchlistSync({
       const { signal } = current.controller;
       try {
         if (signal.aborted) return;
-        const remote = await request(signal);
-        if (signal.aborted) return;
-        current.confirmed = remote.length === 0 && cached.owner === null && cached.tickers.length > 0
-          ? await request(signal, { tickers: cached.tickers.slice(0, 30) })
-          : remote;
+        await refresh(current);
         publish(current);
       } catch {
         // Preserve the current cache and let later sync attempts retry.
@@ -103,11 +120,18 @@ export function createWatchlistSync({
     current.queue = current.queue.then(async () => {
       const { signal } = current.controller;
       if (signal.aborted) return;
+      let submitted = false;
       try {
+        if (current.guestTickers) {
+          await refresh(current);
+          publish(current);
+        }
+        signal.throwIfAborted();
+        submitted = true;
         current.confirmed = await request(signal, edit);
       } catch {
         // The write may have reached the server before the response failed.
-        if (!signal.aborted) {
+        if (submitted && !signal.aborted) {
           try {
             current.confirmed = await request(signal);
           } catch {

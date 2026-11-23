@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseOpenInsiderHtml, parseSecForm4Xml } from "../scripts/ingest-form4.ts";
+import { fetchInsiderBatch, parseOpenInsiderHtml, parseSecForm4Xml } from "../scripts/ingest-form4.ts";
 
 const accession = "0000000100-26-000001";
 const filingDate = "2026-11-20";
@@ -50,4 +50,35 @@ test("OpenInsider aggregation rounds after combining the original fill values", 
   assert.equal(trades[0].shares, 2000);
   assert.equal(trades[0].totalValue, 0.051);
   assert.equal(trades[0].pricePerShare, 25.45);
+});
+
+test("an unsuccessful sell request preserves buys and falls back only for sales", async (t) => {
+  const buy = {
+    id: "EXAMPLE:buy",
+    ticker: "EXAMPLE",
+    filingDate,
+    insiderName: "Example Person",
+    insiderTitle: "Director",
+    transactionType: "Buy" as const,
+    shares: 1000,
+    pricePerShare: 100,
+    totalValue: 0.1,
+    accessionNumber: accession,
+  };
+  const sell = { ...buy, id: "EXAMPLE:sell", transactionType: "Sell" as const };
+  const fetchMarket = async (type: "Buy" | "Sell") => {
+    if (type === "Sell") throw new Error("OpenInsider sales unavailable");
+    return [buy];
+  };
+
+  assert.deepEqual(await fetchInsiderBatch(fetchMarket, async () => []), [buy]);
+  const warn = t.mock.method(console, "warn", () => {});
+  assert.deepEqual(await fetchInsiderBatch(fetchMarket, async () => {
+    throw new Error("SEC unavailable");
+  }), [buy]);
+  assert.equal(warn.mock.callCount(), 1);
+  assert.deepEqual(
+    await fetchInsiderBatch(fetchMarket, async () => [{ ...buy, shares: 1 }, sell]),
+    [buy, sell],
+  );
 });

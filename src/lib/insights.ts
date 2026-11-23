@@ -1,7 +1,9 @@
 import {
   type CompanySnapshot,
   type ComputedAnnual,
+  computeLatestRevenueGrowth,
   computeNetDilutionCagr,
+  computeRevenueCagr,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -37,26 +39,6 @@ export interface CompanyBriefingData {
   realityCheckSummary: string;
   pillars: BriefingPillar[];
   standouts: StandoutInsight[];
-}
-
-export function computeRevenueCagr(annuals: CompanySnapshot["annuals"]): number {
-  const fy = annuals.filter((a) => a.fiscalYear !== "TTM");
-  if (fy.length < 2 || fy[0].revenue <= 0) return 0;
-  const first = fy[0].revenue;
-  const last = fy[fy.length - 1].revenue;
-  const years = fy.length - 1;
-  return (Math.pow(last / first, 1 / years) - 1) * 100;
-}
-
-export function computeLatestRevenueGrowth(
-  annuals: CompanySnapshot["annuals"]
-): number | null {
-  const fy = annuals.filter((a) => a.fiscalYear !== "TTM");
-  if (fy.length < 2) return null;
-  const prev = fy[fy.length - 2].revenue;
-  const curr = fy[fy.length - 1].revenue;
-  if (prev <= 0) return null;
-  return ((curr - prev) / prev) * 100;
 }
 
 export function buildCompanyBriefing(

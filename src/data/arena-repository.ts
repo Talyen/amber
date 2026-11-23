@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { arenaPortfolios, arenaPositions, arenaRebalances, companies } from "@/db/schema";
 import { getSearchIndex } from "@/data/repository";
 import type { SearchIndexEntry } from "@/data/search-index";
-import { arenaEquityWindow, buildArenaEquityCurve } from "@/lib/arena-equity";
+import { arenaBenchmark, arenaPerformanceWindow, buildArenaPerformance } from "@/lib/arena-equity";
 
 export type { EquityCurvePoint } from "@/lib/arena-equity";
 
@@ -372,76 +372,117 @@ export async function getSpyBenchmarks(): Promise<Record<string, number>> {
   return await cachedFetch();
 }
 
-async function fetchEquityCurveFromYahoo(
-  positions: Array<{ ticker: string; weightPct: number }>,
-  { start, end, monthly }: NonNullable<ReturnType<typeof arenaEquityWindow>>
-) {
-  try {
-    const query = new URLSearchParams({
-      period1: String(start),
-      period2: String(end),
-      interval: "1d",
+const SECONDS_PER_DAY = 86_400;
+
+async function fetchDailyCloses(ticker: string, start: number, end: number) {
+  const query = new URLSearchParams({
+    period1: String(start),
+    period2: String(end),
+    interval: "1d",
+  });
+  const symbol = encodeURIComponent(ticker.replace(/\./g, "-"));
+  const response = await fetch(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?${query}`,
+    {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)" },
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
+  if (!response.ok) throw new Error(`Missing daily closes for ${ticker}`);
+  const { chart } = await response.json() as {
+    chart?: { result?: Array<{
+      timestamp?: number[];
+      indicators?: {
+        adjclose?: Array<{ adjclose?: Array<number | null> }>;
+        quote?: Array<{ close?: Array<number | null> }>;
+      };
+    }> };
+  };
+  const result = chart?.result?.[0];
+  const timestamps = result?.timestamp;
+  if (!timestamps?.length) throw new Error(`Empty daily closes for ${ticker}`);
+
+  const toSeries = (closes: Array<number | null> = []): Array<[string, number]> => {
+    return timestamps.flatMap((timestamp, index) => {
+      const price = closes[index];
+      if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return [];
+      return [[new Date(timestamp * 1000).toISOString().slice(0, 10), price]];
     });
-    const tickers = [...new Set([...positions.map((p) => p.ticker), "SPY"])];
-    const seriesByTicker = new Map<string, Map<string, number>>();
+  };
 
-    await Promise.all(
-      tickers.map(async (ticker) => {
-        try {
-          const sym = ticker.replace(/\./g, "-");
-          const res = await fetch(
-            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?${query}`,
-            { headers: { "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)" } }
-          );
-          if (!res.ok) return;
-          const json = (await res.json()) as {
-            chart?: {
-              result?: Array<{
-                timestamp?: number[];
-                indicators?: {
-                  adjclose?: Array<{ adjclose?: Array<number | null> }>;
-                  quote?: Array<{ close?: Array<number | null> }>;
-                };
-              }>;
-            };
-          };
-          const r = json.chart?.result?.[0];
-          const ts = r?.timestamp ?? [];
-          const closes =
-            r?.indicators?.adjclose?.[0]?.adjclose ??
-            r?.indicators?.quote?.[0]?.close ??
-            [];
-          const map = new Map<string, number>();
-          for (let i = 0; i < ts.length; i++) {
-            const c = closes[i];
-            if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
-            const date = new Date(ts[i] * 1000).toISOString().slice(0, 10);
-            map.set(date, c);
-          }
-          seriesByTicker.set(ticker, map);
-        } catch {
-          // Skip individual ticker fetch failure
-        }
-      })
-    );
-
-    return buildArenaEquityCurve(positions, seriesByTicker, { start, end, monthly });
-  } catch {
-    return [];
-  }
+  return {
+    raw: toSeries(result?.indicators?.quote?.[0]?.close),
+    adjusted: toSeries(result?.indicators?.adjclose?.[0]?.adjclose),
+  };
 }
 
-export async function getArenaEquityCurve(portfolio: ArenaPortfolioView) {
-  const window = arenaEquityWindow(portfolio);
-  if (!window) return [];
+const getSpyDailyCloses = unstable_cache(
+  (year: number) => fetchDailyCloses(
+    "SPY",
+    Date.UTC(year, 0, 1) / 1000 - 10 * SECONDS_PER_DAY,
+    Date.UTC(year + 1, 0, 1) / 1000,
+  ),
+  ["amber-arena-spy-daily-v1"],
+  { revalidate: 3600, tags: ["arena", "companies"] },
+);
+
+function performanceYear(window: NonNullable<ReturnType<typeof arenaPerformanceWindow>>) {
+  return new Date(window.start * 1000).getUTCFullYear();
+}
+
+export async function getArenaEntryBenchmarks(
+  portfolios: ArenaPortfolioView[],
+): Promise<Record<string, number>> {
+  const entries = portfolios.flatMap((portfolio) => {
+    const window = arenaPerformanceWindow(portfolio);
+    return window ? [{ id: portfolio.id, window }] : [];
+  });
+  const years = [...new Set(entries.map(({ window }) => performanceYear(window)))];
+  const results = await Promise.allSettled(years.map((year) => getSpyDailyCloses(year)));
+  const byYear = new Map(results.flatMap((result, index) => result.status === "fulfilled"
+    ? [[years[index], { raw: new Map(result.value.raw), adjusted: new Map(result.value.adjusted) }] as const]
+    : []));
+  const returnsByWindow = new Map<string, number | undefined>();
+  return Object.fromEntries(entries.flatMap(({ id, window }) => {
+    const key = `${window.start}/${window.end}/${window.isBot}`;
+    if (!returnsByWindow.has(key)) {
+      const series = byYear.get(performanceYear(window));
+      const closes = window.isBot ? series?.adjusted : series?.raw;
+      returnsByWindow.set(key, closes && arenaBenchmark(closes, window)?.spyReturn);
+    }
+    const benchmark = returnsByWindow.get(key);
+    return benchmark === undefined ? [] : [[id, benchmark]];
+  }));
+}
+
+async function fetchArenaPerformance(
+  positions: Array<{ ticker: string; weightPct: number; entryPrice: number }>,
+  window: NonNullable<ReturnType<typeof arenaPerformanceWindow>>,
+  score: { nav: number; totalReturnPct: number },
+) {
+  const tickers = [...new Set([...positions.map((p) => p.ticker), "SPY"])];
+  const quotes = await Promise.allSettled(tickers.map((ticker) => ticker === "SPY"
+    ? getSpyDailyCloses(performanceYear(window))
+    : fetchDailyCloses(ticker, window.start, window.end)));
+  const series = new Map(quotes.flatMap((result, index) => result.status === "fulfilled"
+    ? [[tickers[index], new Map(window.isBot ? result.value.adjusted : result.value.raw)] as const]
+    : []));
+  return buildArenaPerformance(positions, series, window, score);
+}
+
+export async function getArenaPerformance(portfolio: ArenaPortfolioView): Promise<ReturnType<typeof buildArenaPerformance>> {
+  const window = arenaPerformanceWindow(portfolio);
+  if (!window) return { curvePoints: [] };
 
   const cachedFetch = unstable_cache(
-    fetchEquityCurveFromYahoo,
-    ["amber-arena-curve-v2", portfolio.id],
-    { revalidate: 3600, tags: ["arena"] }
+    fetchArenaPerformance,
+    ["amber-arena-scorecard-v2", portfolio.id],
+    { revalidate: 3600, tags: ["arena", "companies"] }
   );
-  const positions = portfolio.positions.map(({ ticker, weightPct }) => ({ ticker, weightPct }));
-  return await cachedFetch(positions, window);
+  const positions = window.includeHoldings
+    ? portfolio.positions.map(({ ticker, weightPct, entryPrice }) => ({ ticker, weightPct, entryPrice }))
+    : [];
+  return await cachedFetch(positions, window, { nav: portfolio.nav, totalReturnPct: portfolio.totalReturnPct });
 }
 
 export async function getArenaPortfoliosByHandle(

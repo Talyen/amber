@@ -14,14 +14,17 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { setTimeout as sleep } from "node:timers/promises";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { filingDiffs } from "../src/db/schema.ts";
+import { filingCutoffDate, MATERIAL_EVENT_LOOKBACK_DAYS } from "../src/lib/filing-lookback.ts";
 
 const USER_AGENT =
   process.env.SEC_USER_AGENT || "AmberFinance research@amber.example";
 const MAX_TICKERS = Number(process.env.MAX_8K_TICKERS || "650");
-const LOOKBACK_DAYS = Number(process.env.LOOKBACK_8K_DAYS || "120");
+const LOOKBACK_DAYS = Number(process.env.LOOKBACK_8K_DAYS || MATERIAL_EVENT_LOOKBACK_DAYS);
 const REQUEST_DELAY_MS = 135; // Stay comfortably under SEC EDGAR 10 req/sec limit
 
 interface HighSignalItemMeta {
@@ -87,10 +90,6 @@ const HIGH_SIGNAL_ITEMS: Record<string, HighSignalItemMeta> = {
   },
 };
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 interface SubmissionsJson {
   filings?: {
     recent?: {
@@ -101,6 +100,34 @@ interface SubmissionsJson {
       primaryDocDescription?: string[];
     };
   };
+}
+
+export async function fetch8KSubmissions(
+  cik: string,
+  wait: (ms: number) => Promise<void> = sleep,
+): Promise<SubmissionsJson> {
+  for (let attempt = 0; ; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`, {
+        headers: { "User-Agent": USER_AGENT },
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch (error) {
+      if (attempt >= 2) throw error;
+      await wait(500 * 2 ** attempt);
+      continue;
+    }
+    if (response.ok) {
+      const data = await response.json() as SubmissionsJson;
+      if (!Array.isArray(data.filings?.recent?.form)) throw new Error("Missing SEC submissions");
+      return data;
+    }
+    if ((response.status !== 429 && response.status < 500) || attempt >= 2) {
+      throw new Error(`SEC submissions returned HTTP ${response.status}`);
+    }
+    await wait(500 * 2 ** attempt);
+  }
 }
 
 async function main() {
@@ -118,14 +145,14 @@ async function main() {
     Array.isArray(raw) ? raw : Object.values(raw);
   const targets = list.slice(0, MAX_TICKERS);
 
-  const cutoffDate = new Date(Date.now() - LOOKBACK_DAYS * 86400 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const cutoffDate = filingCutoffDate(new Date(), LOOKBACK_DAYS);
 
   const dbUrl = process.env.DATABASE_URL;
   const db = dbUrl ? drizzle(neon(dbUrl)) : null;
 
   let scanned = 0;
+  let failed = 0;
+  let writeFailures = 0;
   let foundEvents = 0;
 
   for (const company of targets) {
@@ -133,17 +160,8 @@ async function main() {
     if (!paddedCik || paddedCik === "0000000000") continue;
 
     try {
-      const res = await fetch(
-        `https://data.sec.gov/submissions/CIK${paddedCik}.json`,
-        { headers: { "User-Agent": USER_AGENT } }
-      );
+      const data = await fetch8KSubmissions(paddedCik);
       scanned++;
-      if (!res.ok) {
-        await sleep(REQUEST_DELAY_MS);
-        continue;
-      }
-
-      const data = (await res.json()) as SubmissionsJson;
       const recent = data.filings?.recent;
       const forms = recent?.form ?? [];
       const dates = recent?.filingDate ?? [];
@@ -172,6 +190,7 @@ async function main() {
         const primary =
           matched.find((m) => m.materiality === "High") ?? matched[0];
         const accn = accns[i];
+        if (!accn) continue;
         const itemCodes = matched.map((m) => `Item ${m.code}`).join(", ");
         const id = `${company.ticker}:8K:${accn}`;
 
@@ -200,35 +219,42 @@ async function main() {
       }
 
       if (rowsToUpsert.length > 0 && db) {
-        for (const row of rowsToUpsert) {
-          await db
-            .insert(filingDiffs)
-            .values(row)
-            .onConflictDoUpdate({
-              target: filingDiffs.id,
-              set: {
-                headline: row.headline,
-                summary: row.summary,
-                signalNote: row.signalNote,
-                materiality: row.materiality,
-              },
-            });
+        try {
+          for (const row of rowsToUpsert) {
+            await db
+              .insert(filingDiffs)
+              .values(row)
+              .onConflictDoUpdate({
+                target: filingDiffs.id,
+                set: {
+                  headline: row.headline,
+                  summary: row.summary,
+                  signalNote: row.signalNote,
+                  materiality: row.materiality,
+                },
+              });
+          }
+        } catch {
+          writeFailures++;
+          console.error(`[ingest:8k] Could not save events for ${company.ticker}.`);
+          continue;
         }
       }
       foundEvents += rowsToUpsert.length;
-    } catch {
-      // Skip individual ticker network errors cleanly
+    } catch (error) {
+      failed++;
+      console.warn(`[ingest:8k] ${company.ticker} scan failed:`, error);
+    } finally {
+      await sleep(REQUEST_DELAY_MS);
     }
-
-    await sleep(REQUEST_DELAY_MS);
   }
 
   console.log(
-    `[ingest:8k] Scanned ${scanned} tickers, captured ${foundEvents} high-signal 8-K events (cutoff ${cutoffDate}).`
+    `[ingest:8k] Scanned ${scanned} tickers, captured ${foundEvents} high-signal 8-K events (cutoff ${cutoffDate}, ${failed} scan failures, ${writeFailures} write failures).`
   );
+  if (scanned === 0 || writeFailures > 0) throw new Error("8-K ingestion did not complete successfully.");
 }
 
-main().catch((err) => {
-  console.error("[ingest:8k] Fatal error:", err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

@@ -10,7 +10,8 @@ import { formatPct } from "@/lib/finance";
 
 interface ArenaLeaderboardProps {
   portfolios: ArenaPortfolioView[];
-  benchmarks?: Record<string, number>;
+  benchmarks: Record<string, number>;
+  entryBenchmarks: Record<string, number>;
 }
 
 type Timeframe = "monthly" | "yearly" | "all";
@@ -39,7 +40,8 @@ function formatMonthKey(ym: string): string {
 
 export function ArenaLeaderboard({
   portfolios,
-  benchmarks = {},
+  benchmarks,
+  entryBenchmarks,
 }: ArenaLeaderboardProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -120,7 +122,7 @@ export function ArenaLeaderboard({
     (timeframe === "monthly" && selectedMonth !== availableMonths[0]) ||
     (timeframe === "yearly" && selectedYear !== availableYears[0]);
 
-  // Only compare against a single-period SPY benchmark on Monthly/Yearly views (never mismatch All-Time vs 1Y SPY)
+  // Keep the calendar-period benchmark in the header.
   const activeBenchmarkKey =
     timeframe === "monthly"
       ? selectedMonth
@@ -128,6 +130,7 @@ export function ArenaLeaderboard({
         ? selectedYear
         : null;
   const spyBenchmark = activeBenchmarkKey ? benchmarks[activeBenchmarkKey] : undefined;
+  const rowBenchmarks = activeBenchmarkKey ? entryBenchmarks : {};
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -334,8 +337,8 @@ export function ArenaLeaderboard({
                           Period Winner
                         </span>
                       )}
-                      {typeof spyBenchmark === "number" &&
-                        p.totalReturnPct > spyBenchmark && (
+                      {typeof rowBenchmarks[p.id] === "number" &&
+                        p.totalReturnPct > rowBenchmarks[p.id] && (
                           <span className="inline-flex rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--positive)] ring-1 ring-inset ring-[var(--border)]">
                             Beat SPY
                           </span>
@@ -418,9 +421,9 @@ export function ArenaLeaderboard({
                     >
                       {formatPct(p.totalReturnPct, true)}
                     </div>
-                    {typeof spyBenchmark === "number" && (
+                    {typeof rowBenchmarks[p.id] === "number" && (
                       <div className="font-mono-num mt-0.5 text-[11px] text-[var(--text-muted)]">
-                        {formatPct(p.totalReturnPct - spyBenchmark, true)} vs SPY
+                        {formatPct(p.totalReturnPct - rowBenchmarks[p.id], true)} vs SPY
                       </div>
                     )}
                   </div>

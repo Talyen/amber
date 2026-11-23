@@ -19,6 +19,7 @@ import { sql } from "drizzle-orm";
 import { companies as companiesTable, insiderTrades } from "../src/db/schema.ts";
 import type { CompanySnapshot } from "../src/lib/finance.ts";
 import type { InsiderTradeItem } from "../src/components/InsiderRadar.tsx";
+import { INSIDER_BUY_LOOKBACK_DAYS } from "../src/lib/filing-lookback.ts";
 
 const SEC_USER_AGENT =
   process.env.SEC_USER_AGENT ?? "AmberFinance research@amber.example";
@@ -145,7 +146,7 @@ async function fetchOpenInsiderBatch(
   const s = tickers.join("+");
   const filterParam =
     txType === "Buy"
-      ? "fd=365&xp=1&vl=25" // Open-market purchases >= $25K over last 365 days
+      ? `fd=${INSIDER_BUY_LOOKBACK_DAYS}&xp=1&vl=25`
       : "fd=180&xs=1&vl=100"; // Open-market sales >= $100K over last 180 days
   const url = `http://openinsider.com/screener?s=${s}&o=&pl=&ph=&ll=&lh=&${filterParam}&fdr=&td=0&tdr=&fdlyl=&fdlyh=&daysago=&vh=&ocl=&och=&sic1=-1&sicl=100&sich=9999&grp=0&nfl=&nfh=&nil=&nih=&nol=&noh=&v2l=&v2h=&oc2l=&oc2h=&sortcol=0&cnt=300&page=1`;
 
@@ -263,6 +264,25 @@ async function fetchSecForm4Fallback(
   return out;
 }
 
+export async function fetchInsiderBatch(
+  fetchMarket: (type: InsiderTrade["transactionType"]) => Promise<InsiderTrade[]>,
+  fetchFallback: () => Promise<InsiderTrade[]>
+) {
+  const types = ["Buy", "Sell"] as const;
+  const results = await Promise.allSettled(types.map(fetchMarket));
+  const failedTypes = new Set(types.filter((_, i) => results[i].status === "rejected"));
+  const trades = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  if (failedTypes.size > 0) {
+    try {
+      const fallback = await fetchFallback();
+      trades.push(...fallback.filter((trade) => failedTypes.has(trade.transactionType)));
+    } catch (error) {
+      console.warn("[amber-form4] SEC fallback failed:", error);
+    }
+  }
+  return trades;
+}
+
 async function run() {
   const outDir = path.resolve(process.cwd(), "src/data/generated");
   const companiesPath = path.join(outDir, "companies.json");
@@ -314,22 +334,18 @@ async function run() {
   const batchSize = 65;
   for (let i = 0; i < allTickers.length; i += batchSize) {
     const batch = allTickers.slice(i, i + batchSize);
-    try {
-      const [buys, sells] = await Promise.all([
-        fetchOpenInsiderBatch(batch, validSet, "Buy"),
-        fetchOpenInsiderBatch(batch, validSet, "Sell"),
-      ]);
-      for (const b of buys) byId.set(b.id, b);
-      for (const s of sells) byId.set(s.id, s);
-    } catch {
-      // Fallback to direct SEC EDGAR Form 4 XML for top tickers in this batch
-      for (const t of batch.slice(0, 10)) {
-        const cik = cikByTicker.get(t);
-        if (!cik) continue;
-        const xmlTrades = await fetchSecForm4Fallback(t, cik);
-        for (const x of xmlTrades) byId.set(x.id, x);
-      }
-    }
+    const trades = await fetchInsiderBatch(
+      (type) => fetchOpenInsiderBatch(batch, validSet, type),
+      async () => {
+        const fallback: InsiderTrade[] = [];
+        for (const t of batch.slice(0, 10)) {
+          const cik = cikByTicker.get(t);
+          if (cik) fallback.push(...await fetchSecForm4Fallback(t, cik));
+        }
+        return fallback;
+      },
+    );
+    for (const trade of trades) byId.set(trade.id, trade);
     await new Promise((r) => setTimeout(r, 150));
   }
 

@@ -5,7 +5,10 @@ import {
   computeEnterpriseValue,
   computeFiveYearScenario,
   computeGroundedDefaultDcf,
+  computeLatestRevenueGrowth,
   computeNetDilutionCagr,
+  computeRevenueCagr,
+  reverseDcfTargetMargin,
   solveReverseDcf,
   type AnnualFinancials,
   type CompanySnapshot,
@@ -96,6 +99,33 @@ describe("Amber finance engine", () => {
     );
     assert.equal(withTtm, fyOnly);
     assert.ok(withTtm < -1.9 && withTtm > -2.2);
+  });
+
+  it("annualizes changes across missing fiscal years", () => {
+    const annuals = [
+      { ...sampleAnnuals[0], fiscalYear: "FY2021", revenue: 100, dilutedShares: 100 },
+      { ...sampleAnnuals[3], fiscalYear: "FY24", revenue: 133.1, dilutedShares: 72.9 },
+      sampleAnnuals[4],
+    ];
+    assert.ok(Math.abs(computeRevenueCagr(annuals) - 10) < 1e-10);
+    assert.ok(Math.abs(computeNetDilutionCagr(annuals) + 10) < 1e-10);
+    assert.equal(computeLatestRevenueGrowth(annuals), null);
+    assert.equal(computeAnnualMetrics(annuals)[1].yoyShareChangePct, null);
+    assert.equal(computeLatestRevenueGrowth(sampleAnnuals), (2500 / 14500) * 100);
+  });
+
+  it("displays the same minimum target margin that Reverse DCF models", () => {
+    const targetTrueFcfMarginPct = reverseDcfTargetMargin(2, 0.5);
+    const result = solveReverseDcf({
+      enterpriseValue: 100,
+      baseRevenue: 100,
+      waccPct: 9.5,
+      terminalMultiple: 15,
+      targetTrueFcfMarginPct,
+      currentTrueFcfMarginPct: 5,
+    });
+    assert.equal(targetTrueFcfMarginPct, 2);
+    assert.ok(Math.abs(result.year10TrueFcf / result.year10Revenue * 100 - targetTrueFcfMarginPct) < 1e-10);
   });
 
   it("handles negative EV cleanly in solveReverseDcf without crashing or clamping to -25%", () => {

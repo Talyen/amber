@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { cancelPendingConfirmation, requestAlertConfirmation, saveVerifiedAlert } from "@/data/alert-subscriptions";
 import { getDb } from "@/db";
 import { alertSubscriptions, companies } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { alertActionUrl, defaultAlertSender, escapeAlertHtml, filingAlertEmailIsVerified, sendAlertEmail } from "@/lib/alert-email";
+import { SITE_URL } from "@/lib/site";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TICKER_RE = /^[A-Z0-9.-]{1,10}$/;
@@ -44,7 +47,7 @@ export async function GET(request: Request) {
         createdAt: alertSubscriptions.createdAt,
       })
       .from(alertSubscriptions)
-      .where(eq(alertSubscriptions.email, email))
+      .where(and(eq(alertSubscriptions.email, email), isNull(alertSubscriptions.confirmationExpiresAt)))
       .orderBy(desc(alertSubscriptions.createdAt));
 
     return NextResponse.json({
@@ -68,20 +71,21 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  let sessionEmail: string | null = null;
+  let account: { email: string; emailVerified: boolean } | undefined;
   if (db) {
     try {
       const session = await getAuth().api.getSession({ headers: request.headers });
-      sessionEmail = session?.user?.email?.trim().toLowerCase() ?? null;
+      account = session?.user;
     } catch {
-      // Unauthenticated request
+      // Email confirmation is available without an authenticated session.
     }
   }
 
-  const email = String(body?.email ?? "").trim().toLowerCase() || sessionEmail || "";
-  const ticker = String(body?.ticker ?? "").trim().toUpperCase();
+  const providedEmail = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const email = providedEmail || account?.email.trim().toLowerCase() || "";
+  const ticker = typeof body?.ticker === "string" ? body.ticker.trim().toUpperCase() : "";
 
-  if (!EMAIL_RE.test(email)) {
+  if (email.length > 254 || !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: "Please enter a valid email address." },
       { status: 400 }
@@ -127,21 +131,48 @@ export async function POST(request: Request) {
     }
 
     const id = `${ticker}:${email}`;
-    await db
-      .insert(alertSubscriptions)
-      .values({ id, email, ticker })
-      .onConflictDoNothing();
-
-    return NextResponse.json(
-      {
+    if (filingAlertEmailIsVerified(email, account)) {
+      await saveVerifiedAlert(db, id, email, ticker);
+      return NextResponse.json({
         subscribed: true,
         ticker,
         message: `You're subscribed to ${ticker} 10-K & 10-Q filing alerts.`,
-      },
-      { status: 200 }
-    );
-  } catch (err) {
-    console.error("[amber-alerts] Failed to save subscription:", err);
+      });
+    }
+
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) {
+      return NextResponse.json(
+        { error: "Filing alert confirmation is temporarily unavailable. Please try again later." },
+        { status: 503 },
+      );
+    }
+
+    const token = await requestAlertConfirmation(db, id, email, ticker);
+    if (token) {
+      const link = escapeAlertHtml(alertActionUrl(SITE_URL, "confirm", token));
+      try {
+        await sendAlertEmail(resendKey, `filing-alert-confirm/${token}`, {
+          from: process.env.ALERT_FROM_EMAIL ?? defaultAlertSender,
+          to: [email],
+          subject: `Confirm Amber filing alerts for ${ticker}`,
+          html: `<p>Confirm that you want SEC filing alerts for ${ticker} from Amber.</p>
+            <p><a href="${link}">Confirm filing alerts</a></p>
+            <p>If you did not request this, you can ignore this email.</p>`,
+        });
+      } catch (error) {
+        await cancelPendingConfirmation(db, token);
+        throw error;
+      }
+    }
+
+    return NextResponse.json({
+      subscribed: false,
+      ticker,
+      message: "If confirmation is needed, you’ll receive a link by email.",
+    }, { status: 202 });
+  } catch {
+    console.error("[amber-alerts] Failed to save or confirm subscription.");
     return NextResponse.json(
       { error: "Could not save alert subscription. Please try again." },
       { status: 500 }

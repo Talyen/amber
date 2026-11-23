@@ -124,9 +124,8 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
   const [showAllDiffs, setShowAllDiffs] = useState(false);
-  const [headlines, setHeadlines] = useState<HeadlineItem[]>([]);
+  const [news, setNews] = useState<{ url: string; items: HeadlineItem[] } | null>(null);
   const [trending, setTrending] = useState<TrendingTickerItem[]>([]);
-  const [loadingNews, setLoadingNews] = useState(true);
   const [showAllHeadlines, setShowAllHeadlines] = useState(false);
   const hasWatchlist = watchlist.tickers.length > 0;
 
@@ -150,15 +149,13 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
     return `/api/watchlist-news?scope=market`;
   }, [watchlist.ready, selectedTicker, watchlistOnly, watchlist.tickers]);
 
+  const headlines = news?.url === newsQueryUrl ? news.items : [];
+  const loadingNews = newsQueryUrl !== null && news?.url !== newsQueryUrl;
+
   useEffect(() => {
-    if (!newsQueryUrl) {
-      setHeadlines([]);
-      setLoadingNews(false);
-      return;
-    }
-    let active = true;
-    setLoadingNews(true);
-    fetch(newsQueryUrl)
+    if (!newsQueryUrl) return;
+    const controller = new AbortController();
+    fetch(newsQueryUrl, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then(
         (
@@ -167,21 +164,18 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
             trending?: TrendingTickerItem[];
           } | null
         ) => {
-          if (!active) return;
-          if (Array.isArray(data?.items)) {
-            setHeadlines(data.items);
-          }
+          if (controller.signal.aborted) return;
+          setNews({ url: newsQueryUrl, items: Array.isArray(data?.items) ? data.items : [] });
           if (Array.isArray(data?.trending) && data.trending.length > 0) {
             setTrending(data.trending);
           }
-          setLoadingNews(false);
         }
       )
       .catch(() => {
-        if (active) setLoadingNews(false);
+        if (!controller.signal.aborted) setNews({ url: newsQueryUrl, items: [] });
       });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [newsQueryUrl]);
 

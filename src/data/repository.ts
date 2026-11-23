@@ -16,7 +16,10 @@ import {
   type SearchIndexEntry,
 } from "@/data/universe";
 import { buildSearchIndexEntry } from "@/data/search-index";
+import { queryInsiderBuySummaries, queryMaterialEventSummaries } from "@/data/filing-summaries";
 import type { CompanySnapshot, FilingDiffItem } from "@/lib/finance";
+
+export type { InsiderBuySummary, MaterialEventSummary } from "@/data/filing-summaries";
 
 async function queryCompanyFromDb(
   ticker: string
@@ -164,10 +167,34 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
 
   try {
     const [companyRows, annualRows] = await Promise.all([
-      db.select().from(companies).where(eq(companies.isActive, true)),
       db
-        .select()
+        .select({
+          ticker: companies.ticker,
+          name: companies.name,
+          exchange: companies.exchange,
+          sector: companies.sector,
+          marketCap: companies.marketCap,
+          cashAndEquiv: companies.cashAndEquiv,
+          totalDebt: companies.totalDebt,
+          defaultDcf: companies.defaultDcf,
+          lastFilingDate: companies.lastFilingDate,
+        })
+        .from(companies)
+        .where(eq(companies.isActive, true)),
+      db
+        .select({
+          ticker: annualFinancials.ticker,
+          fiscalYear: annualFinancials.fiscalYear,
+          revenue: annualFinancials.revenue,
+          operatingCashFlow: annualFinancials.operatingCashFlow,
+          capex: annualFinancials.capex,
+          sbc: annualFinancials.sbc,
+          buybacks: annualFinancials.buybacks,
+          dilutedShares: annualFinancials.dilutedShares,
+        })
         .from(annualFinancials)
+        .innerJoin(companies, eq(annualFinancials.ticker, companies.ticker))
+        .where(eq(companies.isActive, true))
         .orderBy(asc(annualFinancials.sortOrder)),
     ]);
 
@@ -601,58 +628,12 @@ export async function getInsiderTradesForTickers(
   }
 }
 
-export interface InsiderBuySummary {
-  ticker: string;
-  totalBuyValue: number;
-  buyCount: number;
-  latestBuyer: string;
-  latestTitle: string;
-  latestDate: string;
-}
-
-export interface MaterialEventSummary {
-  ticker: string;
-  headline: string;
-  section: string;
-  category: string;
-  filingDate: string;
-  eventCount: number;
-}
-
-export async function getInsiderBuySummaries(): Promise<
-  Record<string, InsiderBuySummary>
-> {
-  if (!process.env.DATABASE_URL) return {};
+export async function getInsiderBuySummaries() {
+  const db = getDb();
+  if (!db) return {};
   const cachedFetch = unstable_cache(
-    async () => {
-      const db = getDb();
-      if (!db) return {};
-      const rows = await db
-        .select()
-        .from(insiderTrades)
-        .where(eq(insiderTrades.transactionType, "Buy"))
-        .orderBy(desc(insiderTrades.filingDate), desc(insiderTrades.totalValue));
-
-      const map: Record<string, InsiderBuySummary> = {};
-      for (const r of rows) {
-        const existing = map[r.ticker];
-        if (!existing) {
-          map[r.ticker] = {
-            ticker: r.ticker,
-            totalBuyValue: r.totalValue,
-            buyCount: 1,
-            latestBuyer: r.insiderName,
-            latestTitle: r.insiderTitle,
-            latestDate: r.filingDate,
-          };
-        } else {
-          existing.totalBuyValue += r.totalValue;
-          existing.buyCount += 1;
-        }
-      }
-      return map;
-    },
-    ["amber-insider-buy-summaries-v1"],
+    () => queryInsiderBuySummaries(db, new Date()),
+    ["amber-insider-buy-summaries-v2"],
     { revalidate: 900, tags: ["insiders"] }
   );
   try {
@@ -662,39 +643,12 @@ export async function getInsiderBuySummaries(): Promise<
   }
 }
 
-export async function getMaterialEventSummaries(): Promise<
-  Record<string, MaterialEventSummary>
-> {
-  if (!process.env.DATABASE_URL) return {};
+export async function getMaterialEventSummaries() {
+  const db = getDb();
+  if (!db) return {};
   const cachedFetch = unstable_cache(
-    async () => {
-      const db = getDb();
-      if (!db) return {};
-      const rows = await db
-        .select()
-        .from(filingDiffs)
-        .where(eq(filingDiffs.filingType, "8-K"))
-        .orderBy(desc(filingDiffs.filingDate));
-
-      const map: Record<string, MaterialEventSummary> = {};
-      for (const r of rows) {
-        const existing = map[r.ticker];
-        if (!existing) {
-          map[r.ticker] = {
-            ticker: r.ticker,
-            headline: r.headline.replace(/\s*\(Item[^)]*\)\s*$/i, ""),
-            section: r.section,
-            category: r.category,
-            filingDate: r.filingDate,
-            eventCount: 1,
-          };
-        } else {
-          existing.eventCount += 1;
-        }
-      }
-      return map;
-    },
-    ["amber-material-event-summaries-v1"],
+    () => queryMaterialEventSummaries(db, new Date()),
+    ["amber-material-event-summaries-v2"],
     { revalidate: 900, tags: ["filings"] }
   );
   try {

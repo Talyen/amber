@@ -99,7 +99,7 @@ export function computeAnnualMetrics(
           : 0;
     const prev = idx > 0 ? annuals[idx - 1] : null;
     const yoyShareChangePct =
-      prev && prev.dilutedShares > 0
+      prev && prev.dilutedShares > 0 && (fiscalYearsBetween(prev, row) ?? 1) === 1
         ? ((row.dilutedShares - prev.dilutedShares) / prev.dilutedShares) * 100
         : null;
 
@@ -122,14 +122,50 @@ export function computeEnterpriseValue(company: EnterpriseValueInputs): number {
   return company.marketCap + company.totalDebt - company.cashAndEquiv;
 }
 
+function fiscalYearNumber(label: string) {
+  const year = /^FY(\d{2}|\d{4})$/i.exec(label)?.[1];
+  if (!year) return undefined;
+  return Number(year) + (year.length === 2 ? 2000 : 0);
+}
+
+function fiscalYearsBetween(first: AnnualFinancials, last: AnnualFinancials) {
+  const start = fiscalYearNumber(first.fiscalYear);
+  const end = fiscalYearNumber(last.fiscalYear);
+  return start !== undefined && end !== undefined && end > start ? end - start : undefined;
+}
+
+function computeFiscalCagr(
+  annuals: AnnualFinancials[],
+  metric: "revenue" | "dilutedShares"
+) {
+  const fiscal = annuals.filter((row) => row.fiscalYear !== "TTM");
+  if (fiscal.length < 2) return undefined;
+  const first = fiscal[0];
+  const last = fiscal[fiscal.length - 1];
+  if (
+    first[metric] <= 0 || last[metric] < 0 ||
+    (metric === "dilutedShares" && last.dilutedShares === 0)
+  ) return undefined;
+  const years = fiscalYearsBetween(first, last) ?? fiscal.length - 1;
+  return (Math.pow(last[metric] / first[metric], 1 / years) - 1) * 100;
+}
+
 export function computeNetDilutionCagr(annuals: AnnualFinancials[]): number {
-  const fy = annuals.filter((a) => a.fiscalYear !== "TTM");
-  if (fy.length < 2) return 0;
-  const first = fy[0].dilutedShares;
-  const last = fy[fy.length - 1].dilutedShares;
-  if (first <= 0 || last <= 0) return 0;
-  const years = fy.length - 1;
-  return (Math.pow(last / first, 1 / years) - 1) * 100;
+  return computeFiscalCagr(annuals, "dilutedShares") ?? 0;
+}
+
+export function computeRevenueCagr(annuals: AnnualFinancials[]): number {
+  return computeFiscalCagr(annuals, "revenue") ?? 0;
+}
+
+export function computeLatestRevenueGrowth(annuals: AnnualFinancials[]): number | null {
+  const fiscal = annuals.filter((row) => row.fiscalYear !== "TTM");
+  if (fiscal.length < 2) return null;
+  const previous = fiscal[fiscal.length - 2];
+  const current = fiscal[fiscal.length - 1];
+  const years = fiscalYearsBetween(previous, current);
+  if (previous.revenue <= 0 || (years !== undefined && years !== 1)) return null;
+  return ((current.revenue - previous.revenue) / previous.revenue) * 100;
 }
 
 /**
@@ -143,11 +179,7 @@ export function computeGroundedDefaultDcf(
   const computed = computeAnnualMetrics(annuals);
   const latest = computed[computed.length - 1];
 
-  const fy = annuals.filter((a) => a.fiscalYear !== "TTM");
-  const revCagr =
-    fy.length >= 2 && fy[0].revenue > 0
-      ? (Math.pow(fy[fy.length - 1].revenue / fy[0].revenue, 1 / (fy.length - 1)) - 1) * 100
-      : 6;
+  const revCagr = computeFiscalCagr(annuals, "revenue") ?? 6;
 
   const repMargins = computed
     .map((c) => c.reportedFcfMargin)
@@ -292,6 +324,10 @@ export function computeFiveYearScenario(
   };
 }
 
+function clampReverseDcfTargetMargin(marginPct: number) {
+  return Math.max(2, Math.min(65, marginPct));
+}
+
 export interface ReverseDcfInputs {
   enterpriseValue: number; // $M
   baseRevenue: number; // $M (latest FY)
@@ -323,7 +359,7 @@ function presentValueForGrowth(
   const n = inputs.horizonYears ?? 10;
   const r = inputs.waccPct / 100;
   const startMargin = Math.max(-0.35, Math.min(0.6, inputs.currentTrueFcfMarginPct / 100));
-  const endMargin = Math.max(0.02, Math.min(0.65, inputs.targetTrueFcfMarginPct / 100));
+  const endMargin = clampReverseDcfTargetMargin(inputs.targetTrueFcfMarginPct) / 100;
 
   let cfPv = 0;
   let rev = inputs.baseRevenue;
@@ -399,7 +435,7 @@ export function solveReverseDcf(inputs: ReverseDcfInputs): ReverseDcfResult {
 }
 
 export function reverseDcfTargetMargin(targetFcfMargin: number, sbcDragPct: number): number {
-  return Math.max(1.5, targetFcfMargin - sbcDragPct);
+  return clampReverseDcfTargetMargin(targetFcfMargin - sbcDragPct);
 }
 
 export function computeCompanyValuation(

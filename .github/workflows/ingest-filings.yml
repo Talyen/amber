@@ -62,6 +62,8 @@ jobs:
         run: node --experimental-strip-types scripts/close-arena-month.ts
 
       - name: Sync High-Signal SEC Form 8-K Material Events
+        id: ingest_8k
+        continue-on-error: true
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -74,6 +76,8 @@ jobs:
         run: pnpm ingest:form4
 
       - name: Dispatch Filing Alerts via Resend (when configured)
+        id: send_alerts
+        continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -93,3 +97,7 @@ jobs:
           else
             echo "Skipping ISR revalidation (REVALIDATE_SECRET or AMBER_PROD_URL not set)."
           fi
+
+      - name: Report incomplete filing ingestion or alert delivery
+        if: ${{ !cancelled() && (steps.ingest_8k.outcome == 'failure' || steps.send_alerts.outcome == 'failure') }}
+        run: exit 1

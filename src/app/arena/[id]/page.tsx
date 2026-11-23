@@ -3,9 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, PieChart, RefreshCw } from "lucide-react";
 import {
-  getArenaEquityCurve,
+  getArenaPerformance,
   getArenaPortfolioById,
-  getSpyBenchmarks,
 } from "@/data/arena-repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -39,14 +38,10 @@ export default async function ArenaDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [portfolio, benchmarks] = await Promise.all([
-    getArenaPortfolioById(id),
-    getSpyBenchmarks(),
-  ]);
+  const portfolio = await getArenaPortfolioById(id);
   if (!portfolio) notFound();
 
-  const spyReturn = benchmarks[portfolio.periodKey];
-  const curvePoints = await getArenaEquityCurve(portfolio);
+  const { spyReturn, curvePoints } = await getArenaPerformance(portfolio);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">

@@ -76,3 +76,38 @@ test("late responses cannot apply to a different signed-in account", async () =>
   assert.equal(fixture.requests.length, 2);
   assert.deepEqual(fixture.snapshot(), { owner: "next", tickers: [] });
 });
+
+test("a queued edit retries the guest import before making a signed-in change", async () => {
+  const fixture = watchlistFixture({ owner: null, tickers: ["AAPL", "MSFT"] });
+  fixture.connect("account");
+  fixture.toggle("NVDA", "account");
+  await setImmediate();
+  fixture.requests[0].response.reject(new Error("first read failed"));
+  await setImmediate();
+  assert.equal(fixture.requests[1].mutation, undefined);
+  fixture.requests[1].response.resolve([]);
+  await setImmediate();
+  assert.deepEqual(fixture.requests[2].mutation, { tickers: ["AAPL", "MSFT"] });
+  fixture.requests[2].response.resolve(["AAPL", "MSFT"]);
+  await setImmediate();
+  assert.deepEqual(fixture.requests[3].mutation, { ticker: "NVDA", action: "add" });
+  fixture.requests[3].response.resolve(["NVDA", "AAPL", "MSFT"]);
+  await setImmediate();
+  assert.deepEqual(fixture.snapshot(), { owner: "account", tickers: ["NVDA", "AAPL", "MSFT"] });
+});
+
+test("a failed guest import preserves the original guest list across sign-out", async () => {
+  const fixture = watchlistFixture({ owner: null, tickers: ["AAPL"] });
+  fixture.connect("account");
+  fixture.toggle("NVDA", "account");
+  await setImmediate();
+  fixture.requests[0].response.resolve([]);
+  await setImmediate();
+  fixture.requests[1].response.reject(new Error("import failed"));
+  await setImmediate();
+  fixture.requests[2].response.reject(new Error("retry failed"));
+  await setImmediate();
+  assert.equal(fixture.requests.length, 3);
+  fixture.connect(null);
+  assert.deepEqual(fixture.snapshot(), { owner: null, tickers: ["AAPL"] });
+});

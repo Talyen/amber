@@ -6,10 +6,10 @@ import {
   type CompanySnapshot,
   type ComputedAnnual,
   computeFiveYearScenario,
+  computeRevenueCagr,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
-import { computeRevenueCagr } from "@/lib/insights";
 import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
 
 interface ScenarioBuilderProps {

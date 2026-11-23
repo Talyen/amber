@@ -17,9 +17,13 @@ function readWatchlist(): SavedWatchlist {
     if (!raw) return EMPTY_WATCHLIST;
     const parsed = JSON.parse(raw);
     const tickers = Array.isArray(parsed) ? parsed : parsed?.tickers;
+    const guestTickers = Array.isArray(parsed?.guestTickers)
+      ? parsed.guestTickers.filter((x: unknown): x is string => typeof x === "string")
+      : undefined;
     return {
       owner: typeof parsed?.owner === "string" ? parsed.owner : null,
       tickers: Array.isArray(tickers) ? tickers.filter((x): x is string => typeof x === "string") : [],
+      ...(guestTickers?.length ? { guestTickers } : {}),
     };
   } catch {
     return memory;

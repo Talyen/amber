@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, Bot, Trophy } from "lucide-react";
 import {
   getArenaPortfoliosByHandle,
-  getSpyBenchmarks,
+  getArenaEntryBenchmarks,
 } from "@/data/arena-repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -18,10 +18,9 @@ export async function generateMetadata({
   params: Promise<{ handle: string }>;
 }): Promise<Metadata> {
   const { handle } = await params;
-  const decoded = decodeURIComponent(handle);
   return {
-    title: `${decoded} | Investor Profile`,
-    description: `Active portfolio and Arena track record for ${decoded} on Amber.`,
+    title: `${handle} | Investor Profile`,
+    description: `Active portfolio and Arena track record for ${handle} on Amber.`,
   };
 }
 
@@ -31,13 +30,10 @@ export default async function InvestorProfilePage({
   params: Promise<{ handle: string }>;
 }) {
   const { handle } = await params;
-  const decoded = decodeURIComponent(handle);
-  const [entries, benchmarks] = await Promise.all([
-    getArenaPortfoliosByHandle(decoded),
-    getSpyBenchmarks(),
-  ]);
+  const entries = await getArenaPortfoliosByHandle(handle);
 
   if (entries.length === 0) notFound();
+  const benchmarks = await getArenaEntryBenchmarks(entries);
 
   const liveEntries = entries
     .filter((e) => !e.isFinalized)
@@ -47,11 +43,11 @@ export default async function InvestorProfilePage({
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey));
 
   const primary = liveEntries[0] ?? entries[0];
-  const spyForPrimary = benchmarks[primary.periodKey];
+  const spyForPrimary = benchmarks[primary.id];
   const beatCount = entries.filter(
     (e) =>
-      typeof benchmarks[e.periodKey] === "number" &&
-      e.totalReturnPct > benchmarks[e.periodKey]
+      typeof benchmarks[e.id] === "number" &&
+      e.totalReturnPct > benchmarks[e.id]
   ).length;
 
   return (
@@ -160,7 +156,7 @@ export default async function InvestorProfilePage({
             </h2>
             <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] bg-[var(--surface)]">
               {archivedEntries.map((item) => {
-                const spy = benchmarks[item.periodKey];
+                const spy = benchmarks[item.id];
                 const beat = typeof spy === "number" && item.totalReturnPct > spy;
                 return (
                   <Link

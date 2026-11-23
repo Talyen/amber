@@ -20,6 +20,7 @@ import { openAuthDialog } from "@/components/AuthButton";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AVATAR_PRESETS, normalizeAvatarId, type AvatarId } from "@/lib/avatars";
+import { setTheme, useTheme } from "@/lib/theme";
 
 interface ProfileResponse {
   authenticated: boolean;
@@ -46,14 +47,10 @@ export function SettingsWorkspace() {
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
+  const theme = useTheme() ?? "system";
   const [alertTickers, setAlertTickers] = useState<string[]>([]);
-  const [removingAlert, setRemovingAlert] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("amber-theme");
-    if (saved === "light" || saved === "dark") setTheme(saved);
-  }, []);
+  const [removingAlerts, setRemovingAlerts] = useState<string[]>([]);
+  const [alertError, setAlertError] = useState("");
 
   useEffect(() => {
     if (!session?.user) {
@@ -89,27 +86,21 @@ export function SettingsWorkspace() {
   }, [session?.user]);
 
   async function handleUnsubscribeAlert(ticker: string) {
-    setRemovingAlert(ticker);
+    setRemovingAlerts((prev) => [...prev, ticker]);
+    setAlertError("");
     try {
       const res = await fetch(`/api/alerts?ticker=${encodeURIComponent(ticker)}`, {
         method: "DELETE",
       });
       if (res.ok) {
         setAlertTickers((prev) => prev.filter((t) => t !== ticker));
+      } else {
+        setAlertError(`Could not unsubscribe from ${ticker} filing alerts. Please try again.`);
       }
+    } catch {
+      setAlertError(`Could not unsubscribe from ${ticker} filing alerts. Please try again.`);
     } finally {
-      setRemovingAlert(null);
-    }
-  }
-
-  function applyTheme(next: "system" | "light" | "dark") {
-    setTheme(next);
-    if (next === "system") {
-      delete document.documentElement.dataset.theme;
-      window.localStorage.removeItem("amber-theme");
-    } else {
-      document.documentElement.dataset.theme = next;
-      window.localStorage.setItem("amber-theme", next);
+      setRemovingAlerts((prev) => prev.filter((t) => t !== ticker));
     }
   }
 
@@ -165,14 +156,17 @@ export function SettingsWorkspace() {
   }
 
   async function handleWithdrawPortfolio() {
+    const entryId = profile?.portfolio?.id;
+    if (!entryId) return;
     setDeleting(true);
     setError("");
     try {
-      const res = await fetch("/api/account/profile?scope=portfolio", {
+      const params = new URLSearchParams({ scope: "portfolio", id: entryId });
+      const res = await fetch(`/api/account/profile?${params}`, {
         method: "DELETE",
       });
       if (res.ok) {
-        setProfile((prev) => (prev ? { ...prev, portfolio: null } : prev));
+        setProfile((prev) => (prev?.portfolio?.id === entryId ? { ...prev, portfolio: null } : prev));
         setConfirmWithdraw(false);
       } else {
         setError("Could not withdraw portfolio.");
@@ -381,7 +375,7 @@ export function SettingsWorkspace() {
                       </Link>
                       <button
                         type="button"
-                        disabled={removingAlert === t}
+                        disabled={removingAlerts.includes(t)}
                         onClick={() => handleUnsubscribeAlert(t)}
                         aria-label={`Unsubscribe from ${t} filing alerts`}
                         className="inline-flex h-4 w-4 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--negative)] disabled:opacity-50 cursor-pointer"
@@ -391,6 +385,9 @@ export function SettingsWorkspace() {
                     </span>
                   ))}
                 </div>
+              )}
+              {alertError && (
+                <p role="alert" className="mt-2 text-xs text-[var(--negative)]">{alertError}</p>
               )}
             </section>
 
@@ -412,7 +409,8 @@ export function SettingsWorkspace() {
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => applyTheme(t.id)}
+                      onClick={() => setTheme(t.id)}
+                      aria-pressed={theme === t.id}
                       className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors cursor-pointer ${
                         theme === t.id
                           ? "bg-[var(--amber-soft)] text-[var(--amber)]"

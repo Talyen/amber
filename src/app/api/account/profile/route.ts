@@ -1,10 +1,11 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
-import { activeArenaEntryForUser } from "@/data/arena-entry";
+import { and, eq } from "drizzle-orm";
+import { activeArenaEntryForUser, deleteActiveArenaEntry } from "@/data/arena-entry";
 import { getDb } from "@/db";
 import { alertSubscriptions, arenaPortfolios, user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { isArenaHandleConflict } from "@/lib/arena-handle";
 import { arenaMonth } from "@/lib/arena-period";
 import { normalizeAvatarId } from "@/lib/avatars";
 
@@ -70,14 +71,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  let body: { handle?: string; avatarIcon?: string };
+  let body: { handle?: string; avatarIcon?: string } | null;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const handle = String(body.handle ?? "")
+  const handle = String(body?.handle ?? "")
     .trim()
     .replace(/^@+/, "")
     .slice(0, 28);
@@ -89,41 +90,9 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const lower = handle.toLowerCase();
-
-  // Check uniqueness across other users AND other Arena portfolios (including Strategy Bots)
-  const [userConflict, portConflict] = await Promise.all([
-    db
-      .select({ id: user.id })
-      .from(user)
-      .where(and(sql`lower(${user.handle}) = ${lower}`, ne(user.id, session.user.id)))
-      .limit(1),
-    db
-      .select({ id: arenaPortfolios.id, userId: arenaPortfolios.userId })
-      .from(arenaPortfolios)
-      .where(and(
-        sql`lower(${arenaPortfolios.handle}) = ${lower}`,
-        or(isNull(arenaPortfolios.userId), ne(arenaPortfolios.userId, session.user.id))
-      ))
-      .limit(1),
-  ]);
-
-  if (userConflict.length > 0 || portConflict.length > 0) {
-    return NextResponse.json(
-      { error: `Handle @${handle} is already taken. Please choose another.` },
-      { status: 409 }
-    );
-  }
-
-  const avatarIcon = normalizeAvatarId(body.avatarIcon);
+  const avatarIcon = normalizeAvatarId(body?.avatarIcon);
   const now = new Date();
 
-  await db
-    .update(user)
-    .set({ handle, avatarIcon, updatedAt: now })
-    .where(eq(user.id, session.user.id));
-
-  // Keep user's Arena portfolio in sync if they have one
   const activeEntry = activeArenaEntryForUser(session.user.id, arenaMonth(now));
   const existingPorts = await db
     .select({ id: arenaPortfolios.id, handle: arenaPortfolios.handle })
@@ -131,16 +100,25 @@ export async function PATCH(request: Request) {
     .where(activeEntry)
     .limit(1);
 
-  if (existingPorts[0]) {
-    await db
-      .update(arenaPortfolios)
-      .set({ handle, avatarIcon })
-      .where(and(eq(arenaPortfolios.id, existingPorts[0].id), activeEntry));
+  const previous = existingPorts[0];
+  try {
+    await db.batch([
+      db.update(user).set({ handle, avatarIcon, updatedAt: now }).where(eq(user.id, session.user.id)),
+      db.update(arenaPortfolios).set({ handle, avatarIcon }).where(activeEntry),
+    ]);
+  } catch (error) {
+    if (!isArenaHandleConflict(error)) throw error;
+    return NextResponse.json(
+      { error: `Handle @${handle} is already taken. Please choose another.` },
+      { status: 409 }
+    );
+  }
 
+  if (previous) {
     revalidateTag("arena");
     revalidatePath("/arena");
-    revalidatePath(`/arena/${existingPorts[0].id}`);
-    revalidatePath(`/u/${existingPorts[0].handle}`);
+    revalidatePath(`/arena/${previous.id}`);
+    revalidatePath(`/u/${previous.handle}`);
     revalidatePath(`/u/${handle}`);
   }
 
@@ -164,7 +142,27 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope") ?? "portfolio";
 
-  // Fetch existing handle & portfolio ID before deleting so we can revalidate their routes
+  if (scope === "portfolio") {
+    const entryId = searchParams.get("id")?.trim();
+    if (!entryId) {
+      return NextResponse.json({ error: "An Arena entry ID is required." }, { status: 400 });
+    }
+    const [withdrawn] = await deleteActiveArenaEntry(db, session.user.id, arenaMonth(new Date()), entryId);
+    if (!withdrawn) {
+      return NextResponse.json({ error: "This Arena entry is no longer active." }, { status: 409 });
+    }
+    revalidateTag("arena");
+    revalidatePath("/arena");
+    revalidatePath(`/arena/${withdrawn.id}`);
+    revalidatePath(`/u/${withdrawn.handle}`);
+    return NextResponse.json({ ok: true, deleted: "portfolio" });
+  }
+
+  if (scope !== "account") {
+    return NextResponse.json({ error: "Invalid deletion scope." }, { status: 400 });
+  }
+
+  // Fetch the affected routes before the account cascade deletes the portfolio records.
   const [userRow, existingPorts] = await Promise.all([
     db
       .select({ handle: user.handle, email: user.email })
@@ -182,40 +180,24 @@ export async function DELETE(request: Request) {
       ),
   ]);
 
-  const revalidateTargets = () => {
-    revalidateTag("arena");
-    revalidatePath("/arena");
-    if (userRow[0]?.handle) revalidatePath(`/u/${userRow[0].handle}`);
-    for (const p of existingPorts) {
-      revalidatePath(`/arena/${p.id}`);
-      if (p.handle) revalidatePath(`/u/${p.handle}`);
-    }
-  };
-
-  if (scope === "account") {
-    // Also purge any filing alert subscriptions tied to this user's email
-    const email = userRow[0]?.email?.trim().toLowerCase();
-    if (email) {
-      await db
-        .delete(alertSubscriptions)
-        .where(eq(alertSubscriptions.email, email));
-    }
-    // Cascades to session, account, user_watchlists, arena_portfolios, arena_positions, arena_rebalances
-    await db.delete(user).where(eq(user.id, session.user.id));
-    revalidateTargets();
-    return NextResponse.json({ ok: true, deleted: "account" });
+  const email = userRow[0]?.email?.trim().toLowerCase();
+  // Cascades to sessions, linked accounts, watchlists, and Arena entries.
+  const deleteUser = db.delete(user).where(eq(user.id, session.user.id));
+  if (email) {
+    await db.batch([
+      db.delete(alertSubscriptions).where(eq(alertSubscriptions.email, email)),
+      deleteUser,
+    ]);
+  } else {
+    await deleteUser;
   }
 
-  await db
-    .delete(arenaPortfolios)
-    .where(
-      and(
-        eq(arenaPortfolios.userId, session.user.id),
-        eq(arenaPortfolios.isBot, 0)
-      )
-    );
-
-  revalidateTargets();
-
-  return NextResponse.json({ ok: true, deleted: "portfolio" });
+  revalidateTag("arena");
+  revalidatePath("/arena");
+  if (userRow[0]?.handle) revalidatePath(`/u/${userRow[0].handle}`);
+  for (const p of existingPorts) {
+    revalidatePath(`/arena/${p.id}`);
+    if (p.handle) revalidatePath(`/u/${p.handle}`);
+  }
+  return NextResponse.json({ ok: true, deleted: "account" });
 }

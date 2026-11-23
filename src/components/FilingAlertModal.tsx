@@ -20,7 +20,7 @@ export function FilingAlertModal({
   const lightDismiss = useDialogLightDismiss(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
   const [enteredEmail, setEnteredEmail] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "submitting" | "confirmation" | "error">("idle");
   const [feedback, setFeedback] = useState("");
   const [subscriptions, setSubscriptions] = useState<{ email: string; tickers: string[] } | null>(null);
   const [confirmed, setConfirmed] = useState<{ ticker: string; email?: string } | null>(null);
@@ -47,7 +47,7 @@ export function FilingAlertModal({
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     setFeedback("");
-    if (status === "error") setStatus("idle");
+    if (status === "error" || status === "confirmation") setStatus("idle");
     dialog.showModal();
     window.requestAnimationFrame(() => inputRef.current?.focus());
   }
@@ -68,15 +68,20 @@ export function FilingAlertModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, ticker }),
       });
-      const data = (await res.json()) as { message?: string; error?: string };
+      const data = (await res.json()) as { subscribed?: boolean; message?: string; error?: string };
       if (!res.ok) {
         setStatus("error");
         setFeedback(data.error ?? "Something went wrong.");
         return;
       }
-      setStatus("idle");
-      setConfirmed({ ticker, email: accountEmail });
-      setFeedback(data.message ?? `Subscribed to ${ticker} filing alerts.`);
+      if (data.subscribed) {
+        setStatus("idle");
+        setConfirmed({ ticker, email: accountEmail });
+        setFeedback(data.message ?? `Subscribed to ${ticker} filing alerts.`);
+      } else {
+        setStatus("confirmation");
+        setFeedback(data.message ?? "Check your email to confirm your filing alerts.");
+      }
     } catch {
       setStatus("error");
       setFeedback("Network error. Please try again.");
@@ -176,6 +181,11 @@ export function FilingAlertModal({
               />
             </div>
 
+            {status === "confirmation" && (
+              <p role="status" className="text-xs text-[var(--text-secondary)]">
+                {feedback}
+              </p>
+            )}
             {status === "error" && feedback && (
               <p role="alert" className="text-xs text-[var(--negative)]">
                 {feedback}

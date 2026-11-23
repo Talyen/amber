@@ -170,7 +170,6 @@ export function ArenaBenchmarkCard({
   const spyWidth = Math.min(100, Math.max(4, (Math.abs(spyReturnPct) / maxAbs) * 100));
 
   const hasCurve = curvePoints.length >= 2;
-  const curveEnd = curvePoints.at(-1);
   const W = 740;
   const H = 180;
   const pad = { top: 18, right: 54, bottom: 26, left: 46 };
@@ -318,11 +317,11 @@ export function ArenaBenchmarkCard({
           <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-[var(--text-secondary)]">
             <span className="inline-flex items-center gap-1.5">
               <span className="h-0.5 w-3.5 bg-[var(--amber)]" />
-              Portfolio ({formatPct(curveEnd?.portfolioPct ?? portfolioReturnPct, true)})
+              Portfolio ({formatPct(portfolioReturnPct, true)})
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-0.5 w-3.5 border-t border-dashed border-[var(--text-muted)]" />
-              S&amp;P 500 ({formatPct(curveEnd?.spyPct ?? spyReturnPct, true)})
+              S&amp;P 500 ({formatPct(spyReturnPct, true)})
             </span>
           </div>
         </div>

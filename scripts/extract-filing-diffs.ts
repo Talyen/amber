@@ -2,9 +2,8 @@
  * Amber Scalable 2-Stage SEC 10-K Prose Diff Extractor
  *
  * Architecture for scaling across 750+ companies at near-$0 cost:
- *   1. Neon-backed incremental state: Queries `filing_diffs` (source IN 'llm','text-diff')
- *      so CI runs never re-process already-extracted 10-K accessions, and prioritizes
- *      unprocessed companies by Market Cap DESC.
+ *   1. Neon tracks published prose diffs and completed analyses with no changes.
+ *      Unprocessed accessions are prioritized by Market Cap DESC.
  *   2. Stage 1 (Deterministic Paragraph Novelty Pre-Filter, $0):
  *      Extracts Item 1A (Risk Factors) and Item 7 (MD&A) from consecutive 10-Ks and
  *      isolates ONLY genuinely new/changed paragraphs via token-Jaccard similarity,
@@ -17,10 +16,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { desc, inArray, sql } from "drizzle-orm";
-import { companies as companiesTable, filingDiffs } from "../src/db/schema.ts";
+import { companies as companiesTable, filingDiffNoChanges, filingDiffs } from "../src/db/schema.ts";
 import type { CompanySnapshot, FilingDiffItem } from "../src/lib/finance.ts";
 
 const SEC_USER_AGENT =
@@ -383,18 +383,21 @@ ${digest}`;
   }));
 }
 
-async function run() {
+export async function extractFilingDiffs({
+  directory = path.resolve(process.cwd(), "src/data/generated"),
+  databaseUrl = process.env.DATABASE_URL,
+  maxTickers = MAX_TICKERS,
+} = {}) {
   const companiesPath = path.resolve(
-    process.cwd(),
-    "src/data/generated/companies.json"
+    directory,
+    "companies.json"
   );
   const cachePath = path.resolve(
-    process.cwd(),
-    "src/data/generated/filing-diffs-cache.json"
+    directory,
+    "filing-diffs-cache.json"
   );
 
-  const dbUrl = process.env.DATABASE_URL;
-  const db = dbUrl ? drizzle(neon(dbUrl)) : null;
+  const db = databaseUrl ? drizzle(neon(databaseUrl)) : null;
 
   const localCompanies: CompanySnapshot[] = fs.existsSync(companiesPath)
     ? (JSON.parse(fs.readFileSync(companiesPath, "utf8")) as CompanySnapshot[])
@@ -410,7 +413,7 @@ async function run() {
   const dbProcessedAccessions = new Map<string, Set<string>>();
 
   if (db) {
-    const [compRows, existingProseRows] = await Promise.all([
+    const [compRows, existingProseRows, noChangeRows] = await Promise.all([
       db
         .select({
           ticker: companiesTable.ticker,
@@ -427,10 +430,11 @@ async function run() {
         })
         .from(filingDiffs)
         .where(inArray(filingDiffs.source, ["llm", "text-diff"])),
+      db.select().from(filingDiffNoChanges),
     ]);
 
     targets = compRows;
-    for (const row of existingProseRows) {
+    for (const row of [...existingProseRows, ...noChangeRows]) {
       const set = dbProcessedAccessions.get(row.ticker) ?? new Set<string>();
       set.add(row.accessionNumber);
       dbProcessedAccessions.set(row.ticker, set);
@@ -457,7 +461,7 @@ async function run() {
 
   for (const company of targets) {
     if (requestedTickers && !requestedTickers.has(company.ticker)) continue;
-    if (!requestedTickers && processed >= MAX_TICKERS) break;
+    if (!requestedTickers && processed >= maxTickers) break;
 
     try {
       const pair = await getLatestTwo10Ks(company.cik);
@@ -469,10 +473,7 @@ async function run() {
         .get(company.ticker)
         ?.has(latest.accessionNumber);
 
-      if (
-        alreadyInDb ||
-        (cached && cached.accessionNumber === latest.accessionNumber)
-      ) {
+      if (db ? alreadyInDb : cached?.accessionNumber === latest.accessionNumber) {
         skippedCached++;
         continue;
       }
@@ -489,24 +490,22 @@ async function run() {
       const latestClean = htmlToCleanText(latestHtml);
       const priorClean = htmlToCleanText(priorHtml);
 
-      const novelItem1A = findNovelParagraphs(
-        extractSectionSlice(latestClean, /item\s+1a\.?\s*risk\s+factors/gi, 75_000),
-        extractSectionSlice(priorClean, /item\s+1a\.?\s*risk\s+factors/gi, 75_000),
-        "Item 1A: Risk Factors"
-      );
-      const novelItem7 = findNovelParagraphs(
-        extractSectionSlice(
-          latestClean,
-          /item\s+7\.?\s*management['’]?s\s+discussion/gi,
-          60_000
-        ),
-        extractSectionSlice(
-          priorClean,
-          /item\s+7\.?\s*management['’]?s\s+discussion/gi,
-          60_000
-        ),
-        "Item 7: MD&A"
-      );
+      const riskHeading = /item\s+1a\.?\s*risk\s+factors/gi;
+      const managementHeading = /item\s+7\.?\s*management['’]?s\s+discussion/gi;
+      const latestRisk = extractSectionSlice(latestClean, riskHeading, 75_000);
+      const priorRisk = extractSectionSlice(priorClean, riskHeading, 75_000);
+      const latestManagement = extractSectionSlice(latestClean, managementHeading, 60_000);
+      const priorManagement = extractSectionSlice(priorClean, managementHeading, 60_000);
+      const hasComparableSection = (latestRisk && priorRisk) || (latestManagement && priorManagement);
+      const hasUnpairedSection = Boolean(latestRisk) !== Boolean(priorRisk) ||
+        Boolean(latestManagement) !== Boolean(priorManagement);
+      if (!hasComparableSection || hasUnpairedSection) {
+        console.warn(`[amber-diffs] ! ${company.ticker}: could not pair the 10-K sections.`);
+        continue;
+      }
+
+      const novelItem1A = findNovelParagraphs(latestRisk, priorRisk, "Item 1A: Risk Factors");
+      const novelItem7 = findNovelParagraphs(latestManagement, priorManagement, "Item 7: MD&A");
 
       const combinedNovel = [...novelItem1A.slice(0, 4), ...novelItem7.slice(0, 2)];
 
@@ -536,14 +535,6 @@ async function run() {
       }
 
       if (extracted.length > 0) {
-        cache[company.ticker] = {
-          accessionNumber: latest.accessionNumber,
-          filingDate: latest.filingDate,
-          extractedAt: new Date().toISOString(),
-          source,
-          diffs: extracted,
-        };
-
         // Upsert directly into Neon Postgres so CI runs persist across builds
         if (db) {
           const rows = extracted.map((d) => ({
@@ -591,11 +582,23 @@ async function run() {
           `[amber-diffs] ✓ ${company.ticker}: extracted ${extracted.length} diff(s) via ${source} (from ${combinedNovel.length} novel paragraphs)`
         );
       } else {
+        if (db) {
+          await db.insert(filingDiffNoChanges)
+            .values({ ticker: company.ticker, accessionNumber: latest.accessionNumber })
+            .onConflictDoNothing();
+        }
         console.log(
           `[amber-diffs] – ${company.ticker}: no material 10-K prose diff detected`
         );
       }
 
+      cache[company.ticker] = {
+        accessionNumber: latest.accessionNumber,
+        filingDate: latest.filingDate,
+        extractedAt: new Date().toISOString(),
+        source,
+        diffs: extracted,
+      };
       processed++;
       await new Promise((r) => setTimeout(r, 350));
     } catch (err) {
@@ -615,4 +618,6 @@ async function run() {
   );
 }
 
-run();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await extractFilingDiffs();
+}

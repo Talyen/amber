@@ -7,7 +7,9 @@ import {
   integer,
   jsonb,
   timestamp,
+  primaryKey,
   uniqueIndex,
+  uuid,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -118,6 +120,15 @@ export const filingDiffs = pgTable(
   ]
 );
 
+export const filingDiffNoChanges = pgTable(
+  "filing_diff_no_changes",
+  {
+    ticker: text("ticker").notNull().references(() => companies.ticker, { onDelete: "cascade" }),
+    accessionNumber: text("accession_number").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.ticker, table.accessionNumber] })]
+);
+
 export const alertSubscriptions = pgTable(
   "alert_subscriptions",
   {
@@ -127,12 +138,17 @@ export const alertSubscriptions = pgTable(
       .notNull()
       .references(() => companies.ticker, { onDelete: "cascade" }),
     lastNotifiedAccession: text("last_notified_accession"),
+    unsubscribeToken: uuid("unsubscribe_token").defaultRandom().notNull(),
+    confirmationExpiresAt: timestamp("confirmation_expires_at", { withTimezone: true }),
+    deliveryAccession: text("delivery_accession"),
+    deliveryStartedAt: timestamp("delivery_started_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     uniqueIndex("alert_email_ticker_idx").on(table.email, table.ticker),
+    uniqueIndex("alert_unsubscribe_token_idx").on(table.unsubscribeToken),
   ]
 );
 
@@ -170,7 +186,7 @@ export const user = pgTable("user", {
   avatarIcon: text("avatar_icon").notNull().default("compass"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [index("user_lower_handle_idx").on(sql`lower(${table.handle})`)]);
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -243,6 +259,7 @@ export const arenaPortfolios = pgTable(
   },
   (table) => [
     index("arena_user_idx").on(table.userId),
+    index("arena_lower_handle_idx").on(sql`lower(${table.handle})`),
     index("arena_period_idx").on(table.periodKey),
     uniqueIndex("arena_open_user_period_idx")
       .on(table.userId, arenaEntryPeriodKey(table))
