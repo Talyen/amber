@@ -105,7 +105,7 @@ function htmlToCleanText(html: string): string {
     .replace(/&amp;/gi, "&")
     .replace(/&rsquo;|&#8217;/gi, "'")
     .replace(/&ldquo;|&rdquo;|&#8220;|&#8221;/gi, '"')
-    .replace(/&mdash;|&#8212;/gi, "—")
+    .replace(/&mdash;|&#8212;/gi, " - ")
     .replace(/&#\d+;/g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{2,}/g, "\n")
@@ -187,7 +187,7 @@ function deterministicRiskDiff(
       filingType: "10-K",
       filingDate: currentFiling.filingDate,
       accessionNumber: currentFiling.accessionNumber,
-      section: "Item 1A — Risk Factors (10-K Text Diff)",
+      section: "Item 1A: Risk Factors (10-K Text Diff)",
       category:
         matchedKw.includes("customer") || matchedKw.includes("10%")
           ? "Customer Concentration"
@@ -216,7 +216,7 @@ async function llmRiskDiff(
 Compare the PRIOR 10-K (${priorFiling.filingDate}) and LATEST 10-K (${currentFiling.filingDate}) Item 1A Risk Factors excerpts for ${company.name} (${company.ticker}).
 Return ONLY a valid JSON array of 1 to 2 genuinely material changes (ignore boilerplate legal rewording). Each item must match:
 {
-  "section": "Item 1A — Risk Factors",
+  "section": "Item 1A: Risk Factors",
   "category": "Risk Factors" | "Customer Concentration" | "Executive Comp" | "Capital Allocation",
   "materiality": "High" | "Medium" | "Watch",
   "headline": "Short punchy headline (<= 90 chars)",

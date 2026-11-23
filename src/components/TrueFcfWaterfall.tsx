@@ -100,7 +100,7 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
               <div className="sm:col-span-4">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-mono-num inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[var(--surface-subtle)] text-[11px] font-semibold text-[var(--text-muted)]">
-                    {step.sign || "·"}
+                    {step.sign || "="}
                   </span>
                   <span
                     className={

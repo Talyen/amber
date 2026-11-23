@@ -122,7 +122,7 @@ export async function getCompanySnapshot(
 
   const cachedFetch = unstable_cache(
     async () => queryCompanyFromDb(ticker),
-    ["amber-company-v2", ticker],
+    ["amber-company-v3", ticker],
     {
       revalidate: 3600,
       tags: ["companies", `ticker-${ticker}`],
@@ -230,7 +230,7 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
 
   const cachedFetch = unstable_cache(
     async () => querySearchIndexFromDb(),
-    ["amber-search-index-v2"],
+    ["amber-search-index-v3"],
     {
       revalidate: 3600,
       tags: ["companies"],

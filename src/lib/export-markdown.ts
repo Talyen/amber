@@ -19,11 +19,11 @@ export function buildTickerMarkdown(
   const dilution = computeNetDilutionCagr(company.annuals);
 
   const lines = [
-    `### ${company.name} (${company.ticker}) — Fundamental Snapshot`,
+    `### ${company.name} (${company.ticker}): Fundamental Snapshot`,
     "",
-    `- **Price / Market Cap / EV:** $${company.price.toFixed(2)} · ${formatCurrencyCompact(company.marketCap)} Mkt Cap · ${formatCurrencyCompact(ev)} EV`,
+    `- **Price / Market Cap / EV:** $${company.price.toFixed(2)} | ${formatCurrencyCompact(company.marketCap)} Mkt Cap | ${formatCurrencyCompact(ev)} EV`,
     `- **True Free Cash Flow (${latest.fiscalYear}):** **${formatCurrencyCompact(latest.trueFcf)}** (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
-    `- **Stock-Based Comp (SBC):** ${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctRevenue)} of rev · ${formatPct(latest.sbcPctReportedFcf, false, 0)} of Reported FCF)`,
+    `- **Stock-Based Comp (SBC):** ${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctRevenue)} of rev | ${formatPct(latest.sbcPctReportedFcf, false, 0)} of Reported FCF)`,
     `- **Net Share Dilution (4Y CAGR):** ${formatPct(dilution, true)} (${latest.dilutedShares.toLocaleString()}M diluted shares)`,
     `- **Market-Implied 10Y Revenue CAGR:** ${formatPct(impliedCagr)}/yr`,
     "",
@@ -34,7 +34,7 @@ export function buildTickerMarkdown(
         `| ${r.fiscalYear} | ${formatCurrencyCompact(r.revenue)} | ${formatCurrencyCompact(r.reportedFcf)} | ${formatCurrencyCompact(r.sbc)} | **${formatCurrencyCompact(r.trueFcf)}** | ${formatPct(r.trueFcfMargin)} | ${r.dilutedShares.toLocaleString()}M |`
     ),
     "",
-    `*Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) · Interactive model on [Amber](${siteOrigin}/t/${company.ticker})*`,
+    `*Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) | Interactive model on [Amber](${siteOrigin}/t/${company.ticker})*`,
   ];
 
   return lines.join("\n");
@@ -52,7 +52,7 @@ export function buildComparisonMarkdown(
       : `${siteOrigin}/compare?t=${items.map((i) => i.ticker).join(",")}`;
 
   const lines = [
-    `### ${title} — True FCF, SBC & Valuation Comparison`,
+    `### ${title}: True FCF, SBC & Valuation Comparison`,
     "",
     "| Metric | " + items.map((i) => `**${i.ticker}**`).join(" | ") + " |",
     "| :--- | " + items.map(() => "---:").join(" | ") + " |",
@@ -66,7 +66,7 @@ export function buildComparisonMarkdown(
     "| Net Dilution (4Y) | " + items.map((i) => formatPct(i.netDilutionCagr, true)).join(" | ") + " |",
     "| **Implied 10Y Rev CAGR** | " + items.map((i) => `**${formatPct(i.impliedCagr)}**`).join(" | ") + " |",
     "",
-    `*Source: SEC EDGAR XBRL · Interactive comparison on [Amber](${slug})*`,
+    `*Source: SEC EDGAR XBRL | Interactive comparison on [Amber](${slug})*`,
   ];
 
   return lines.join("\n");

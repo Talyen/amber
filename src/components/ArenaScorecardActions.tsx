@@ -52,7 +52,7 @@ export function ArenaScorecardExport({
     ctx.fillStyle = amber;
     ctx.font = '700 14px "JetBrains Mono", ui-monospace, monospace';
     ctx.fillText(
-      `AMBER PORTFOLIO ARENA  ·  @${portfolio.handle.toUpperCase()}`,
+      `AMBER PORTFOLIO ARENA / @${portfolio.handle.toUpperCase()}`,
       72,
       86
     );
@@ -130,7 +130,7 @@ export function ArenaScorecardExport({
     ctx.fillStyle = textSecondary;
     ctx.font = '500 13px "JetBrains Mono", ui-monospace, monospace';
     ctx.fillText(
-      `Started ${portfolio.lockedAt.slice(0, 10)}  ·  amber-theta-three.vercel.app`,
+      `Started ${portfolio.lockedAt.slice(0, 10)} | amber-theta-three.vercel.app`,
       72,
       height - 60
     );

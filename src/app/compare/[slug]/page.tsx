@@ -28,7 +28,7 @@ export async function generateMetadata({
   const tickers = parseSlugTickers(slug);
   if (tickers.length < 2) return { title: "Comparison Not Found" };
 
-  const title = `${tickers.join(" vs. ")} — True FCF, SBC & Valuation`;
+  const title = `${tickers.join(" vs. ")}: True FCF, SBC & Valuation`;
   return {
     title,
     description: `Compare ${tickers.join(" and ")} side-by-side on SBC-adjusted True Free Cash Flow, net share dilution, and Reverse DCF implied growth.`,

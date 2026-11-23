@@ -41,7 +41,7 @@ export default async function CompareOpenGraphImage({
             fontWeight: 600,
           }}
         >
-          Amber — Side-by-Side Equity Comparison
+          Amber: Side-by-Side Equity Comparison
         </div>
       ),
       { ...size }
@@ -115,7 +115,7 @@ export default async function CompareOpenGraphImage({
 
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, color: "#6B707D" }}>
           <span>{a.name} vs. {b.name}</span>
-          <span>SEC EDGAR XBRL · True FCF &amp; Reverse DCF</span>
+          <span>SEC EDGAR XBRL | True FCF &amp; Reverse DCF</span>
         </div>
       </div>
     ),

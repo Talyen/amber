@@ -174,7 +174,7 @@ export async function POST(request: Request) {
     if (added.length > 0) parts.push(`Added ${added.join(", ")}`);
     if (removed.length > 0) parts.push(`Removed ${removed.join(", ")}`);
     if (parts.length === 0) parts.push("Adjusted target weights");
-    const summary = `${parts.join(" · ")} (${tickers.length} holdings)`;
+    const summary = `${parts.join(", ")} (${tickers.length} holdings)`;
 
     await db
       .update(arenaPortfolios)

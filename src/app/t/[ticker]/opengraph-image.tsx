@@ -40,7 +40,7 @@ export default async function OpenGraphImage({
             fontWeight: 600,
           }}
         >
-          Amber — High-Signal Fundamental Analysis
+          Amber: High-Signal Fundamental Analysis
         </div>
       ),
       { ...size }
@@ -85,7 +85,7 @@ export default async function OpenGraphImage({
     {
       label: "IMPLIED 10Y REV CAGR",
       value: formatPct(dcf.impliedRevenueCagrPct),
-      sub: `${formatPct(company.defaultDcf.wacc)} WACC · ${company.defaultDcf.terminalMultiple}x exit`,
+      sub: `${formatPct(company.defaultDcf.wacc)} WACC | ${company.defaultDcf.terminalMultiple}x exit`,
       accent: "#E5A03C",
     },
   ];
@@ -124,9 +124,9 @@ export default async function OpenGraphImage({
             >
               {company.ticker}
             </span>
-            <span style={{ color: "#52525B", fontSize: 20 }}>·</span>
+            <span style={{ color: "#52525B", fontSize: 20 }}>/</span>
             <span style={{ color: "#9CA0AB", fontSize: 20 }}>
-              {company.exchange} · {company.sector}
+              {company.exchange} / {company.sector}
             </span>
           </div>
 
@@ -223,9 +223,9 @@ export default async function OpenGraphImage({
           }}
         >
           <span>
-            Source: SEC EDGAR {company.lastFiling.type} ({company.lastFiling.date}) · CIK {company.cik}
+            Source: SEC EDGAR {company.lastFiling.type} ({company.lastFiling.date}) | CIK {company.cik}
           </span>
-          <span>True FCF · Reverse DCF · Filing Diffs</span>
+          <span>True FCF | Reverse DCF | Filing Diffs</span>
         </div>
       </div>
     ),

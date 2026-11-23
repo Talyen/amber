@@ -73,9 +73,18 @@ export function SignalIndex({
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
 
-  // Hydrate shareable screener query params (?fcf=20&sbc=5&imp=12&dil=0)
+  // Hydrate shareable lens & screener query params (?lens=cash-machines&fcf=20&sbc=5&imp=12&dil=0)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const lensParam = params.get("lens");
+    if (lensParam) {
+      const found = DISCOVERY_LENSES.find((l) => l.id === lensParam);
+      if (found) {
+        setActiveLensId(found.id);
+        setSortKey(found.defaultSortKey);
+        setSortDir(found.defaultSortDir);
+      }
+    }
     const fcf = params.get("fcf");
     const sbc = params.get("sbc");
     const imp = params.get("imp");
@@ -102,6 +111,11 @@ export function SignalIndex({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
+    if (activeLensId) {
+      url.searchParams.set("lens", activeLensId);
+    } else {
+      url.searchParams.delete("lens");
+    }
     const setOrDel = (k: string, v: string) => {
       if (v.trim() !== "" && Number.isFinite(Number(v))) url.searchParams.set(k, v.trim());
       else url.searchParams.delete(k);
@@ -111,7 +125,7 @@ export function SignalIndex({
     setOrDel("imp", maxImplied);
     setOrDel("dil", maxDilution);
     window.history.replaceState(null, "", url.pathname + url.search);
-  }, [minFcfMargin, maxSbcPct, maxImplied, maxDilution]);
+  }, [activeLensId, minFcfMargin, maxSbcPct, maxImplied, maxDilution]);
 
   const activeLens = useMemo(
     () => DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null,

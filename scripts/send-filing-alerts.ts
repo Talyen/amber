@@ -68,7 +68,7 @@ async function run() {
         subject: `Amber Alert: ${item.ticker} filed a new ${item.filingType} (${item.filingDate})`,
         html: `
           <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#151517;">
-            <div style="font-size:12px;font-weight:600;letter-spacing:0.06em;color:#B45309;">AMBER · SEC FILING ALERT</div>
+            <div style="font-size:12px;font-weight:600;letter-spacing:0.06em;color:#B45309;">AMBER / SEC FILING ALERT</div>
             <h2 style="margin:8px 0 4px;font-size:20px;">${item.name} (${item.ticker})</h2>
             <p style="margin:0 0 16px;font-size:14px;color:#52525B;">
               A new <strong>${item.filingType}</strong> was filed on ${item.filingDate} (EDGAR ${item.accession}).

@@ -40,33 +40,77 @@ interface CuratedMeta {
 }
 
 const CURATED_META: Record<string, CuratedMeta> = {
-  PLTR: { ticker: "PLTR", sector: "Enterprise AI & Defense", tagline: "High-margin FCF inflection vs. persistent SBC & share count expansion", fallbackPrice: 78.4 },
-  NVDA: { ticker: "NVDA", sector: "Semiconductors", tagline: "Extraordinary cash conversion with rising hyperscaler concentration", fallbackPrice: 134.2 },
-  MSFT: { ticker: "MSFT", sector: "Cloud & Software", tagline: "AI datacenter CapEx surge compressing near-term FCF conversion", fallbackPrice: 416.8 },
-  SNOW: { ticker: "SNOW", sector: "Cloud Data", tagline: "Classic SBC-to-FCF gap: strong headline cash flow vs. negative True FCF", fallbackPrice: 168.5 },
-  SHOP: { ticker: "SHOP", sector: "Commerce", tagline: "Post-logistics operating leverage with disciplined SBC compression", fallbackPrice: 109.6 },
-  COST: { ticker: "COST", sector: "Retail", tagline: "Ultra-clean cash flow & minimal SBC — stress-test the 50x+ valuation", fallbackPrice: 964.5 },
-  AAPL: { ticker: "AAPL", sector: "Consumer Hardware", tagline: "Massive buyback engine offsetting modest SBC with steady share retirement", fallbackPrice: 228.5 },
-  GOOGL: { ticker: "GOOGL", sector: "Cloud & AI", tagline: "Heavy AI CapEx cycle paired with $20B+ annual SBC and aggressive buybacks", fallbackPrice: 176.4 },
-  AMZN: { ticker: "AMZN", sector: "Cloud & Commerce", tagline: "AWS operating leverage vs. massive logistics & AI infrastructure CapEx", fallbackPrice: 208.2 },
-  META: { ticker: "META", sector: "Social & AI", tagline: "Year-of-efficiency FCF surge funding record AI datacenter buildout", fallbackPrice: 612.0 },
-  ORCL: { ticker: "ORCL", sector: "Cloud & Software", tagline: "OCI backlog acceleration driving a sharp step-up in CapEx intensity", fallbackPrice: 172.5 },
-  AMD: { ticker: "AMD", sector: "Semiconductors", tagline: "Datacenter GPU ramp vs. rising R&D equity compensation", fallbackPrice: 118.4 },
-  AVGO: { ticker: "AVGO", sector: "Semiconductors", tagline: "VMware integration and custom AI ASICs driving elite FCF margins", fallbackPrice: 224.0 },
-  CRWD: { ticker: "CRWD", sector: "Cybersecurity", tagline: "Best-in-class headline FCF margin weighed against steep SBC expense", fallbackPrice: 382.0 },
-  DDOG: { ticker: "DDOG", sector: "Cloud Observability", tagline: "Strong GAAP profitability inflection while SBC remains a major FCF drag", fallbackPrice: 142.8 },
-  NET: { ticker: "NET", sector: "Edge & Security", tagline: "Edge infrastructure scale-up with high SBC relative to reported FCF", fallbackPrice: 138.4 },
-  PANW: { ticker: "PANW", sector: "Cybersecurity", tagline: "Platformization billings shift paired with $1B+ annual SBC", fallbackPrice: 192.0 },
-  NOW: { ticker: "NOW", sector: "Enterprise SaaS", tagline: "Durable 20%+ compounder with steady SBC compression toward True FCF", fallbackPrice: 985.0 },
-  CRM: { ticker: "CRM", sector: "Enterprise SaaS", tagline: "Activist-era margin discipline turning massive FCF into net share reduction", fallbackPrice: 326.5 },
-  ADBE: { ticker: "ADBE", sector: "Enterprise SaaS", tagline: "High-margin recurring cash flow funding consistent share count shrinkage", fallbackPrice: 448.2 },
-  V: { ticker: "V", sector: "Payments", tagline: "Gold-standard 55%+ True FCF margin tollbooth with relentless buybacks", fallbackPrice: 342.6 },
-  MA: { ticker: "MA", sector: "Payments", tagline: "Elite capital efficiency, minimal SBC, and consistent share reduction", fallbackPrice: 548.2 },
-  NFLX: { ticker: "NFLX", sector: "Media & Streaming", tagline: "Post-password-sharing FCF breakout with minimal SBC dilution", fallbackPrice: 968.0 },
-  UBER: { ticker: "UBER", sector: "Mobility & Delivery", tagline: "From cash burn to multi-billion True FCF with moderating SBC", fallbackPrice: 76.8 },
-  ABNB: { ticker: "ABNB", sector: "Travel Marketplace", tagline: "Negative working capital float boosting FCF vs. ~12% SBC burden", fallbackPrice: 142.4 },
-  TSLA: { ticker: "TSLA", sector: "EV & Autonomy", tagline: "Heavy AI/factory CapEx vs. ambitious Reverse DCF growth expectations", fallbackPrice: 348.0 },
-  FICO: { ticker: "FICO", sector: "Data & Analytics", tagline: "Pricing power & buybacks driving one of the cleanest FCF profiles in S&P 500", fallbackPrice: 1845.0 },
+  PLTR: { ticker: "PLTR", sector: "Cloud & Software", tagline: "High-margin FCF inflection vs. persistent SBC & share count expansion", fallbackPrice: 143.49 },
+  NVDA: { ticker: "NVDA", sector: "Semiconductors", tagline: "Extraordinary cash conversion with rising hyperscaler concentration", fallbackPrice: 125.53 },
+  MSFT: { ticker: "MSFT", sector: "Cloud & Software", tagline: "AI datacenter CapEx surge compressing near-term FCF conversion", fallbackPrice: 484.52 },
+  SNOW: { ticker: "SNOW", sector: "Cloud & Software", tagline: "Classic SBC-to-FCF gap: strong headline cash flow vs. negative True FCF", fallbackPrice: 254.82 },
+  SHOP: { ticker: "SHOP", sector: "Cloud & Software", tagline: "Post-logistics operating leverage with disciplined SBC compression", fallbackPrice: 123.72 },
+  COST: { ticker: "COST", sector: "Consumer & Retail", tagline: "Ultra-clean cash flow and minimal SBC; stress-test the 50x+ valuation", fallbackPrice: 1102.15 },
+  AAPL: { ticker: "AAPL", sector: "Consumer & Retail", tagline: "Massive buyback engine offsetting modest SBC with steady share retirement", fallbackPrice: 342.56 },
+  GOOGL: { ticker: "GOOGL", sector: "Media & Telecom", tagline: "Heavy AI CapEx cycle paired with $20B+ annual SBC and aggressive buybacks", fallbackPrice: 265.29 },
+  AMZN: { ticker: "AMZN", sector: "Consumer & Retail", tagline: "AWS operating leverage vs. massive logistics & AI infrastructure CapEx", fallbackPrice: 246.82 },
+  META: { ticker: "META", sector: "Media & Telecom", tagline: "Year-of-efficiency FCF surge funding record AI datacenter buildout", fallbackPrice: 560.84 },
+  ORCL: { ticker: "ORCL", sector: "Cloud & Software", tagline: "OCI backlog acceleration driving a sharp step-up in CapEx intensity", fallbackPrice: 101.19 },
+  AMD: { ticker: "AMD", sector: "Semiconductors", tagline: "Datacenter GPU ramp vs. rising R&D equity compensation", fallbackPrice: 424.39 },
+  AVGO: { ticker: "AVGO", sector: "Semiconductors", tagline: "VMware integration and custom AI ASICs driving elite FCF margins", fallbackPrice: 304.41 },
+  CRWD: { ticker: "CRWD", sector: "Cloud & Software", tagline: "Best-in-class headline FCF margin weighed against steep SBC expense", fallbackPrice: 229.44 },
+  DDOG: { ticker: "DDOG", sector: "Cloud & Software", tagline: "Strong GAAP profitability inflection while SBC remains a major FCF drag", fallbackPrice: 142.8 },
+  NET: { ticker: "NET", sector: "Cloud & Software", tagline: "Edge infrastructure scale-up with high SBC relative to reported FCF", fallbackPrice: 274.96 },
+  PANW: { ticker: "PANW", sector: "Cloud & Software", tagline: "Platformization billings shift paired with $1B+ annual SBC", fallbackPrice: 192.0 },
+  NOW: { ticker: "NOW", sector: "Cloud & Software", tagline: "Durable 20%+ compounder with steady SBC compression toward True FCF", fallbackPrice: 985.0 },
+  CRM: { ticker: "CRM", sector: "Cloud & Software", tagline: "Activist-era margin discipline turning massive FCF into net share reduction", fallbackPrice: 180.62 },
+  ADBE: { ticker: "ADBE", sector: "Cloud & Software", tagline: "High-margin recurring cash flow funding consistent share count shrinkage", fallbackPrice: 448.2 },
+  V: { ticker: "V", sector: "Fintech & Data", tagline: "Gold-standard 55%+ True FCF margin tollbooth with relentless buybacks", fallbackPrice: 401.87 },
+  MA: { ticker: "MA", sector: "Fintech & Data", tagline: "Elite capital efficiency, minimal SBC, and consistent share reduction", fallbackPrice: 625.59 },
+  NFLX: { ticker: "NFLX", sector: "Media & Telecom", tagline: "Post-password-sharing FCF breakout with minimal SBC dilution", fallbackPrice: 968.0 },
+  UBER: { ticker: "UBER", sector: "Consumer & Retail", tagline: "From cash burn to multi-billion True FCF with moderating SBC", fallbackPrice: 76.8 },
+  ABNB: { ticker: "ABNB", sector: "Consumer & Retail", tagline: "Negative working capital float boosting FCF vs. ~12% SBC burden", fallbackPrice: 142.4 },
+  TSLA: { ticker: "TSLA", sector: "Consumer & Retail", tagline: "Heavy AI/factory CapEx vs. ambitious Reverse DCF growth expectations", fallbackPrice: 345.82 },
+  FICO: { ticker: "FICO", sector: "Fintech & Data", tagline: "Pricing power & buybacks driving one of the cleanest FCF profiles in S&P 500", fallbackPrice: 1845.0 },
+  JPM: { ticker: "JPM", sector: "Fintech & Data", tagline: "Fortress balance sheet and scale economics driving consistent share retirement", fallbackPrice: 308.4 },
+  GS: { ticker: "GS", sector: "Fintech & Data", tagline: "Global investment banking and trading powerhouse with disciplined buybacks", fallbackPrice: 624.5 },
+  MS: { ticker: "MS", sector: "Fintech & Data", tagline: "Wealth management fee durability paired with capital-markets operating leverage", fallbackPrice: 138.2 },
+  BAC: { ticker: "BAC", sector: "Fintech & Data", tagline: "Scale consumer deposit franchise generating durable net interest earnings", fallbackPrice: 48.9 },
+  WFC: { ticker: "WFC", sector: "Fintech & Data", tagline: "Aggressive net share count reduction powered by excess capital return", fallbackPrice: 79.4 },
+  BX: { ticker: "BX", sector: "Fintech & Data", tagline: "Fee-related earnings compounder across private credit, real estate, and infrastructure", fallbackPrice: 184.6 },
+  KKR: { ticker: "KKR", sector: "Fintech & Data", tagline: "Alternative asset management scale paired with insurance float compounding", fallbackPrice: 152.3 },
+  XOM: { ticker: "XOM", sector: "Energy & Utilities", tagline: "Permian and Guyana upstream scale funding $30B+ annual shareholder distributions", fallbackPrice: 119.8 },
+};
+
+// Explicit ordinary-shares-per-ADR multipliers for 20-F foreign ADR issuers
+export const ADR_SHARE_RATIO: Record<string, number> = {
+  LTM: 2000,
+  BABA: 8,
+  AMX: 20,
+  ONC: 13,
+  SHEL: 2,
+  PDD: 4,
+  CX: 10,
+  CHT: 10,
+  BHP: 2,
+  NTES: 5,
+  DEO: 4,
+  HTHT: 10,
+  UMC: 5,
+  ASX: 2,
+  EMBJ: 4,
+  GMAB: 0.1,
+};
+
+// Multi-class or ADR fallback diluted shares (in millions) when standard single-class XBRL tags omit converted share classes
+export const FALLBACK_SHARES_MILLIONS: Record<string, number> = {
+  V: 1985,
+  BP: 2680,
+  WMG: 521,
+  RYAN: 265,
+  STZ: 182,
+  COKE: 87,
+  ERIE: 52,
+};
+
+// Override SEC directory shell CIKs where historical 10-K filings live on the operating registrant CIK
+const CIK_OVERRIDES: Record<string, string> = {
+  XOM: "0000034088",
 };
 
 // Priority tickers guaranteed to be included first regardless of SEC directory order
@@ -135,15 +179,47 @@ async function fetchSecJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-function cleanCompanyName(raw: string): string {
-  // Strip SEC state suffixes like "/DE/", "/MN", "/NV/"
-  let cleaned = raw.replace(/\s*\/[A-Z]{2,4}\/?$/i, "").trim();
-  if (cleaned === cleaned.toUpperCase()) {
-    cleaned = cleaned
-      .toLowerCase()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  }
+export function cleanCompanyName(raw: string): string {
+  // Strip SEC state/country suffixes like "/DE/", "/ DE", "/ Ma", and trailing slashes
+  let cleaned = raw
+    .replace(/\s*\/[A-Za-z]{2,5}\/?$/i, "")
+    .replace(/\/+$/g, "")
+    .trim();
+
+  // Fix mixed ALL-CAPS words (3+ uppercase letters) unless known acronym
+  const ACRONYMS = new Set([
+    "AMD", "ARM", "ASML", "AT&T", "BHP", "BILL", "CAE", "CBRE", "CDW", "CF",
+    "CG", "CNH", "CRH", "CSX", "CVS", "DHR", "DTE", "EOG", "EPAM", "EQT",
+    "ESAB", "FTI", "GAP", "GE", "GM", "GXO", "HCA", "HP", "IBM", "ICF",
+    "IDXX", "IHG", "II", "IQV", "ITT", "JBL", "JBS", "JCI", "JLL", "JNJ",
+    "JPM", "KB", "KBR", "KDP", "KKR", "KLA", "LKQ", "LPL", "LVMH", "LYB",
+    "MGM", "MKS", "MPLX", "MSA", "MSC", "MSCI", "MTD", "NVIDIA", "NVR", "NXP", "OKTA", "ON",
+    "PBF", "PG&E", "PTC", "PVH", "QGEN", "QXO", "RBC", "RELX", "RH", "RPM",
+    "RTX", "S&P", "SAP", "SBA", "SEI", "SK", "SLB", "SM", "SS&C", "STERIS", "STM",
+    "TC", "TD", "TE", "TFX", "TJX", "TKO", "TSMC", "UGI", "UPS", "US",
+    "USA", "VF", "VFC", "WEC", "WEX", "WP", "WPP", "WRB", "XPO", "YUM",
+    "ZTO", "LLC", "LP", "PLC", "SA", "NV", "SE", "AG", "INC", "CORP", "CO", "LTD",
+  ]);
+
+  cleaned = cleaned
+    .split(/\s+/)
+    .map((word) => {
+      const bare = word.replace(/[^A-Za-z&]/g, "");
+      if (bare.length >= 3 && bare === bare.toUpperCase() && !ACRONYMS.has(bare)) {
+        return word.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+      return word;
+    })
+    .join(" ");
+
   return cleaned
+    .replace(/^Amazon Com Inc\.?$/i, "Amazon.com, Inc.")
+    .replace(/^Mcdonalds Corp\.?$/i, "McDonald's Corp.")
+    .replace(/^Unitedhealth Group Inc\.?$/i, "UnitedHealth Group Inc.")
+    .replace(/^Paypal Holdings,? Inc\.?$/i, "PayPal Holdings, Inc.")
+    .replace(/^Mastercard Inc\.?$/i, "Mastercard Inc.")
+    .replace(/^Jpmorgan Chase & Co\.?$/i, "JPMorgan Chase & Co.")
+    .replace(/\bSab De Cv\b/gi, "S.A.B. de C.V.")
     .replace(/\bLlc\b/g, "LLC")
     .replace(/\bLp\b/g, "LP")
     .replace(/\bPlc\b/g, "PLC")
@@ -151,6 +227,28 @@ function cleanCompanyName(raw: string): string {
     .replace(/\bInc\b\.?/g, "Inc.")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function normalizeShareCountToMillions(
+  rawShares: number,
+  ticker: string
+): number {
+  const ratio = ADR_SHARE_RATIO[ticker] ?? 1;
+  if (!Number.isFinite(rawShares) || rawShares <= 0) {
+    return FALLBACK_SHARES_MILLIONS[ticker] ?? 100;
+  }
+  let millions: number;
+  if (rawShares < 15_000) {
+    // Already reported in millions (e.g. MCD 715.2)
+    millions = rawShares;
+  } else if (rawShares < 1_000_000) {
+    // Reported in thousands (e.g. TEM 181,311)
+    millions = rawShares / 1_000;
+  } else {
+    // Raw shares
+    millions = rawShares / 1_000_000;
+  }
+  return Math.max(1, Math.round(millions / ratio));
 }
 
 /**
@@ -201,12 +299,13 @@ function extractAnnualSeries(
 ): Map<string, { val: number; end: string; filed: string; accn: string }> {
   const gaap = facts.facts?.["us-gaap"];
   const ifrs = facts.facts?.["ifrs-full"];
+  const dei = facts.facts?.["dei"];
   const merged = new Map<
     string,
     { val: number; end: string; filed: string; accn: string; priority: number }
   >();
 
-  if (!gaap && !ifrs) return new Map();
+  if (!gaap && !ifrs && !dei) return new Map();
 
   const annualForms = new Set([
     "10-K",
@@ -219,7 +318,10 @@ function extractAnnualSeries(
 
   tagCandidates.forEach((tag, priority) => {
     const entries =
-      gaap?.[tag]?.units?.[unit] ?? ifrs?.[tag]?.units?.[unit] ?? [];
+      gaap?.[tag]?.units?.[unit] ??
+      ifrs?.[tag]?.units?.[unit] ??
+      dei?.[tag]?.units?.[unit] ??
+      [];
     if (!entries.length) return;
 
     for (const e of entries) {
@@ -377,17 +479,29 @@ const ALLOWLISTED_FINTECH = new Set([
   "INTU",
   "COIN",
   "HOOD",
+  "JPM",
+  "GS",
+  "MS",
+  "BAC",
+  "WFC",
+  "AXP",
+  "BX",
+  "KKR",
 ]);
 
-function inferSector(name: string): string {
-  const n = name.toLowerCase();
-  if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel|sandisk|western digital|micron|marvell|monolithic|nxp|on semi|texas instruments|arista/.test(n)) return "Semiconductors";
-  if (/software|cloud|data|cyber|security|crowdstrike|palo alto|zscaler|okta|workday|servicenow|salesforce|adobe|intuit|autodesk|atlassian|hubspot|mongodb|confluent|gitlab|snowflake|palantir|datadog|cloudflare|fortinet|applovin|trade desk|veeva|docusign|twilio|samsara|duolingo|roblox|spotify/.test(n)) return "Cloud & Software";
-  if (/pharma|therapeutics|biotech|lilly|health|medical|surgical|abbott|amgen|gilead|merck|abbvie|johnson|danaher|thermo|pfizer|bristol|vertex|regeneron|stryker|medtronic|boston scientific|edwards|hca|unitedhealth|elevance|cigna|cvs|mckesson|cencora|cardinal|humana|agilent|iqvia|dexcom|intuitive|idxx|zoetis/.test(n)) return "Healthcare";
-  if (/visa|mastercard|paypal|sp global|s&p global|moody|msci|fico|fair isaac|coinbase|robinhood|verisk|fiserv|fidelity national|paychex|automatic data|global payments|block, inc|mercado/.test(n)) return "Fintech & Data";
-  if (/retail|costco|walmart|home depot|lowe|tjx|autozone|o'reilly|starbucks|mcdonald|chipotle|nike|procter|coca-cola|pepsi|altria|philip morris|mondelez|colgate|kimberly|general mills|hershey|monster bev|target|ross stores|dollar|kroger|amazon|shopify|booking|airbnb|uber|doordash|marriott|hilton|royal caribbean|carnival|yum!|domino|lululemon|estee lauder|constellation brands/.test(n)) return "Consumer & Retail";
-  if (/energy|exxon|chevron|conocophillips|eog |eqt |schlumberger|slb|halliburton|baker hughes|phillips 66|marathon|valero|occidental|devon|diamondback|williams cos|kinder morgan|oneok|targa|cheniere|hess|nextera|duke energy|southern co|dominion|constellation energy|vistra|pg&e|exelon|sempra|american electric/.test(n)) return "Energy & Utilities";
-  if (/media|netflix|disney|comcast|t-mobile|verizon|at&t|charter|warner|fox |paramount|live nation|electronic arts|take-two|alphabet|meta platforms/.test(n)) return "Media & Telecom";
+const BANK_EARNINGS_OCF_TICKERS = new Set(["JPM", "GS", "MS", "BAC", "WFC"]);
+
+export function inferSector(name: string, ticker = ""): string {
+  const meta = CURATED_META[ticker];
+  if (meta?.sector) return meta.sector;
+  const n = `${ticker} ${name}`.toLowerCase();
+  if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel|sandisk|western digital|micron|marvell|monolithic|nxp|on semi|texas instruments|arista|arm holdings|asml|taiwan semi|united micro|ase technology|skyworks|qorvo|entegris|ambarella|credo|astera|sitime|nova ltd|tower semi|lattice|silicon lab|cirrus|macom|coherent|ontu|teradyne|amkor|axcelis|ONTO/.test(n)) return "Semiconductors";
+  if (/software|cloud|data|cyber|security|crowdstrike|palo alto|zscaler|okta|workday|servicenow|salesforce|adobe|intuit|autodesk|atlassian|hubspot|mongodb|confluent|gitlab|snowflake|palantir|datadog|cloudflare|fortinet|applovin|trade desk|veeva|docusign|twilio|samsara|duolingo|roblox|spotify|oracle|microsoft|shopify|cisco|ibm|international business machines|check point|elastic|monday\.com|jfrog|rubrik|nutanix|bill holdings|guidewire|manhattan assoc|ansys|bentley|dynatrace|ui path|procore|AppFolio|sentinelone|cyberark|qualys|tenable|rapid7|box|dropbox|zoom|ringcentral|five9|smartsheet|freshworks|klaviyo|braze|git|hashicorp|c3\.ai|tempus ai|accenture|cognizant|gartner|epamsystems|globant|infosys|wipro|genpact/.test(n)) return "Cloud & Software";
+  if (/pharma|therapeutics|biotech|lilly|health|medical|surgical|abbott|amgen|gilead|merck|abbvie|johnson & johnson|danaher|thermo|pfizer|bristol|vertex|regeneron|stryker|medtronic|boston scientific|edwards|hca|unitedhealth|elevance|cigna|cvs|mckesson|cencora|cardinal|humana|agilent|iqvia|dexcom|intuitive|idxx|zoetis|astrazeneca|sanofi|novartis|novo nordisk|gsk|teva|genmab|beone|moderna|biontech|alcon|resmed|illumina|waters|mettler|steris|hologic|align|insulet|coopercos|teleflex|zimmer|baxter|bd |becton|labcorp|quest diag|icon plc|charles river|exact sciences|natera|guardant|insmed|halozyme|neurocrine|alnylam|biomarin|incyte|royalty pharma|jazz pharma|Roivant|crispr|tg therapeutics|glaukos|encompass|tenet|universal health|davita|molina|centene|hims/.test(n)) return "Healthcare";
+  if (/visa|mastercard|paypal|sp global|s&p global|moody|msci|fico|fair isaac|coinbase|robinhood|verisk|fiserv|fidelity national|paychex|automatic data|global payments|block, inc|mercado|jpmorgan|goldman sachs|morgan stanley|bank of america|wells fargo|american express|blackstone|kkr|blackrock|apollo|ares |blue owl|carlyle|tpg |invesco|franklin res|t\. rowe|sei invest|interactive brokers|charles schwab|lpl financial|cboe|nasdaq|intercontinental exchange|cme group|tradeweb|marketaxess|factset|morningstar|broadridge|jack henry|shift4|toast|affirm|sofi|nu holdings|erie indemnity|ryan specialty|everest group/.test(n)) return "Fintech & Data";
+  if (/retail|costco|walmart|home depot|lowe|tjx|autozone|o'reilly|starbucks|mcdonald|chipotle|nike|procter|coca-cola|coca cola|pepsi|altria|philip morris|mondelez|colgate|kimberly|general mills|hershey|monster bev|target|ross stores|dollar|kroger|amazon|booking|airbnb|uber|doordash|marriott|hilton|hyatt|intercontinental hotels|H world|trip\.com|expedia|royal caribbean|carnival|norwegian cruise|yum!|domino|restaurant brands|darden|texas roadhouse|wingstop|cava|shake shack|dutch bros|lululemon|deckers|on holding|skechers|crocs|tapestry|ralph lauren|pvh|vf corp|levi|burlington|aberCrombie|gap|bath & body|ulta|e\.l\.f\.|estee lauder|coty|constellation brands|diageo|anheuser|molson|brown-forman|boston beer|keurig|kraft heinz|campbell|conagra|jm smucker|mccormick|hormel|tyson|jbs|sysco|us foods|performance food|sprouts|albertsons|casey's|tractor supply|best buy|dick's|williams-sonoma|RH |wayfair|etsy|ebay|chewy|carvana|carmax|autonation|penske|lithia|tesla|rivian|lucid|ferrari|general motors|ford motor|toyota|honda|stellantis|harley|polaris|draftkings|flutter|wynn|las vegas sands|mgm resorts|caesars|churchill downs|mattel|hasbro|peloton|garmin|apple|dell tech|hp inc|logitech|sonos/.test(n)) return "Consumer & Retail";
+  if (/energy|petroleum|oil|gas|pipeline|midstream|exxon|chevron|conocophillips|eog |eqt |schlumberger|slb|halliburton|baker hughes|technipfmc|phillips 66|marathon|valero|pbf energy|hf sinclair|occidental|devon|diamondback|coterra|ovintiv|APA |permian|chord|matador|range res|antero|chesapeake|expand energy|texas pacific land|williams cos|kinder morgan|oneok|targa|cheniere|mplx|plains all|western midstream|enterprise prod|energy transfer|enbridge|tc energy|hess|shell|bp plc|totalenergies|equinor|petrobras|suncor|canadian natural|cenovus|imperial oil|cameco|nextera|duke energy|southern co|dominion|constellation energy|vistra|ge vernova|nrg energy|talen|pg&e|edison|exelon|sempra|american electric|xcel|consolidated edison|public service|wec energy|dte energy|entergy|firstenergy|ppl corp|ameren|cms energy|centerpoint|atmos|nisource|evergy|allient|pinnacle west|aes corp|brookfield renewable|clearway|ormad|first solar|enphase|american water|essential utilities/.test(n)) return "Energy & Utilities";
+  if (/media|telecom|communications|netflix|disney|comcast|t-mobile|verizon|at&t|charter|liberty|warner|fox |paramount|new york times|news corp|omnigroup|interpublic|wpp|live nation|tko group|electronic arts|take-two|unity|alphabet|meta platforms|pinterest|snap|reddit|roku|zillow|coStar|iac|match group|bumble|yandex|baidu|netease|tencent|chunghwa|america movil|vodafone|telefonica|BCE|rogers|telus|fubo|sirius/.test(n)) return "Media & Telecom";
   return "Industrials & Materials";
 }
 
@@ -435,7 +549,7 @@ function generateDeterministicDiffs(
       filingType: "10-K",
       filingDate: company.lastFiling.date,
       accessionNumber: company.lastFiling.accessionNumber,
-      section: "XBRL Cash Flow Statement — SBC Reconciliation",
+      section: "XBRL Cash Flow Statement: SBC Reconciliation",
       category: "Executive Comp",
       materiality: sbcMateriality,
       headline:
@@ -444,9 +558,9 @@ function generateDeterministicDiffs(
           : `SBC consumed ${latest.sbcPctReportedFcf.toFixed(1)}% of Reported FCF (${latest.sbcPctRevenue.toFixed(1)}% of revenue)`,
       summary: `In ${latest.fiscalYear}, ${company.name} generated $${(latest.reportedFcf / 1000).toFixed(2)}B in Reported FCF against $${(latest.sbc / 1000).toFixed(2)}B in Stock-Based Compensation, yielding $${(latest.trueFcf / 1000).toFixed(2)}B in True FCF (${latest.trueFcfMargin.toFixed(1)}% margin).`,
       priorExcerpt: prev
-        ? `${prev.fiscalYear} SEC 10-K: Reported FCF $${(prev.reportedFcf / 1000).toFixed(2)}B · SBC $${(prev.sbc / 1000).toFixed(2)}B (${prev.sbcPctRevenue.toFixed(1)}% of rev) · True FCF $${(prev.trueFcf / 1000).toFixed(2)}B.`
+        ? `${prev.fiscalYear} SEC 10-K: Reported FCF $${(prev.reportedFcf / 1000).toFixed(2)}B | SBC $${(prev.sbc / 1000).toFixed(2)}B (${prev.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(prev.trueFcf / 1000).toFixed(2)}B.`
         : "Prior fiscal year baseline unavailable in XBRL window.",
-      currentExcerpt: `${latest.fiscalYear} SEC 10-K: Reported FCF $${(latest.reportedFcf / 1000).toFixed(2)}B · SBC $${(latest.sbc / 1000).toFixed(2)}B (${latest.sbcPctRevenue.toFixed(1)}% of rev) · True FCF $${(latest.trueFcf / 1000).toFixed(2)}B.`,
+      currentExcerpt: `${latest.fiscalYear} SEC 10-K: Reported FCF $${(latest.reportedFcf / 1000).toFixed(2)}B | SBC $${(latest.sbc / 1000).toFixed(2)}B (${latest.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(latest.trueFcf / 1000).toFixed(2)}B.`,
       signalNote:
         latest.sbcPctRevenue > 12
           ? "High SBC intensity materially widens the gap between headline FCF and owner earnings."
@@ -457,7 +571,7 @@ function generateDeterministicDiffs(
       filingType: "10-K",
       filingDate: company.lastFiling.date,
       accessionNumber: company.lastFiling.accessionNumber,
-      section: "XBRL Equity & Cash Flow — Dilution vs. Buybacks",
+      section: "XBRL Equity & Cash Flow: Dilution vs. Buybacks",
       category: "Capital Allocation",
       materiality: capAllocMateriality,
       headline:
@@ -467,8 +581,8 @@ function generateDeterministicDiffs(
             ? `Diluted shares expanded +${dilutionCagr.toFixed(1)}%/yr despite cash generation`
             : `Diluted share count held flat (${dilutionCagr >= 0 ? "+" : ""}${dilutionCagr.toFixed(1)}%/yr)`,
       summary: `Weighted-average diluted shares moved from ${company.annuals[0].dilutedShares.toLocaleString()}M in ${company.annuals[0].fiscalYear} to ${latest.dilutedShares.toLocaleString()}M in ${latest.fiscalYear}, with $${(latest.buybacks / 1000).toFixed(2)}B deployed into share repurchases in the latest fiscal year.`,
-      priorExcerpt: `${company.annuals[0].fiscalYear} 10-K: ${company.annuals[0].dilutedShares.toLocaleString()}M diluted shares · CapEx $${(company.annuals[0].capex / 1000).toFixed(2)}B.`,
-      currentExcerpt: `${latest.fiscalYear} 10-K: ${latest.dilutedShares.toLocaleString()}M diluted shares · CapEx $${(latest.capex / 1000).toFixed(2)}B · Buybacks $${(latest.buybacks / 1000).toFixed(2)}B.`,
+      priorExcerpt: `${company.annuals[0].fiscalYear} 10-K: ${company.annuals[0].dilutedShares.toLocaleString()}M diluted shares | CapEx $${(company.annuals[0].capex / 1000).toFixed(2)}B.`,
+      currentExcerpt: `${latest.fiscalYear} 10-K: ${latest.dilutedShares.toLocaleString()}M diluted shares | CapEx $${(latest.capex / 1000).toFixed(2)}B | Buybacks $${(latest.buybacks / 1000).toFixed(2)}B.`,
       signalNote:
         dilutionCagr < -0.5
           ? "Net share retirement provides a durable per-share FCF compounding tailwind."
@@ -506,7 +620,7 @@ async function resolveCandidates(): Promise<DirectoryCandidate[]> {
 
     const candidate: DirectoryCandidate = {
       ticker,
-      cik: String(cikNum).padStart(10, "0"),
+      cik: CIK_OVERRIDES[ticker] ?? String(cikNum).padStart(10, "0"),
       name: cleanCompanyName(rawName),
       exchange: rawExch === "NYSE" ? "NYSE" : "NASDAQ",
     };
@@ -536,7 +650,7 @@ async function resolveCandidates(): Promise<DirectoryCandidate[]> {
   return selected.slice(0, UNIVERSE_LIMIT);
 }
 
-async function ingestCandidate(
+export async function ingestCandidate(
   candidate: DirectoryCandidate,
   curatedMap: Map<string, CompanySnapshot>,
   existingMap: Map<string, CompanySnapshot>
@@ -554,8 +668,11 @@ async function ingestCandidate(
       [
         "RevenueFromContractWithCustomerExcludingAssessedTax",
         "Revenues",
+        "RevenuesNetOfInterestExpense",
         "SalesRevenueNet",
         "RevenueFromContractWithCustomerIncludingAssessedTax",
+        "RegulatedAndUnregulatedOperatingRevenue",
+        "OperatingRevenues",
         "Revenue",
       ],
       "USD"
@@ -603,8 +720,22 @@ async function ingestCandidate(
         "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
         "AdjustedWeightedAverageShares",
         "WeightedAverageShares",
+        "WeightedAverageLimitedPartnershipUnitsOutstandingDiluted",
+        "WeightedAverageNumberOfLimitedPartnershipAndGeneralPartnershipUnitOutstandingBasicAndDiluted",
+        "WeightedAverageLimitedPartnershipUnitsOutstanding",
       ],
       "shares"
+    );
+    const instantSharesAnnualMap = extractAnnualSeries(
+      facts,
+      [
+        "CommonStockSharesOutstanding",
+        "EntityCommonStockSharesOutstanding",
+        "NumberOfSharesOutstanding",
+        "LimitedPartnersCapitalAccountUnitsOutstanding",
+      ],
+      "shares",
+      false
     );
     const grossProfitMap = extractAnnualSeries(
       facts,
@@ -660,24 +791,38 @@ async function ingestCandidate(
         ?.filter((e) => (e.form === "10-Q" || e.form === "10-K") && e.end >= "2024-01-01")
         ?.sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))?.[0]?.val ?? 0;
 
+    const recentDeiShares =
+      facts.facts?.["dei"]?.["EntityCommonStockSharesOutstanding"]?.units?.shares
+        ?.filter((e) => e.end >= "2024-01-01" && e.val > 0)
+        ?.sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))?.[0]?.val ?? 0;
+
     const latestSharesInstant =
       gaapShares > 0
         ? gaapShares
-        : extractLatestInstant(
-            facts,
-            ["CommonStockSharesOutstanding"],
-            "shares"
-          );
+        : recentDeiShares > 0
+          ? recentDeiShares
+          : extractLatestInstant(
+              facts,
+              [
+                "CommonStockSharesOutstanding",
+                "NumberOfSharesOutstanding",
+                "LimitedPartnersCapitalAccountUnitsOutstanding",
+              ],
+              "shares"
+            );
+
+    const isBankEarningsOcf = BANK_EARNINGS_OCF_TICKERS.has(candidate.ticker);
 
     const annuals: AnnualFinancials[] = years.map((yr) => {
       const rev = (revMap.get(yr)?.val ?? 0) / 1e6;
-      const ocf = (ocfMap.get(yr)?.val ?? 0) / 1e6;
+      const rawOcf = (ocfMap.get(yr)?.val ?? 0) / 1e6;
       const capex = Math.abs(capexMap.get(yr)?.val ?? 0) / 1e6;
       const sbc = Math.abs(sbcMap.get(yr)?.val ?? 0) / 1e6;
       const buybacks = Math.abs(buybackMap.get(yr)?.val ?? 0) / 1e6;
       const rawShares =
         sharesMap.get(yr)?.val ??
-        (latestSharesInstant > 0 ? latestSharesInstant : 100_000_000);
+        instantSharesAnnualMap.get(yr)?.val ??
+        (latestSharesInstant > 0 ? latestSharesInstant : 0);
 
       const gpVal = grossProfitMap.get(yr)?.val;
       const rdVal = rdMap.get(yr)?.val;
@@ -686,6 +831,13 @@ async function ingestCandidate(
       const niVal = netIncMap.get(yr)?.val;
       const eqVal = equityMap.get(yr)?.val;
 
+      // For bank holding companies where GAAP OCF mixes customer loan/trading inventory changes,
+      // normalize operating cash flow to Distributable Cash Earnings (Net Income + SBC + CapEx).
+      const ocf =
+        isBankEarningsOcf && niVal !== undefined
+          ? niVal / 1e6 + sbc + capex
+          : rawOcf;
+
       return {
         fiscalYear: `FY${yr.slice(2)}`,
         revenue: Math.round(rev),
@@ -693,7 +845,7 @@ async function ingestCandidate(
         capex: Math.round(capex),
         sbc: Math.round(sbc),
         buybacks: Math.round(buybacks),
-        dilutedShares: Math.max(1, Math.round(rawShares / 1e6)),
+        dilutedShares: normalizeShareCountToMillions(rawShares, candidate.ticker),
         grossProfit: gpVal !== undefined ? Math.round(gpVal / 1e6) : null,
         rdExpense: rdVal !== undefined ? Math.round(Math.abs(rdVal) / 1e6) : null,
         sgaExpense: sgaVal !== undefined ? Math.round(Math.abs(sgaVal) / 1e6) : null,
@@ -708,6 +860,11 @@ async function ingestCandidate(
 
     const latestYearKey = years[years.length - 1];
     const latestMeta = revMap.get(latestYearKey) ?? ocfMap.get(latestYearKey)!;
+
+    // Reject stale USD filings where the latest annual period ended prior to 2023
+    if (latestMeta.end < "2023-01-01") {
+      return curated ?? null;
+    }
 
     // Attempt to compute Trailing Twelve Months (TTM) from newer 10-Q filings
     let lastFilingType: "10-K" | "10-Q" = "10-K";
@@ -789,7 +946,7 @@ async function ingestCandidate(
         )
       );
 
-      if (ttmRev > 0) {
+      if (ttmRev > 0 && !isBankEarningsOcf) {
         annuals.push({
           fiscalYear: "TTM",
           revenue: ttmRev,
@@ -799,7 +956,7 @@ async function ingestCandidate(
           buybacks: ttmBuybacks,
           dilutedShares:
             latestSharesInstant > 0
-              ? Math.max(1, Math.round(latestSharesInstant / 1e6))
+              ? normalizeShareCountToMillions(latestSharesInstant, candidate.ticker)
               : latestAnnual.dilutedShares,
         });
         lastFilingType = "10-Q";
@@ -1003,9 +1160,9 @@ function extractQuarterlySeries(
     const baseSnapshot: Omit<CompanySnapshot, "filingDiffs"> = {
       ticker: candidate.ticker,
       cik: candidate.cik,
-      name: curated?.name ?? candidate.name,
+      name: cleanCompanyName(curated?.name ?? candidate.name),
       exchange: candidate.exchange,
-      sector: meta?.sector ?? curated?.sector ?? inferSector(candidate.name),
+      sector: meta?.sector ?? inferSector(candidate.name, candidate.ticker),
       tagline:
         meta?.tagline ??
         curated?.tagline ??
@@ -1076,7 +1233,7 @@ async function run() {
       companies.push(snap);
       if (companies.length % 20 === 0 || i === candidates.length - 1) {
         console.log(
-          `[amber-ingest] Progress: ${i + 1}/${candidates.length} checked · ${companies.length} SEC-verified companies`
+          `[amber-ingest] Progress: ${i + 1}/${candidates.length} checked | ${companies.length} SEC-verified companies`
         );
       }
     }
@@ -1139,4 +1296,6 @@ async function run() {
   );
 }
 
-run();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  run();
+}
