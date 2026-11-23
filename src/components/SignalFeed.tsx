@@ -77,9 +77,26 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
   const [trending, setTrending] = useState<TrendingTickerItem[]>([]);
   const [loadingNews, setLoadingNews] = useState(true);
   const [showAllHeadlines, setShowAllHeadlines] = useState(false);
+  const [scopeReady, setScopeReady] = useState(false);
   const autoSelectedRef = useRef(false);
 
-  // Auto-select "My Watchlist" on initial load if the user has starred companies
+  // Auto-select "My Watchlist" on initial load if the user has starred companies (avoids double-fetch flash)
+  useEffect(() => {
+    if (!autoSelectedRef.current) {
+      try {
+        const raw = window.localStorage.getItem("amber-watchlist-v1");
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setScope("watchlist");
+          autoSelectedRef.current = true;
+        }
+      } catch {
+        // Ignore storage restrictions
+      }
+      setScopeReady(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!autoSelectedRef.current && watchlist.tickers.length > 0) {
       setScope("watchlist");
@@ -90,6 +107,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
   const watchlistOnly = scope === "watchlist";
 
   const newsQueryUrl = useMemo(() => {
+    if (!scopeReady) return null;
     if (selectedTicker) {
       return `/api/watchlist-news?tickers=${encodeURIComponent(selectedTicker)}&scope=custom`;
     }
@@ -100,7 +118,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
       )}&scope=watchlist`;
     }
     return `/api/watchlist-news?scope=market`;
-  }, [selectedTicker, watchlistOnly, watchlist.tickers]);
+  }, [scopeReady, selectedTicker, watchlistOnly, watchlist.tickers]);
 
   useEffect(() => {
     if (!newsQueryUrl) {
@@ -771,6 +789,17 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
             )}
           </>
         )}
+        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
+          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[var(--text-primary)]">
+              Terms
+            </Link>
+          </div>
+        </footer>
       </main>
     </div>
   );

@@ -709,8 +709,12 @@ export async function ingestCandidate(
       facts,
       [
         "PaymentsToAcquirePropertyPlantAndEquipment",
+        "PaymentsToAcquireOtherPropertyPlantAndEquipment",
         "PaymentsToAcquireProductiveAssets",
+        "PaymentsToAcquireOtherProductiveAssets",
+        "PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets",
         "PaymentsToAcquireOilAndGasPropertyAndEquipment",
+        "PaymentsToExploreAndDevelopOilAndGasProperties",
         "PaymentsToAcquireMachineryAndEquipment",
         "PaymentsForCapitalImprovements",
         "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
@@ -946,7 +950,10 @@ export async function ingestCandidate(
         facts,
         [
           "PaymentsToAcquirePropertyPlantAndEquipment",
+          "PaymentsToAcquireOtherPropertyPlantAndEquipment",
           "PaymentsToAcquireProductiveAssets",
+          "PaymentsToAcquireOtherProductiveAssets",
+          "PaymentsToExploreAndDevelopOilAndGasProperties",
         ],
         "USD",
         latestMeta.end

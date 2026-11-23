@@ -124,7 +124,14 @@ export async function getCompanySnapshot(
   }
 
   const cachedFetch = unstable_cache(
-    async () => queryCompanyFromDb(ticker),
+    async () => {
+      const res = await queryCompanyFromDb(ticker);
+      if (!res) {
+        // Throw so unstable_cache never caches transient DB misses for 1 hour
+        throw new Error(`Company ${ticker} unavailable from DB`);
+      }
+      return res;
+    },
     ["amber-company-v3", ticker],
     {
       revalidate: 3600,
@@ -132,8 +139,11 @@ export async function getCompanySnapshot(
     }
   );
 
-  const fromDb = await cachedFetch();
-  return fromDb ?? getStaticCompany(ticker);
+  try {
+    return await cachedFetch();
+  } catch {
+    return getStaticCompany(ticker);
+  }
 }
 
 export async function getAllTickers(): Promise<string[]> {
@@ -235,7 +245,13 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
   }
 
   const cachedFetch = unstable_cache(
-    async () => querySearchIndexFromDb(),
+    async () => {
+      const res = await querySearchIndexFromDb();
+      if (!res || res.length === 0) {
+        throw new Error("Search index unavailable from DB");
+      }
+      return res;
+    },
     ["amber-search-index-v3"],
     {
       revalidate: 3600,
@@ -243,8 +259,11 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
     }
   );
 
-  const fromDb = await cachedFetch();
-  return fromDb ?? SEARCH_INDEX;
+  try {
+    return await cachedFetch();
+  } catch {
+    return SEARCH_INDEX;
+  }
 }
 
 export async function getInsiderTrades(

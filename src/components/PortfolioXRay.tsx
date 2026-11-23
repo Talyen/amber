@@ -715,6 +715,17 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             </table>
           </div>
         </section>
+        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
+          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[var(--text-primary)]">
+              Terms
+            </Link>
+          </div>
+        </footer>
       </main>
     </div>
   );

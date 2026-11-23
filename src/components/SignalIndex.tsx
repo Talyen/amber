@@ -283,14 +283,14 @@ export function SignalIndex({
   const groupedBySector = useMemo(() => {
     if (!groupBySector) return [];
     const map = new Map<string, SearchIndexEntry[]>();
-    // Group across ALL matching rows so sector totals are accurate (not clipped at 30)
-    for (const c of rows) {
+    // Cap per-sector DOM rows when viewing the full universe so toggling Group by Sector stays instant
+    for (const c of visibleRows) {
       const list = map.get(c.sector) ?? [];
       list.push(c);
       map.set(c.sector, list);
     }
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
-  }, [groupBySector, rows]);
+  }, [groupBySector, visibleRows]);
 
   const sortColumns: Array<{ key: SortKey; label: string }> = [
     { key: "marketCap", label: "Mkt Cap" },

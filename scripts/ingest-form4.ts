@@ -140,10 +140,106 @@ async function fetchOpenInsiderBatch(
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     },
+    signal: AbortSignal.timeout(15_000),
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`OpenInsider HTTP ${res.status}`);
   const html = await res.text();
   return parseOpenInsiderHtml(html, validSet, txType);
+}
+
+/**
+ * Direct SEC EDGAR Form 4 XML fallback when OpenInsider is unreachable.
+ * Fetches the latest Form 4 XML filings for a ticker's CIK and parses Code P / Code S open-market trades.
+ */
+async function fetchSecForm4Fallback(
+  ticker: string,
+  cik: string
+): Promise<Array<InsiderTradeItem & { ticker: string }>> {
+  const padded = cik.padStart(10, "0");
+  const cikNum = String(Number(cik));
+  const out: Array<InsiderTradeItem & { ticker: string }> = [];
+
+  try {
+    const subRes = await fetch(
+      `https://data.sec.gov/submissions/CIK${padded}.json`,
+      {
+        headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/json" },
+        signal: AbortSignal.timeout(12_000),
+      }
+    );
+    if (!subRes.ok) return out;
+    const sub = (await subRes.json()) as {
+      filings?: {
+        recent?: {
+          form?: string[];
+          accessionNumber?: string[];
+          filingDate?: string[];
+          primaryDocument?: string[];
+        };
+      };
+    };
+    const recent = sub.filings?.recent;
+    if (!recent?.form || !recent.accessionNumber || !recent.filingDate || !recent.primaryDocument) {
+      return out;
+    }
+
+    let checked = 0;
+    for (let i = 0; i < recent.form.length && checked < 6; i++) {
+      if (recent.form[i] !== "4") continue;
+      checked++;
+      const accn = recent.accessionNumber[i];
+      const filingDate = recent.filingDate[i];
+      const rawDoc = recent.primaryDocument[i].replace(/^xsl[^/]+\//i, "");
+      const xmlUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accn.replace(/-/g, "")}/${rawDoc}`;
+      const xmlRes = await fetch(xmlUrl, {
+        headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/xml,text/xml" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!xmlRes.ok) continue;
+      const xml = await xmlRes.text();
+
+      const ownerMatch = xml.match(/<rptOwnerName>([^<]+)<\/rptOwnerName>/i);
+      const titleMatch = xml.match(/<officerTitle>([^<]+)<\/officerTitle>/i);
+      const isDir = /<isDirector>\s*(1|true)\s*<\/isDirector>/i.test(xml);
+      const insiderName = ownerMatch ? ownerMatch[1].trim() : "Executive Insider";
+      const insiderTitle = normalizeInsiderTitle(
+        titleMatch ? titleMatch[1].trim() : isDir ? "Director" : "Executive Officer"
+      );
+
+      const txBlocks = [...xml.matchAll(/<nonDerivativeTransaction>([\s\S]*?)<\/nonDerivativeTransaction>/gi)];
+      for (const block of txBlocks) {
+        const body = block[1];
+        const code = body.match(/<transactionCode>\s*([A-Z])\s*<\/transactionCode>/i)?.[1]?.toUpperCase();
+        if (code !== "P" && code !== "S") continue;
+        const shares = parseFloat(
+          body.match(/<transactionShares>\s*<value>([^<]+)<\/value>/i)?.[1] ?? "0"
+        );
+        const price = parseFloat(
+          body.match(/<transactionPricePerShare>\s*<value>([^<]+)<\/value>/i)?.[1] ?? "0"
+        );
+        const valUsd = shares * price;
+        if (!Number.isFinite(valUsd) || valUsd < (code === "P" ? 25_000 : 100_000)) continue;
+
+        out.push({
+          id: `${ticker}:${accn}:${code}`,
+          ticker,
+          filingDate,
+          insiderName,
+          insiderTitle,
+          transactionType: code === "P" ? "Buy" : "Sell",
+          shares: Math.round(shares),
+          pricePerShare: Number(price.toFixed(2)),
+          totalValue: Number((valUsd / 1e6).toFixed(3)),
+          accessionNumber: accn,
+        });
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  } catch {
+    // Ignore transient SEC fallback errors
+  }
+
+  return out;
 }
 
 async function run() {
@@ -153,13 +249,15 @@ async function run() {
 
   const dbUrl = process.env.DATABASE_URL;
   let allTickers: string[] = [];
+  const cikByTicker = new Map<string, string>();
 
   if (dbUrl) {
     const db = drizzle(neon(dbUrl));
     const rows = await db
-      .select({ ticker: companiesTable.ticker })
+      .select({ ticker: companiesTable.ticker, cik: companiesTable.cik })
       .from(companiesTable);
     allTickers = rows.map((r) => r.ticker.toUpperCase());
+    for (const r of rows) cikByTicker.set(r.ticker.toUpperCase(), r.cik);
   }
 
   if (allTickers.length === 0 && fs.existsSync(companiesPath)) {
@@ -167,6 +265,7 @@ async function run() {
       fs.readFileSync(companiesPath, "utf8")
     ) as CompanySnapshot[];
     allTickers = companies.map((c) => c.ticker.toUpperCase());
+    for (const c of companies) cikByTicker.set(c.ticker.toUpperCase(), c.cik);
   }
 
   const validSet = new Set(allTickers);
@@ -202,7 +301,13 @@ async function run() {
       for (const b of buys) byId.set(b.id, b);
       for (const s of sells) byId.set(s.id, s);
     } catch {
-      // Continue cleanly on network hiccups
+      // Fallback to direct SEC EDGAR Form 4 XML for top tickers in this batch
+      for (const t of batch.slice(0, 10)) {
+        const cik = cikByTicker.get(t);
+        if (!cik) continue;
+        const xmlTrades = await fetchSecForm4Fallback(t, cik);
+        for (const x of xmlTrades) byId.set(x.id, x);
+      }
     }
     await new Promise((r) => setTimeout(r, 150));
   }

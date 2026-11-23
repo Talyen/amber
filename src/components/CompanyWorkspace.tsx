@@ -334,7 +334,11 @@ export function CompanyWorkspace({
           className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
         >
           {/* Card 1: True FCF */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("fcf")}
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+          >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
               <span>True FCF ({latest.fiscalYear})</span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
@@ -366,10 +370,14 @@ export function CompanyWorkspace({
                 )}
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Card 2: SBC Intensity */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("fcf")}
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+          >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
               <span>SBC Burden</span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
@@ -392,10 +400,14 @@ export function CompanyWorkspace({
                 )}
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Card 3: Net Share Dilution */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("fcf")}
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+          >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
               <span>Net Share Dilution</span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
@@ -419,7 +431,7 @@ export function CompanyWorkspace({
                 {latest.dilutedShares.toLocaleString()}M
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Card 4: Implied Growth */}
           <button

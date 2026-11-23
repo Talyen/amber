@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, RotateCcw } from "lucide-react";
+import { Check, Download, RotateCcw } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
@@ -30,6 +30,7 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
     company.defaultDcf.targetFcfMargin
   );
   const [sbcDrag, setSbcDrag] = useState(company.defaultDcf.sbcDragPct);
+  const [exported, setExported] = useState(false);
   const hydratedFromUrl = useRef(false);
 
   // Hydrate custom Reverse DCF assumptions from shareable URL query params
@@ -317,19 +318,32 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
               <div className="text-xs font-medium text-[var(--text-secondary)]">
                 Market-Implied 10Y Revenue CAGR
               </div>
-              <div className="mt-1 flex items-baseline gap-3">
+              <div className="mt-1 flex flex-wrap items-baseline gap-3">
                 <span className="font-mono-num text-4xl font-semibold tracking-[-0.03em] text-[var(--amber)] sm:text-5xl">
-                  {formatPct(result.impliedRevenueCagrPct)}
+                  {result.clamped === "negative-ev"
+                    ? "N/A"
+                    : result.clamped === "high"
+                      ? `>${formatPct(result.impliedRevenueCagrPct)}`
+                      : result.clamped === "low"
+                        ? `<${formatPct(result.impliedRevenueCagrPct)}`
+                        : formatPct(result.impliedRevenueCagrPct)}
                 </span>
                 <span className="text-xs text-[var(--text-muted)]">
-                  / yr through Year 10
+                  {result.clamped === "negative-ev"
+                    ? "Net cash exceeds market cap"
+                    : "/ yr through Year 10"}
                 </span>
               </div>
+              {result.clamped && result.clamped !== "negative-ev" && (
+                <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                  Reached solver bound ({result.clamped === "high" ? "+85%" : "-25%"}) under current assumptions.
+                </p>
+              )}
             </div>
 
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 exportReverseDcfCard(
                   company,
                   {
@@ -339,12 +353,23 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
                     enterpriseValue,
                   },
                   result
-                )
-              }
+                );
+                setExported(true);
+                window.setTimeout(() => setExported(false), 1800);
+              }}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
             >
-              <Download className="h-3.5 w-3.5" />
-              Export PNG
+              {exported ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
+                  Exported
+                </>
+              ) : (
+                <>
+                  <Download className="h-3.5 w-3.5" />
+                  Export PNG
+                </>
+              )}
             </button>
           </div>
 

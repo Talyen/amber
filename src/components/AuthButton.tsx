@@ -281,6 +281,18 @@ export function AuthButton() {
         </div>
 
         {error && <p className="mt-3 text-xs text-[var(--negative)]">{error}</p>}
+
+        <p className="mt-4 border-t border-[var(--border)] pt-3 text-center text-[11px] text-[var(--text-muted)]">
+          By signing in you agree to Amber&apos;s{" "}
+          <Link href="/terms" onClick={closeModal} className="text-[var(--text-secondary)] hover:text-[var(--amber)] hover:underline">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" onClick={closeModal} className="text-[var(--text-secondary)] hover:text-[var(--amber)] hover:underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </dialog>
     </>
   );

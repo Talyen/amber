@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Check, Download } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
@@ -26,6 +26,7 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
   );
 
   const [cadence, setCadence] = useState<"annual" | "quarterly">("annual");
+  const [exported, setExported] = useState(false);
   const activeSeries =
     cadence === "quarterly" && quarterlySeries.length >= 4
       ? quarterlySeries
@@ -130,11 +131,24 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
 
           <button
             type="button"
-            onClick={() => exportTrueFcfCard(company, activeSeries)}
+            onClick={() => {
+              exportTrueFcfCard(company, activeSeries);
+              setExported(true);
+              window.setTimeout(() => setExported(false), 1800);
+            }}
             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
           >
-            <Download className="h-3.5 w-3.5" />
-            Export PNG
+            {exported ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
+                Exported
+              </>
+            ) : (
+              <>
+                <Download className="h-3.5 w-3.5" />
+                Export PNG
+              </>
+            )}
           </button>
         </div>
       </div>

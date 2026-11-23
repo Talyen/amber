@@ -199,6 +199,13 @@ export function CommandSearch({
           <input
             ref={inputRef}
             type="search"
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-controls="command-search-listbox"
+            aria-activedescendant={
+              results[activeIdx] ? `cmd-opt-${results[activeIdx].ticker}` : undefined
+            }
+            aria-autocomplete="list"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleInputKeyDown}
@@ -222,13 +229,26 @@ export function CommandSearch({
               No SEC-indexed companies match &ldquo;{query}&rdquo;.
             </div>
           ) : (
-            <ul role="listbox" aria-label="Matching companies" className="space-y-0.5">
+            <ul
+              id="command-search-listbox"
+              role="listbox"
+              aria-label="Matching companies"
+              className="space-y-0.5"
+            >
               {results.map((item, idx) => {
                 const isSelected = idx === activeIdx;
                 return (
-                  <li key={item.ticker} role="option" aria-selected={isSelected}>
+                  <li key={item.ticker} role="none">
                     <button
+                      id={`cmd-opt-${item.ticker}`}
                       type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      ref={
+                        isSelected
+                          ? (el) => el?.scrollIntoView({ block: "nearest" })
+                          : undefined
+                      }
                       onMouseEnter={() => setActiveIdx(idx)}
                       onClick={() => selectTicker(item.ticker)}
                       className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors cursor-pointer ${
