@@ -354,7 +354,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "buyback-cannibals",
-    title: "Buyback Cannibals",
+    title: "Buybacks",
     subtitle: "Steadily shrinking their share count",
     criteriaSummary: "Net dilution <= -1.5%/yr, positive True FCF, revenue >= $500M",
     whyItMatters:
@@ -369,7 +369,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "priced-for-perfection",
-    title: "Priced for Perfection",
+    title: "High Bar",
     subtitle: "Steepest market-implied 10Y growth",
     criteriaSummary: "Implied 10Y revenue CAGR 15% to 60%, revenue >= $300M",
     whyItMatters:
@@ -384,7 +384,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "hidden-dilution",
-    title: "Hidden Dilution",
+    title: "High SBC",
     subtitle: "Headline FCF masked by heavy stock comp",
     criteriaSummary: "SBC >= 12% of revenue, revenue >= $300M",
     whyItMatters:
@@ -399,7 +399,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "reasonable-expectations",
-    title: "Modest Expectations",
+    title: "Low Bar",
     subtitle: "Cash-generative stocks with a low bar",
     criteriaSummary: "True FCF margin >= 12%, implied 10Y growth 0% to 9%, revenue >= $1B",
     whyItMatters:
@@ -416,7 +416,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "mega-cap-compounders",
-    title: "Mega-Cap Compounders",
+    title: "Mega-Caps",
     subtitle: "$100B+ leaders generating durable real cash",
     criteriaSummary: "Market cap >= $100B, True FCF margin >= 15%",
     whyItMatters:
@@ -431,7 +431,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "clean-software",
-    title: "Clean Cloud & Software",
+    title: "Clean Cloud",
     subtitle: "Software businesses that stay profitable after SBC",
     criteriaSummary: "Cloud & Software sector, True FCF margin >= 12%",
     whyItMatters:
@@ -446,7 +446,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   },
   {
     id: "semiconductor-leaders",
-    title: "Semiconductor Leaders",
+    title: "Semis",
     subtitle: "Chip & hardware leaders ranked by real cash and expectations",
     criteriaSummary: "Semiconductors sector, revenue >= $500M",
     whyItMatters:

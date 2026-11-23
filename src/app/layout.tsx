@@ -6,14 +6,20 @@ import "./globals.css";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
-  display: "swap",
+  display: "optional",
+  preload: true,
+  adjustFontFallback: true,
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
-  display: "swap",
+  display: "optional",
+  preload: true,
+  adjustFontFallback: true,
 });
+
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("amber-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;}}catch(e){}})();`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -66,6 +72,9 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-screen antialiased selection:bg-[var(--amber-soft)] selection:text-[var(--amber)]">
         <script
           type="application/ld+json"

@@ -48,6 +48,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
   const [systemDark, setSystemDark] = useState(false);
+  const [themeMounted, setThemeMounted] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -60,6 +61,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
       setTheme(saved);
       document.documentElement.dataset.theme = saved;
     }
+    setThemeMounted(true);
 
     return () => mq.removeEventListener("change", onChange);
   }, []);
@@ -155,10 +157,14 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
             aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
           >
-            {isDark ? (
-              <Sun className="h-3.5 w-3.5" />
+            {themeMounted ? (
+              isDark ? (
+                <Sun className="h-3.5 w-3.5" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )
             ) : (
-              <Moon className="h-3.5 w-3.5" />
+              <span className="h-3.5 w-3.5" aria-hidden="true" />
             )}
           </button>
 

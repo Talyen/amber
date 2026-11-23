@@ -61,19 +61,51 @@ export function AuthButton() {
   const [error, setError] = useState("");
   const [providers, setProviders] = useState<ProviderAvailability | null>(null);
   const [userHandle, setUserHandle] = useState<string>("");
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
     if (!session?.user) {
       setUserHandle("");
+      setProfileLoaded(false);
+      try {
+        window.localStorage.removeItem("amber-profile-handle");
+      } catch {
+        // Ignore storage errors
+      }
       return;
     }
+
+    // Hydrate cached handle immediately so the label never flashes "Settings" -> username
+    try {
+      const cached = window.localStorage.getItem("amber-profile-handle");
+      if (cached) {
+        setUserHandle(cached);
+        setProfileLoaded(true);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+
     const fetchProfile = () => {
       fetch("/api/account/profile")
         .then((res) => (res.ok ? res.json() : null))
         .then((data: { user?: { handle?: string } } | null) => {
-          setUserHandle(data?.user?.handle ?? "");
+          const next = data?.user?.handle ?? "";
+          setUserHandle(next);
+          setProfileLoaded(true);
+          try {
+            if (next) {
+              window.localStorage.setItem("amber-profile-handle", next);
+            } else {
+              window.localStorage.removeItem("amber-profile-handle");
+            }
+          } catch {
+            // Ignore storage errors
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          setProfileLoaded(true);
+        });
     };
     fetchProfile();
     window.addEventListener("amber:profile-updated", fetchProfile);
@@ -132,10 +164,25 @@ export function AuthButton() {
   }
 
   async function handleSignOut() {
+    try {
+      window.localStorage.removeItem("amber-profile-handle");
+    } catch {
+      // Ignore storage errors
+    }
     await authClient.signOut();
   }
 
-  if (!isPending && session?.user) {
+  // Reserve exact button footprint while session/profile resolves — zero "Sign In" -> "Settings" -> username flash
+  if (isPending || (session?.user && !profileLoaded && !userHandle)) {
+    return (
+      <div
+        aria-hidden="true"
+        className="h-8 w-[84px] rounded-md border border-[var(--border)] bg-[var(--surface)] opacity-60"
+      />
+    );
+  }
+
+  if (session?.user) {
     const displayLabel = userHandle || "Settings";
     return (
       <div className="inline-flex items-center gap-1">

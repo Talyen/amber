@@ -350,7 +350,7 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              {watchlistOnly ? "Watchlist Feed" : "Market Feed"}
+              Feed
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               SEC filing changes, Form 8-K events, Form 4 insider trades, and headlines.
