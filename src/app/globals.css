@@ -37,10 +37,13 @@
   --amber-light: #b45309;
   --amber-dark: #e5a03c;
 
-  /* High-contrast CTA button tokens (>= 5.0:1 WCAG AA in both light & dark) */
-  --cta-bg: #b45309;
-  --cta-bg-hover: #9a4408;
-  --cta-fg: #ffffff;
+  /* CTA button tokens: exact brand Amber with high-contrast text (white in light, obsidian in dark) */
+  --cta-bg-light: var(--amber-light);
+  --cta-bg-dark: var(--amber-dark);
+  --cta-bg-hover-light: #9a4408;
+  --cta-bg-hover-dark: #edb258;
+  --cta-fg-light: #ffffff;
+  --cta-fg-dark: #111317;
 
   --amber-soft-light: rgba(180, 83, 9, 0.09);
   --amber-soft-dark: rgba(229, 160, 60, 0.12);
@@ -78,6 +81,9 @@
   --amber: var(--amber-light);
   --amber-soft: var(--amber-soft-light);
   --amber-border: var(--amber-border-light);
+  --cta-bg: var(--cta-bg-light);
+  --cta-bg-hover: var(--cta-bg-hover-light);
+  --cta-fg: var(--cta-fg-light);
   --positive: var(--positive-light);
   --negative: var(--negative-light);
   --sbc: var(--sbc-light);
@@ -98,6 +104,9 @@
     --amber: var(--amber-dark);
     --amber-soft: var(--amber-soft-dark);
     --amber-border: var(--amber-border-dark);
+    --cta-bg: var(--cta-bg-dark);
+    --cta-bg-hover: var(--cta-bg-hover-dark);
+    --cta-fg: var(--cta-fg-dark);
     --positive: var(--positive-dark);
     --negative: var(--negative-dark);
     --sbc: var(--sbc-dark);
@@ -119,6 +128,9 @@
     --amber: light-dark(var(--amber-light), var(--amber-dark));
     --amber-soft: light-dark(var(--amber-soft-light), var(--amber-soft-dark));
     --amber-border: light-dark(var(--amber-border-light), var(--amber-border-dark));
+    --cta-bg: light-dark(var(--cta-bg-light), var(--cta-bg-dark));
+    --cta-bg-hover: light-dark(var(--cta-bg-hover-light), var(--cta-bg-hover-dark));
+    --cta-fg: light-dark(var(--cta-fg-light), var(--cta-fg-dark));
     --positive: light-dark(var(--positive-light), var(--positive-dark));
     --negative: light-dark(var(--negative-light), var(--negative-dark));
     --sbc: light-dark(var(--sbc-light), var(--sbc-dark));
@@ -170,6 +182,9 @@ html[data-theme="dark"] {
     --amber: var(--amber-dark);
     --amber-soft: var(--amber-soft-dark);
     --amber-border: var(--amber-border-dark);
+    --cta-bg: var(--cta-bg-dark);
+    --cta-bg-hover: var(--cta-bg-hover-dark);
+    --cta-fg: var(--cta-fg-dark);
     --positive: var(--positive-dark);
     --negative: var(--negative-dark);
     --sbc: var(--sbc-dark);
