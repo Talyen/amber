@@ -1,7 +1,7 @@
 export const SITE_NAME = "Amber";
 
 export const SITE_TAGLINE =
-  "The independent reality check before you buy — SEC fine-print diffs, market-implied growth, and open-market insider moves.";
+  "SEC filings, cash flow, valuation, and insider trades across 600+ public companies.";
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
   ? process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "")

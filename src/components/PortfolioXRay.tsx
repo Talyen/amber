@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   X,
@@ -21,6 +21,7 @@ import { TopNav } from "@/components/TopNav";
 import { LockPortfolioModal } from "@/components/LockPortfolioModal";
 import { formatPct } from "@/lib/finance";
 import { exportPortfolioXRayCard } from "@/lib/export-card";
+import { parsePortfolioHoldings, serializePortfolioHoldings } from "@/lib/portfolio-link";
 
 const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "META"];
 
@@ -49,7 +50,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     handle: string;
     nav: number;
   } | null>(null);
-  const hydratedRef = useRef(false);
+  const [initialLocation, setInitialLocation] = useState<{ addTicker?: string } | null>(null);
 
   // Fetch signed-in user's Arena status banner
   useEffect(() => {
@@ -71,41 +72,29 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
 
   // Hydrate shareable ?h=AAPL:25,MSFT:25 or ?add=NVDA URL on mount
   useEffect(() => {
+    if (initialLocation) return;
+
     const params = new URLSearchParams(window.location.search);
     const raw = params.get("h");
-    const addParam = params.get("add")?.trim().toUpperCase();
-    if (raw) {
-      const parsedTickers: string[] = [];
-      const parsedWeights: Record<string, number> = {};
-      for (const pair of raw.split(",")) {
-        const [tRaw, wRaw] = pair.split(":");
-        const t = (tRaw ?? "").trim().toUpperCase();
-        const w = parseFloat(wRaw ?? "10");
-        if (byTicker.has(t) && !parsedTickers.includes(t)) {
-          parsedTickers.push(t);
-          parsedWeights[t] = Number.isFinite(w) && w > 0 ? w : 10;
-        }
+    if (raw !== null) {
+      const parsed = parsePortfolioHoldings(raw, byTicker);
+      if (parsed.size > 0 || raw === "") {
+        setSharedTickers([...parsed.keys()]);
+        setWeights(Object.fromEntries(parsed));
       }
-      if (parsedTickers.length > 0) {
-        setSharedTickers(parsedTickers);
-        setWeights(parsedWeights);
-      }
-    } else if (addParam && byTicker.has(addParam)) {
-      setSharedTickers((prev) => {
-        const base = prev ?? (watchlist.tickers.length > 0 ? watchlist.tickers : STARTER_TICKERS);
-        return base.includes(addParam) ? base : [addParam, ...base];
-      });
     }
-    hydratedRef.current = true;
-  }, [byTicker, watchlist.tickers]);
 
-  const activeTickers =
-    sharedTickers && sharedTickers.length > 0
-      ? sharedTickers
-      : watchlist.tickers.length > 0
-        ? watchlist.tickers
-        : STARTER_TICKERS;
-  const usingStarter = !sharedTickers && watchlist.tickers.length === 0;
+    const addTicker = params.get("add")?.trim().toUpperCase();
+    setInitialLocation({ addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined });
+  }, [byTicker, initialLocation]);
+
+  const addTicker = initialLocation?.addTicker;
+  const activeTickers = useMemo(() => {
+    if (sharedTickers !== null) return sharedTickers;
+    const base = watchlist.tickers.length > 0 ? watchlist.tickers : STARTER_TICKERS;
+    return addTicker && !base.includes(addTicker) ? [addTicker, ...base] : base;
+  }, [addTicker, sharedTickers, watchlist.tickers]);
+  const usingStarter = sharedTickers === null && !addTicker && watchlist.tickers.length === 0;
 
   const holdings = useMemo(
     () =>
@@ -127,25 +116,28 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     const raw = holdings.map((h) =>
       inputMode === "dollars"
         ? Math.max(0, dollars[h.ticker] ?? 10_000)
-        : Math.max(1, weights[h.ticker] ?? 10)
+        : weights[h.ticker] ?? 10
     );
-    const sum = raw.reduce((a, b) => a + b, 0) || 1;
-    return new Map(holdings.map((h, i) => [h.ticker, raw[i] / sum]));
+    const max = Math.max(1, ...raw);
+    const scaled = raw.map((weight) => weight / max);
+    const sum = scaled.reduce((a, b) => a + b, 0) || 1;
+    return new Map(holdings.map((h, i) => [h.ticker, scaled[i] / sum]));
   }, [holdings, weights, dollars, inputMode]);
+  const hasAllocation = [...normalizedWeights.values()].some((weight) => weight > 0);
 
-  // Keep ?h= synced cleanly in URL so Share button captures exact portfolio & weights
+  // Keep the address shareable once the incoming link has been applied.
   useEffect(() => {
-    if (!hydratedRef.current || holdings.length === 0) return;
+    if (!initialLocation) return;
     if (usingStarter && Object.keys(weights).length === 0 && inputMode === "weight") {
       return;
     }
-    const encoded = holdings
-      .map((h) => `${h.ticker}:${Math.round((normalizedWeights.get(h.ticker) ?? 0) * 100)}`)
-      .join(",");
     const url = new URL(window.location.href);
-    url.searchParams.set("h", encoded);
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }, [holdings, normalizedWeights, usingStarter, weights, inputMode]);
+    url.searchParams.set("h", serializePortfolioHoldings(normalizedWeights));
+    url.searchParams.delete("add");
+    if (url.href !== window.location.href) {
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  }, [initialLocation, normalizedWeights, usingStarter, weights, inputMode]);
 
   const metrics = useMemo(() => {
     let wImplied = 0;
@@ -269,7 +261,8 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       const ticker = m[1].toUpperCase();
       if (!byTicker.has(ticker) || parsedTickers.includes(ticker)) continue;
       parsedTickers.push(ticker);
-      parsedWeights[ticker] = m[2] ? Math.max(1, parseFloat(m[2])) : 10;
+      const weight = m[2] ? Number(m[2]) : 10;
+      parsedWeights[ticker] = Number.isFinite(weight) ? weight : 10;
     }
 
     if (parsedTickers.length > 0) {
@@ -329,11 +322,11 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               <span className="font-mono-num text-xs font-semibold text-[var(--amber)]">
                 PORTFOLIO ANALYZER
               </span>
-              <span
+              {hasAllocation && <span
                 className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${metrics.valuationStance.tone}`}
               >
                 {metrics.valuationStance.label}
-              </span>
+              </span>}
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
               What your portfolio is really betting on
@@ -400,17 +393,17 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             <button
               type="button"
               onClick={handleExportPng}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+              disabled={!hasAllocation}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-3.5 w-3.5" />
               PNG
             </button>
 
             <LockPortfolioModal
-              positions={holdings.map((h) => ({
-                ticker: h.ticker,
-                weight: (normalizedWeights.get(h.ticker) ?? 0) * 100,
-              }))}
+              positions={[...normalizedWeights]
+                .filter(([, weight]) => weight > 0)
+                .map(([ticker, weight]) => ({ ticker, weight: weight * 100 }))}
             />
           </div>
         </section>
@@ -444,7 +437,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               Implied 10Y Growth
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--amber)]">
-              {formatPct(metrics.wImplied)}
+              {hasAllocation ? formatPct(metrics.wImplied) : "—"}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
               Priced into your holdings
@@ -456,7 +449,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               True FCF Margin
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--text-primary)]">
-              {formatPct(metrics.wTrueMargin)}
+              {hasAllocation ? formatPct(metrics.wTrueMargin) : "—"}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
               Cash after CapEx &amp; SBC
@@ -468,7 +461,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               SBC Burden
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--sbc)]">
-              {formatPct(metrics.wSbcPct)}
+              {hasAllocation ? formatPct(metrics.wSbcPct) : "—"}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
               Stock comp % of revenue
@@ -488,7 +481,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                     : "text-[var(--text-primary)]"
               }`}
             >
-              {formatPct(metrics.wDilution, true)}
+              {hasAllocation ? formatPct(metrics.wDilution, true) : "—"}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
               Annual share count drift
@@ -497,7 +490,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
         </section>
 
         {/* Reality Check Flags + Sector Exposure */}
-        <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-12">
+        {hasAllocation && <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-12">
           <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-6">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">
               Portfolio Reality Check
@@ -542,7 +535,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               ))}
             </div>
           </section>
-        </div>
+        </div>}
 
         {/* Holdings Allocation Table */}
         <section className="mt-6">
@@ -613,6 +606,11 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                 </tr>
               </thead>
               <tbody>
+                {holdings.length === 0 && (
+                  <tr>
+                    <td colSpan={7}>Add a ticker or paste holdings to analyze a portfolio.</td>
+                  </tr>
+                )}
                 {holdings.map((h) => {
                   const pct = (normalizedWeights.get(h.ticker) ?? 0) * 100;
                   return (
@@ -647,7 +645,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                                   ...prev,
                                   [h.ticker]: Math.max(
                                     0,
-                                    parseInt(e.target.value || "0", 10)
+                                    Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0
                                   ),
                                 }))
                               }
@@ -662,13 +660,14 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                           <div className="inline-flex items-center gap-2">
                             <input
                               type="range"
-                              min={1}
-                              max={50}
+                              min={0}
+                              max={Math.max(100, weights[h.ticker] ?? 10)}
+                              step="any"
                               value={weights[h.ticker] ?? 10}
                               onChange={(e) =>
                                 setWeights((prev) => ({
                                   ...prev,
-                                  [h.ticker]: parseInt(e.target.value, 10),
+                                  [h.ticker]: e.target.valueAsNumber,
                                 }))
                               }
                               aria-label={`${h.ticker} relative weight`}

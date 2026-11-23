@@ -349,14 +349,11 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
         {/* Header + Primary Watchlist vs Market Toggle */}
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-              SEC SIGNAL WIRE
-            </div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              {watchlistOnly ? "Your Signal Briefing" : "Market Signal Wire"}
+            <h1 className="text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
+              {watchlistOnly ? "Watchlist Feed" : "Market Feed"}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Material SEC 10-K/10-Q fine-print changes, Form 8-K events, cross-filing risk themes, and open-market insider moves.
+              SEC filing changes, Form 8-K events, Form 4 insider trades, and headlines.
             </p>
           </div>
 
@@ -447,10 +444,10 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
         {isEmptyWatchlist ? (
           <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-7 text-center">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Follow a starter pack or pick 1 stock in a single click
+              Your watchlist is empty
             </h2>
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
-              No manual portfolio setup required — follow a group below to filter SEC filing diffs, 8-Ks, and insider buys instantly.
+              Follow a preset list or star individual companies to filter filings, 8-Ks, and insider trades.
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {STARTER_PACKS.map((pack) => (
@@ -488,19 +485,19 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
                 onClick={() => setScope("market")}
                 className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
               >
-                Or browse All Market signals with zero setup
+                Or browse All Market
               </button>
             </div>
           </section>
         ) : (
           <>
-            {/* Cross-Filing Theme Radar ("What Management Is Warning About") */}
+            {/* Filing Topics Filter */}
             {scopedDiffs.length > 0 && (
               <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)] mr-1">
                     <Radar className="h-3.5 w-3.5 text-[var(--amber)]" />
-                    Cross-Filing Theme Radar:
+                    Topics:
                   </span>
                   {CROSS_FILING_THEMES.map((theme) => {
                     const count = themeCounts.get(theme.id) ?? 0;
@@ -536,13 +533,13 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
             <div className="mt-4 flex flex-wrap items-center gap-1.5">
               {(
                 [
-                  { id: "all", label: "All Signals" },
+                  { id: "all", label: "All" },
                   {
                     id: "diffs",
                     label:
                       scopedDiffs.length > 0
-                        ? `SEC Fine-Print & 8-Ks (${scopedDiffs.length})`
-                        : "SEC Fine-Print & 8-Ks",
+                        ? `Filing Changes & 8-Ks (${scopedDiffs.length})`
+                        : "Filing Changes & 8-Ks",
                   },
                   {
                     id: "insider-buys",
@@ -605,12 +602,12 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
                     <FileDiff className="h-4 w-4 text-[var(--amber)]" />
                     <h2 className="text-sm font-semibold text-[var(--text-primary)]">
                       {selectedTheme
-                        ? `SEC Filings Mentioning "${CROSS_FILING_THEMES.find((t) => t.id === selectedTheme)?.label}"`
+                        ? `Filings Mentioning "${CROSS_FILING_THEMES.find((t) => t.id === selectedTheme)?.label}"`
                         : selectedTicker
-                          ? `${selectedTicker} Material SEC Changes`
+                          ? `${selectedTicker} Filing Changes & 8-Ks`
                           : watchlistOnly
-                            ? "Watchlist SEC Fine-Print & 8-K Events"
-                            : "Latest Material SEC Fine-Print & 8-K Events"}
+                            ? "Watchlist Filing Changes & 8-Ks"
+                            : "Recent Filing Changes & 8-Ks"}
                     </h2>
                   </div>
                   <span className="font-mono-num text-[11px] text-[var(--text-muted)]">

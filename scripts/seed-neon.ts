@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { notInArray, sql } from "drizzle-orm";
+import { and, inArray, notInArray, sql } from "drizzle-orm";
 import {
   annualFinancials,
   companies,
@@ -54,121 +54,130 @@ async function run() {
   );
 
   const validSnapshots = snapshots.filter(
-    (c) => Number.isFinite(c.price) && c.price > 0 && c.marketCap > 0
+    (c) =>
+      c.annuals.length > 0 &&
+      Number.isFinite(c.price) &&
+      c.price > 0 &&
+      c.marketCap > 0
   );
   if (validSnapshots.length < snapshots.length) {
     console.warn(
-      `[amber-seed] Skipping ${snapshots.length - validSnapshots.length} ticker(s) with missing EOD price (run sync:prices first).`
+      `[amber-seed] Skipping ${snapshots.length - validSnapshots.length} ticker(s) with missing financial periods or invalid EOD valuation.`
     );
   }
 
-  // 1. Batch upsert companies (50 per HTTP roundtrip)
-  const companyRows = validSnapshots.map((c) => ({
-    ticker: c.ticker,
-    cik: c.cik,
-    name: c.name,
-    exchange: c.exchange,
-    sector: c.sector,
-    tagline: c.tagline,
-    price: c.price,
-    marketCap: c.marketCap,
-    cashAndEquiv: c.cashAndEquiv,
-    totalDebt: c.totalDebt,
-    lastFilingType: c.lastFiling.type,
-    lastFilingDate: c.lastFiling.date,
-    lastFilingPeriodEnd: c.lastFiling.periodEnd,
-    lastFilingAccession: c.lastFiling.accessionNumber,
-    defaultDcf: c.defaultDcf,
-    priceHistory: c.priceHistory ?? null,
-    quarterlyFinancials:
-      c.quarterlyFinancials && c.quarterlyFinancials.length >= 4
-        ? c.quarterlyFinancials
-        : null,
-    isActive: true,
-    updatedAt: new Date(),
-  }));
-
-  for (const batch of chunk(companyRows, 50)) {
-    await db
-      .insert(companies)
-      .values(batch)
-      .onConflictDoUpdate({
-        target: companies.ticker,
-        set: {
-          name: sql`excluded.name`,
-          exchange: sql`excluded.exchange`,
-          sector: sql`excluded.sector`,
-          tagline: sql`excluded.tagline`,
-          price: sql`excluded.price`,
-          marketCap: sql`excluded.market_cap`,
-          cashAndEquiv: sql`excluded.cash_and_equiv`,
-          totalDebt: sql`excluded.total_debt`,
-          lastFilingType: sql`excluded.last_filing_type`,
-          lastFilingDate: sql`excluded.last_filing_date`,
-          lastFilingPeriodEnd: sql`excluded.last_filing_period_end`,
-          lastFilingAccession: sql`excluded.last_filing_accession`,
-          defaultDcf: sql`excluded.default_dcf`,
-          priceHistory: sql`excluded.price_history`,
-          quarterlyFinancials: sql`excluded.quarterly_financials`,
-          isActive: true,
-          updatedAt: sql`excluded.updated_at`,
-        },
-      });
-  }
-
-  // 2. Batch upsert annual financials (200 per HTTP roundtrip)
-  const annualRows = validSnapshots.flatMap((c) =>
-    c.annuals.map((a, i) => ({
-      id: `${c.ticker}:${a.fiscalYear}`,
+  // Replace each company's financial window in the same transaction as its filing metadata.
+  let seededAnnualCount = 0;
+  for (const batch of chunk(validSnapshots, 30)) {
+    const companyRows = batch.map((c) => ({
       ticker: c.ticker,
-      fiscalYear: a.fiscalYear,
-      sortOrder: i,
-      revenue: a.revenue,
-      operatingCashFlow: a.operatingCashFlow,
-      capex: a.capex,
-      sbc: a.sbc,
-      buybacks: a.buybacks,
-      dilutedShares: a.dilutedShares,
-      grossProfit: a.grossProfit ?? null,
-      rdExpense: a.rdExpense ?? null,
-      sgaExpense: a.sgaExpense ?? null,
-      operatingIncome: a.operatingIncome ?? null,
-      netIncome: a.netIncome ?? null,
-      stockholdersEquity: a.stockholdersEquity ?? null,
-      periodEndDate: a.periodEndDate ?? null,
-      cashAndEquiv: a.cashAndEquiv ?? null,
-      totalDebt: a.totalDebt ?? null,
-    }))
-  );
+      cik: c.cik,
+      name: c.name,
+      exchange: c.exchange,
+      sector: c.sector,
+      tagline: c.tagline,
+      price: c.price,
+      marketCap: c.marketCap,
+      cashAndEquiv: c.cashAndEquiv,
+      totalDebt: c.totalDebt,
+      lastFilingType: c.lastFiling.type,
+      lastFilingDate: c.lastFiling.date,
+      lastFilingPeriodEnd: c.lastFiling.periodEnd,
+      lastFilingAccession: c.lastFiling.accessionNumber,
+      defaultDcf: c.defaultDcf,
+      priceHistory: c.priceHistory ?? null,
+      quarterlyFinancials:
+        c.quarterlyFinancials && c.quarterlyFinancials.length >= 4
+          ? c.quarterlyFinancials
+          : null,
+      isActive: true,
+      updatedAt: new Date(),
+    }));
+    const annualRows = batch.flatMap((c) =>
+      c.annuals.map((a, i) => ({
+        id: `${c.ticker}:${a.fiscalYear}`,
+        ticker: c.ticker,
+        fiscalYear: a.fiscalYear,
+        sortOrder: i,
+        revenue: a.revenue,
+        operatingCashFlow: a.operatingCashFlow,
+        capex: a.capex,
+        sbc: a.sbc,
+        buybacks: a.buybacks,
+        dilutedShares: a.dilutedShares,
+        grossProfit: a.grossProfit ?? null,
+        rdExpense: a.rdExpense ?? null,
+        sgaExpense: a.sgaExpense ?? null,
+        operatingIncome: a.operatingIncome ?? null,
+        netIncome: a.netIncome ?? null,
+        stockholdersEquity: a.stockholdersEquity ?? null,
+        periodEndDate: a.periodEndDate ?? null,
+        cashAndEquiv: a.cashAndEquiv ?? null,
+        totalDebt: a.totalDebt ?? null,
+      }))
+    );
 
-  for (const batch of chunk(annualRows, 200)) {
-    await db
-      .insert(annualFinancials)
-      .values(batch)
-      .onConflictDoUpdate({
-        target: annualFinancials.id,
-        set: {
-          sortOrder: sql`excluded.sort_order`,
-          revenue: sql`excluded.revenue`,
-          operatingCashFlow: sql`excluded.operating_cash_flow`,
-          capex: sql`excluded.capex`,
-          sbc: sql`excluded.sbc`,
-          buybacks: sql`excluded.buybacks`,
-          dilutedShares: sql`excluded.diluted_shares`,
-          grossProfit: sql`excluded.gross_profit`,
-          rdExpense: sql`excluded.rd_expense`,
-          sgaExpense: sql`excluded.sga_expense`,
-          operatingIncome: sql`excluded.operating_income`,
-          netIncome: sql`excluded.net_income`,
-          stockholdersEquity: sql`excluded.stockholders_equity`,
-          periodEndDate: sql`excluded.period_end_date`,
-          cashAndEquiv: sql`excluded.cash_and_equiv`,
-          totalDebt: sql`excluded.total_debt`,
-        },
-      });
+    await db.batch([
+      db
+        .insert(companies)
+        .values(companyRows)
+        .onConflictDoUpdate({
+          target: companies.ticker,
+          set: {
+            name: sql`excluded.name`,
+            exchange: sql`excluded.exchange`,
+            sector: sql`excluded.sector`,
+            tagline: sql`excluded.tagline`,
+            price: sql`excluded.price`,
+            marketCap: sql`excluded.market_cap`,
+            cashAndEquiv: sql`excluded.cash_and_equiv`,
+            totalDebt: sql`excluded.total_debt`,
+            lastFilingType: sql`excluded.last_filing_type`,
+            lastFilingDate: sql`excluded.last_filing_date`,
+            lastFilingPeriodEnd: sql`excluded.last_filing_period_end`,
+            lastFilingAccession: sql`excluded.last_filing_accession`,
+            defaultDcf: sql`excluded.default_dcf`,
+            priceHistory: sql`excluded.price_history`,
+            quarterlyFinancials: sql`excluded.quarterly_financials`,
+            isActive: true,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        }),
+      db
+        .insert(annualFinancials)
+        .values(annualRows)
+        .onConflictDoUpdate({
+          target: annualFinancials.id,
+          set: {
+            sortOrder: sql`excluded.sort_order`,
+            revenue: sql`excluded.revenue`,
+            operatingCashFlow: sql`excluded.operating_cash_flow`,
+            capex: sql`excluded.capex`,
+            sbc: sql`excluded.sbc`,
+            buybacks: sql`excluded.buybacks`,
+            dilutedShares: sql`excluded.diluted_shares`,
+            grossProfit: sql`excluded.gross_profit`,
+            rdExpense: sql`excluded.rd_expense`,
+            sgaExpense: sql`excluded.sga_expense`,
+            operatingIncome: sql`excluded.operating_income`,
+            netIncome: sql`excluded.net_income`,
+            stockholdersEquity: sql`excluded.stockholders_equity`,
+            periodEndDate: sql`excluded.period_end_date`,
+            cashAndEquiv: sql`excluded.cash_and_equiv`,
+            totalDebt: sql`excluded.total_debt`,
+          },
+        }),
+      db.delete(annualFinancials).where(
+        and(
+          inArray(annualFinancials.ticker, batch.map((c) => c.ticker)),
+          notInArray(annualFinancials.id, annualRows.map((row) => row.id))
+        )
+      ),
+    ]);
+    seededAnnualCount += annualRows.length;
   }
 
-  // 3. Batch upsert filing diffs (100 per HTTP roundtrip)
+  // Batch upsert filing diffs (100 per HTTP roundtrip)
   // Note: Never deletes existing prose diffs ('llm' / 'text-diff') stored in Neon!
   const diffRows = validSnapshots.flatMap((c) =>
     c.filingDiffs.map((d) => ({
@@ -212,7 +221,7 @@ async function run() {
       });
   }
 
-  // 4. Soft-deactivate tickers absent from a full universe ingest (never hard-delete,
+  // Soft-deactivate tickers absent from a full universe ingest (never hard-delete,
   //    so user watchlists, filing alerts, and active Arena positions are never cascade-wiped)
   const validTickers = validSnapshots.map((c) => c.ticker);
   if (validTickers.length >= 50) {
@@ -224,7 +233,7 @@ async function run() {
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(
-    `[amber-seed] ✓ Batch-seeded ${snapshots.length} companies (${annualRows.length} FY rows, ${diffRows.length} diffs) into Neon in ${elapsed}s.`
+    `[amber-seed] ✓ Batch-seeded ${snapshots.length} companies (${seededAnnualCount} financial periods, ${diffRows.length} diffs) into Neon in ${elapsed}s.`
   );
 }
 

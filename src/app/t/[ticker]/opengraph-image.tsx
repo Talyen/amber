@@ -1,12 +1,9 @@
 import { ImageResponse } from "next/og";
 import { getCompanySnapshot } from "@/data/repository";
 import {
-  computeAnnualMetrics,
-  computeEnterpriseValue,
-  computeNetDilutionCagr,
+  computeCompanyValuation,
   formatCurrencyCompact,
   formatPct,
-  solveReverseDcf,
 } from "@/lib/finance";
 
 export const size = {
@@ -47,21 +44,7 @@ export default async function OpenGraphImage({
     );
   }
 
-  const series = computeAnnualMetrics(company.annuals);
-  const latest = series[series.length - 1];
-  const ev = computeEnterpriseValue(company);
-  const dilution = computeNetDilutionCagr(company.annuals);
-  const dcf = solveReverseDcf({
-    enterpriseValue: ev,
-    baseRevenue: latest.revenue,
-    waccPct: company.defaultDcf.wacc,
-    terminalMultiple: company.defaultDcf.terminalMultiple,
-    targetTrueFcfMarginPct: Math.max(
-      1.5,
-      company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
-    ),
-    currentTrueFcfMarginPct: latest.trueFcfMargin,
-  });
+  const { latest, netDilutionCagr, reverseDcf } = computeCompanyValuation(company);
 
   const kpis = [
     {
@@ -78,13 +61,13 @@ export default async function OpenGraphImage({
     },
     {
       label: "NET DILUTION (CAGR)",
-      value: formatPct(dilution, true),
+      value: formatPct(netDilutionCagr, true),
       sub: `${latest.dilutedShares.toLocaleString()}M diluted shares`,
-      accent: dilution > 1.5 ? "#F87171" : dilution < -0.5 ? "#4ADE80" : "#F2F2F3",
+      accent: netDilutionCagr > 1.5 ? "#F87171" : netDilutionCagr < -0.5 ? "#4ADE80" : "#F2F2F3",
     },
     {
       label: "IMPLIED 10Y REV CAGR",
-      value: formatPct(dcf.impliedRevenueCagrPct),
+      value: formatPct(reverseDcf.impliedRevenueCagrPct),
       sub: `${formatPct(company.defaultDcf.wacc)} WACC | ${company.defaultDcf.terminalMultiple}x exit`,
       accent: "#E5A03C",
     },

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, Bot, Calendar, Trophy } from "lucide-react";
-import type { ArenaPortfolioView } from "@/data/repository";
+import type { ArenaPortfolioView } from "@/data/arena-repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { formatPct } from "@/lib/finance";
@@ -136,14 +136,11 @@ export function ArenaLeaderboard({
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-              LIVE STRATEGY BENCHMARKS
-            </div>
-            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              Fundamental Benchmarks vs. S&amp;P 500
+            <h1 className="text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
+              Portfolio Arena
             </h1>
             <p className="mt-1 max-w-xl text-sm text-[var(--text-secondary)]">
-              Transparent, rules-based fundamental strategies and public community track records verified against the S&amp;P 500.
+              Strategy bots and community portfolios tracked against the S&amp;P 500.
             </p>
           </div>
 
@@ -151,7 +148,7 @@ export function ArenaLeaderboard({
             href="/portfolio"
             className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
           >
-            Benchmark Your Portfolio
+            Enter Portfolio
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </section>

@@ -1,28 +1,10 @@
 import type { MetadataRoute } from "next";
 import { getAllTickers, getSearchIndex } from "@/data/repository";
+import { POPULAR_COMPARE_SLUGS, resolveComparisonTickers } from "@/lib/compare";
 import { DISCOVERY_LENSES } from "@/lib/insights";
 import { SITE_URL } from "@/lib/site";
 
 export const revalidate = 86400;
-
-export const POPULAR_COMPARE_SLUGS = [
-  "NVDA-vs-AMD",
-  "PLTR-vs-SNOW",
-  "AAPL-vs-MSFT",
-  "V-vs-MA",
-  "COST-vs-WMT",
-  "AMZN-vs-GOOGL",
-  "META-vs-NFLX",
-  "CRWD-vs-PANW",
-  "SNOW-vs-DDOG",
-  "UBER-vs-ABNB",
-  "CRM-vs-NOW",
-  "HD-vs-LOW",
-  "AVGO-vs-NVDA",
-  "SHOP-vs-AMZN",
-  "ADBE-vs-INTU",
-  "KO-vs-PEP",
-];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [tickers, entries] = await Promise.all([
@@ -49,7 +31,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Programmatically generate 250+ high-intent same-sector peer comparison URLs
-  const compareSlugSet = new Set<string>(POPULAR_COMPARE_SLUGS);
+  const available = new Set(entries.map((entry) => entry.ticker));
+  const compareSlugSet = new Set<string>(
+    POPULAR_COMPARE_SLUGS.filter((slug) => resolveComparisonTickers(slug, available).length > 0)
+  );
   const bySector = new Map<string, typeof entries>();
   for (const e of entries) {
     const list = bySector.get(e.sector) ?? [];

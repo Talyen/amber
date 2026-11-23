@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getArenaLeaderboard, getSpyBenchmarks } from "@/data/repository";
+import { getArenaLeaderboard, getSpyBenchmarks } from "@/data/arena-repository";
 import { ArenaLeaderboard } from "@/components/ArenaLeaderboard";
 
 export const revalidate = 3600;

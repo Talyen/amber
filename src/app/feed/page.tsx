@@ -9,9 +9,9 @@ import { SignalFeed } from "@/components/SignalFeed";
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "Signals | SEC Fine-Print Diffs, 8-K Events & Insider Buys",
+  title: "Feed | SEC Filings, 8-K Events & Insider Trades",
   description:
-    "High-signal SEC 10-K/10-Q fine-print changes, Form 8-K material events, cross-filing risk themes, and open-market Form 4 insider moves.",
+    "Recent SEC 10-K/10-Q filing changes, Form 8-K events, Form 4 insider trades, and headlines across your watchlist or the full market.",
 };
 
 export default async function FeedPage() {

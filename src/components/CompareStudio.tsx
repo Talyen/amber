@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import { TopNav } from "@/components/TopNav";
@@ -34,39 +34,40 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
   );
   const [addQuery, setAddQuery] = useState("");
   const [copiedMd, setCopiedMd] = useState(false);
-  const hydratedRef = useRef(false);
+  const [restoredSelection, setRestoredSelection] = useState(false);
 
   // Hydrate ?t=PLTR,SNOW,NOW from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const raw = params.get("t");
     if (raw) {
-      const parsed = raw
+      const matchingTickers = raw
         .split(",")
         .map((t) => t.trim().toUpperCase())
-        .filter((t) => byTicker.has(t))
-        .slice(0, 4);
+        .filter((t) => byTicker.has(t));
+      const parsed = [...new Set(matchingTickers)].slice(0, 4);
       if (parsed.length >= 1) {
         setSelectedTickers(parsed);
       }
     }
-    hydratedRef.current = true;
+    setRestoredSelection(true);
   }, [byTicker]);
 
   // Keep ?t= synced cleanly for 1-click Share without cluttering clean /compare/[slug] URLs on initial load
   useEffect(() => {
-    if (!hydratedRef.current || selectedTickers.length === 0) return;
+    if (!restoredSelection || selectedTickers.length === 0) return;
+    const url = new URL(window.location.href);
     if (
       initialTickers &&
       initialTickers.length === selectedTickers.length &&
       initialTickers.every((t, i) => t === selectedTickers[i])
     ) {
-      return;
+      url.searchParams.delete("t");
+    } else {
+      url.searchParams.set("t", selectedTickers.join(","));
     }
-    const url = new URL(window.location.href);
-    url.searchParams.set("t", selectedTickers.join(","));
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }, [selectedTickers, initialTickers]);
+    if (url.href !== window.location.href) window.history.replaceState(null, "", url);
+  }, [selectedTickers, initialTickers, restoredSelection]);
 
   const selectedItems = useMemo(
     () =>

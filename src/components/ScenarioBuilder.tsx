@@ -10,6 +10,7 @@ import {
   formatPct,
 } from "@/lib/finance";
 import { computeRevenueCagr } from "@/lib/insights";
+import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
 
 interface ScenarioBuilderProps {
   company: CompanySnapshot;
@@ -21,6 +22,21 @@ function progressPct(value: number, min: number, max: number): string {
 }
 
 type ValuationLens = "fcf" | "ebit" | "pe";
+
+const GROWTH_RANGE = { min: -5, max: 45 };
+const MARGIN_RANGE = { min: 1, max: 55 };
+const MULTIPLE_RANGE = { min: 8, max: 45 };
+
+function readScenarioInput(
+  params: URLSearchParams,
+  key: string,
+  { min, max }: { min: number; max: number }
+): number | undefined {
+  const raw = params.get(key)?.trim();
+  if (!raw) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : undefined;
+}
 
 export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
@@ -104,9 +120,9 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const lensParam = params.get("lens");
-    const revParam = params.get("rev");
-    const mParam = params.get("m");
-    const exitParam = params.get("exit");
+    const revParam = readScenarioInput(params, "rev", GROWTH_RANGE);
+    const mParam = readScenarioInput(params, "m", MARGIN_RANGE);
+    const exitParam = readScenarioInput(params, "exit", MULTIPLE_RANGE);
     let loaded = false;
 
     if (
@@ -117,16 +133,16 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       setLens(lensParam);
       loaded = true;
     }
-    if (revParam !== null && Number.isFinite(Number(revParam))) {
-      setRevGrowth(Math.max(0, Math.min(45, Number(revParam))));
+    if (revParam !== undefined) {
+      setRevGrowth(revParam);
       loaded = true;
     }
-    if (mParam !== null && Number.isFinite(Number(mParam))) {
-      setTargetMargin(Math.max(1, Math.min(60, Number(mParam))));
+    if (mParam !== undefined) {
+      setTargetMargin(mParam);
       loaded = true;
     }
-    if (exitParam !== null && Number.isFinite(Number(exitParam))) {
-      setExitMultiple(Math.max(5, Math.min(60, Number(exitParam))));
+    if (exitParam !== undefined) {
+      setExitMultiple(exitParam);
       loaded = true;
     }
     if (loaded) {
@@ -138,6 +154,8 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   async function handleCopyThesisLink() {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "dcf");
+    url.searchParams.set("model", "scenario");
+    for (const key of REVERSE_DCF_PARAMS) url.searchParams.delete(key);
     url.searchParams.set("lens", lens);
     url.searchParams.set("rev", String(revGrowth));
     url.searchParams.set("m", String(targetMargin));
@@ -400,8 +418,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <input
               id="sc-growth"
               type="range"
-              min={-5}
-              max={45}
+              {...GROWTH_RANGE}
               step={1}
               value={revGrowth}
               onChange={(e) => {
@@ -411,7 +428,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(revGrowth, -5, 45),
+                  "--range-progress": progressPct(revGrowth, GROWTH_RANGE.min, GROWTH_RANGE.max),
                 } as React.CSSProperties
               }
             />
@@ -442,8 +459,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <input
               id="sc-margin"
               type="range"
-              min={1}
-              max={55}
+              {...MARGIN_RANGE}
               step={0.5}
               value={targetMargin}
               onChange={(e) => {
@@ -453,7 +469,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(targetMargin, 1, 55),
+                  "--range-progress": progressPct(targetMargin, MARGIN_RANGE.min, MARGIN_RANGE.max),
                 } as React.CSSProperties
               }
             />
@@ -484,8 +500,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <input
               id="sc-mult"
               type="range"
-              min={8}
-              max={45}
+              {...MULTIPLE_RANGE}
               step={1}
               value={exitMultiple}
               onChange={(e) => {
@@ -495,7 +510,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(exitMultiple, 8, 45),
+                  "--range-progress": progressPct(exitMultiple, MULTIPLE_RANGE.min, MULTIPLE_RANGE.max),
                 } as React.CSSProperties
               }
             />

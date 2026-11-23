@@ -359,24 +359,18 @@ export function SignalIndex({
       <TopNav />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
-        {/* Crisp Editorial Hero */}
+        {/* Quiet Tool Header */}
         <section className="border-b border-[var(--border)] pb-8">
-          <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-            INDEPENDENT SEC INTELLIGENCE
-          </div>
-          <h1 className="mt-1.5 max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
-            The reality check before you buy.
+          <h1 className="max-w-2xl text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
+            SEC filings, cash flow, and valuation.
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            See what&apos;s actually priced in, what quietly changed in SEC filings, and where insiders are putting their own cash across {entries.length} public companies. Zero ads, zero login required.
+          <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
+            Financials, filing changes, implied growth, and Form 4 insider trades across {entries.length} public companies.
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <CommandSearch variant="hero" initialEntries={entries} />
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-[var(--text-muted)] mr-0.5">
-                Quick check:
-              </span>
               {QUICK_CHECK_TICKERS.map((t) => (
                 <Link
                   key={t}
@@ -390,23 +384,18 @@ export function SignalIndex({
           </div>
         </section>
 
-        {/* Zero-Input Standout Signals Strip ("What Your Broker Didn't Tell You") */}
+        {/* Recent Filings & Insider Activity */}
         {!initialLensId && (featuredDiff || featuredInsiderBuy || featuredExpectation) && (
-          <section aria-label="Standout market signals" className="mt-7">
+          <section aria-label="Latest filings and insider activity" className="mt-7">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                  What Your Broker Didn&apos;t Tell You
-                </h2>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Live SEC fine-print changes, open-market insider buys, and priced-in growth checks — no setup required.
-                </p>
-              </div>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                Latest Filings &amp; Insider Activity
+              </h2>
               <Link
                 href="/feed"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--amber)] hover:underline"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--amber)] hover:underline"
               >
-                Open full Signal Wire
+                View all
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -418,7 +407,7 @@ export function SignalIndex({
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
                         <FileDiff className="h-3.5 w-3.5" />
-                        SEC {featuredDiff.filingType} Fine Print
+                        {featuredDiff.filingType} Filing
                       </span>
                       <button
                         type="button"
@@ -470,7 +459,7 @@ export function SignalIndex({
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--positive)]">
                         <UserCheck className="h-3.5 w-3.5" />
-                        Open-Market Insider Buy
+                        Insider Buy
                       </span>
                       <button
                         type="button"
@@ -523,7 +512,7 @@ export function SignalIndex({
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
                         <Gauge className="h-3.5 w-3.5" />
-                        Priced-In Growth Check
+                        Implied Growth
                       </span>
                       <button
                         type="button"

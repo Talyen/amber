@@ -1,31 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { Bell, Check, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-
-const ALERTS_STORAGE_KEY = "amber-filing-alerts-v1";
-
-function readTrackedAlerts(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(ALERTS_STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveTrackedAlert(ticker: string) {
-  try {
-    const existing = readTrackedAlerts();
-    if (!existing.includes(ticker)) {
-      window.localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify([...existing, ticker]));
-    }
-  } catch {
-    // Ignore storage quota errors
-  }
-}
 
 interface FilingAlertModalProps {
   ticker: string;
@@ -37,23 +15,33 @@ export function FilingAlertModal({
   companyName,
 }: FilingAlertModalProps) {
   const { data: session } = authClient.useSession();
+  const accountEmail = session?.user.email;
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const lightDismiss = useDialogLightDismiss(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [enteredEmail, setEnteredEmail] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [feedback, setFeedback] = useState("");
+  const [subscriptions, setSubscriptions] = useState<{ email: string; tickers: string[] } | null>(null);
+  const [confirmed, setConfirmed] = useState<{ ticker: string; email?: string } | null>(null);
+  const email = enteredEmail ?? accountEmail ?? "";
+  const isTracking =
+    (confirmed?.ticker === ticker && confirmed.email === accountEmail) ||
+    (subscriptions !== null && subscriptions.email === accountEmail && subscriptions.tickers.includes(ticker));
 
   useEffect(() => {
-    if (readTrackedAlerts().includes(ticker)) {
-      setStatus("done");
-    }
-  }, [ticker]);
-
-  useEffect(() => {
-    if (session?.user?.email && !email) {
-      setEmail(session.user.email);
-    }
-  }, [session?.user?.email, email]);
+    if (!accountEmail) return;
+    const controller = new AbortController();
+    fetch("/api/alerts", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { authenticated?: boolean; tickers?: string[] } | null) => {
+        if (!controller.signal.aborted && data?.authenticated && Array.isArray(data.tickers)) {
+          setSubscriptions({ email: accountEmail, tickers: data.tickers });
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [accountEmail]);
 
   function openModal() {
     const dialog = dialogRef.current;
@@ -68,40 +56,6 @@ export function FilingAlertModal({
     const dialog = dialogRef.current;
     if (dialog?.open) dialog.close();
   }
-
-  // Safari fallback for closedby="any"
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (
-      typeof HTMLDialogElement !== "undefined" &&
-      "closedBy" in HTMLDialogElement.prototype
-    ) {
-      return;
-    }
-    const isOutside = (e: PointerEvent) => {
-      const r = dialog.getBoundingClientRect();
-      return (
-        e.clientX < r.left ||
-        e.clientX > r.right ||
-        e.clientY < r.top ||
-        e.clientY > r.bottom
-      );
-    };
-    let pressedOutside = false;
-    const onDown = (e: PointerEvent) => {
-      pressedOutside = isOutside(e);
-    };
-    const onUp = (e: PointerEvent) => {
-      if (pressedOutside && isOutside(e)) dialog.close();
-    };
-    dialog.addEventListener("pointerdown", onDown);
-    dialog.addEventListener("pointerup", onUp);
-    return () => {
-      dialog.removeEventListener("pointerdown", onDown);
-      dialog.removeEventListener("pointerup", onUp);
-    };
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,8 +74,8 @@ export function FilingAlertModal({
         setFeedback(data.error ?? "Something went wrong.");
         return;
       }
-      setStatus("done");
-      saveTrackedAlert(ticker);
+      setStatus("idle");
+      setConfirmed({ ticker, email: accountEmail });
       setFeedback(data.message ?? `Subscribed to ${ticker} filing alerts.`);
     } catch {
       setStatus("error");
@@ -135,12 +89,12 @@ export function FilingAlertModal({
         type="button"
         onClick={openModal}
         className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors cursor-pointer ${
-          status === "done"
+          isTracking
             ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
             : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
         }`}
       >
-        {status === "done" ? (
+        {isTracking ? (
           <>
             <Check className="h-3.5 w-3.5" />
             Tracking {ticker} filings
@@ -156,7 +110,7 @@ export function FilingAlertModal({
       <dialog
         ref={dialogRef}
         aria-labelledby="alert-dialog-title"
-        {...({ closedby: "any" } as Record<string, string>)}
+        {...lightDismiss}
         className="amber-dialog m-auto w-[min(440px,calc(100vw-2rem))] rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-5 text-[var(--text-primary)] shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
@@ -185,13 +139,13 @@ export function FilingAlertModal({
           Get a concise email whenever {ticker} files a new 10-K or 10-Q, covering True FCF changes, SBC shifts, and Risk Factor diffs. Zero spam.
         </p>
 
-        {status === "done" ? (
+        {isTracking ? (
           <div className="mt-4 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 py-3 text-xs text-[var(--text-primary)]">
             <div className="flex items-center gap-2 font-medium text-[var(--amber)]">
               <Check className="h-4 w-4" />
               Subscription saved
             </div>
-            <p className="mt-1 text-[var(--text-secondary)]">{feedback}</p>
+            {feedback && <p className="mt-1 text-[var(--text-secondary)]">{feedback}</p>}
             <button
               type="button"
               onClick={closeModal}
@@ -216,7 +170,7 @@ export function FilingAlertModal({
                 required
                 autoFocus
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEnteredEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)]"
               />

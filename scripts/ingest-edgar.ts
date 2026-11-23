@@ -16,16 +16,15 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { buildSearchIndexEntry } from "../src/data/search-index.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 import {
   type AnnualFinancials,
   type CompanySnapshot,
   type FilingDiffItem,
   computeAnnualMetrics,
-  computeEnterpriseValue,
   computeGroundedDefaultDcf,
   computeNetDilutionCagr,
-  solveReverseDcf,
 } from "../src/lib/finance.ts";
 
 const SEC_USER_AGENT =
@@ -1406,41 +1405,7 @@ async function run() {
     }
   }
 
-  const searchIndex = companies.map((c) => {
-    const computed = computeAnnualMetrics(c.annuals);
-    const latest = computed[computed.length - 1];
-    const ev = computeEnterpriseValue(c);
-    const dilution = computeNetDilutionCagr(c.annuals);
-    const dcf = solveReverseDcf({
-      enterpriseValue: ev,
-      baseRevenue: latest.revenue,
-      waccPct: c.defaultDcf.wacc,
-      terminalMultiple: c.defaultDcf.terminalMultiple,
-      targetTrueFcfMarginPct: Math.max(
-        1.5,
-        c.defaultDcf.targetFcfMargin - c.defaultDcf.sbcDragPct
-      ),
-      currentTrueFcfMarginPct: latest.trueFcfMargin,
-    });
-
-    return {
-      ticker: c.ticker,
-      name: c.name,
-      exchange: c.exchange,
-      sector: c.sector,
-      marketCap: c.marketCap,
-      revenue: latest.revenue,
-      reportedFcf: latest.reportedFcf,
-      sbc: latest.sbc,
-      trueFcf: latest.trueFcf,
-      trueFcfMargin: Number(latest.trueFcfMargin.toFixed(1)),
-      sbcPctRevenue: Number(latest.sbcPctRevenue.toFixed(1)),
-      sbcPctReportedFcf: Number(latest.sbcPctReportedFcf.toFixed(1)),
-      netDilutionCagr: Number(dilution.toFixed(2)),
-      impliedCagr: Number(dcf.impliedRevenueCagrPct.toFixed(1)),
-      lastFilingDate: c.lastFiling.date,
-    };
-  });
+  const searchIndex = companies.map(buildSearchIndexEntry);
 
   fs.writeFileSync(companiesPath, JSON.stringify(companies, null, 2) + "\n");
   fs.writeFileSync(

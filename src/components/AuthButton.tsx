@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { LogIn, LogOut, Settings, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
@@ -54,6 +55,7 @@ function GitHubIcon() {
 export function AuthButton() {
   const { data: session, isPending } = authClient.useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const lightDismiss = useDialogLightDismiss(dialogRef);
 
   const [submitting, setSubmitting] = useState<"google" | "github" | null>(null);
   const [error, setError] = useState("");
@@ -108,40 +110,6 @@ export function AuthButton() {
       });
     return () => {
       active = false;
-    };
-  }, []);
-
-  // Safari fallback for closedby="any"
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (
-      typeof HTMLDialogElement !== "undefined" &&
-      "closedBy" in HTMLDialogElement.prototype
-    ) {
-      return;
-    }
-    const isOutside = (e: PointerEvent) => {
-      const r = dialog.getBoundingClientRect();
-      return (
-        e.clientX < r.left ||
-        e.clientX > r.right ||
-        e.clientY < r.top ||
-        e.clientY > r.bottom
-      );
-    };
-    let pressedOutside = false;
-    const onDown = (e: PointerEvent) => {
-      pressedOutside = isOutside(e);
-    };
-    const onUp = (e: PointerEvent) => {
-      if (pressedOutside && isOutside(e)) dialog.close();
-    };
-    dialog.addEventListener("pointerdown", onDown);
-    dialog.addEventListener("pointerup", onUp);
-    return () => {
-      dialog.removeEventListener("pointerdown", onDown);
-      dialog.removeEventListener("pointerup", onUp);
     };
   }, []);
 
@@ -211,7 +179,7 @@ export function AuthButton() {
       <dialog
         ref={dialogRef}
         aria-labelledby="amber-auth-title"
-        {...({ closedby: "any" } as Record<string, string>)}
+        {...lightDismiss}
         className="amber-dialog m-auto w-[min(400px,calc(100vw-2rem))] rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-5 text-[var(--text-primary)] shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">

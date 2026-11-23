@@ -60,9 +60,9 @@ export async function GET(request: Request) {
  * Subscribe an email to SEC 10-K / 10-Q filing alerts for a validated ticker.
  */
 export async function POST(request: Request) {
-  let body: { email?: string; ticker?: string };
+  let body: { email?: string; ticker?: string } | null;
   try {
-    body = (await request.json()) as { email?: string; ticker?: string };
+    body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
   }
@@ -78,8 +78,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const email = (String(body.email ?? "").trim().toLowerCase() || sessionEmail || "");
-  const ticker = String(body.ticker ?? "").trim().toUpperCase();
+  const email = String(body?.email ?? "").trim().toLowerCase() || sessionEmail || "";
+  const ticker = String(body?.ticker ?? "").trim().toUpperCase();
 
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json(
@@ -107,13 +107,8 @@ export async function POST(request: Request) {
 
   if (!db) {
     return NextResponse.json(
-      {
-        subscribed: true,
-        ticker,
-        mode: "preview",
-        message: `Saved ${ticker} alert preference (database offline in local preview).`,
-      },
-      { status: 200 }
+      { error: "Filing alerts are currently unavailable. Please try again later." },
+      { status: 503 }
     );
   }
 

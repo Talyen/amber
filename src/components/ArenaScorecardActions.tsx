@@ -1,7 +1,7 @@
 "use client";
 
 import { Download } from "lucide-react";
-import type { ArenaPortfolioView, EquityCurvePoint } from "@/data/repository";
+import type { ArenaPortfolioView, EquityCurvePoint } from "@/data/arena-repository";
 import { formatPct } from "@/lib/finance";
 
 interface ArenaScorecardActionsProps {

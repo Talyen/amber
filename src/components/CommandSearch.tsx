@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
@@ -8,14 +9,16 @@ import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
 interface CommandSearchProps {
   variant?: "nav" | "hero";
+  initialEntries?: SearchIndexEntry[];
 }
 
 export function CommandSearch({
   variant = "nav",
   initialEntries = SEARCH_INDEX,
-}: CommandSearchProps & { initialEntries?: SearchIndexEntry[] }) {
+}: CommandSearchProps) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const lightDismiss = useDialogLightDismiss(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
   const [entries, setEntries] = useState<SearchIndexEntry[]>(initialEntries);
   const [query, setQuery] = useState("");
@@ -23,20 +26,6 @@ export function CommandSearch({
 
   // Hydrate latest edge-cached search index from /api/search-index once on open
   const hasFetchedRef = useRef(false);
-  function refreshIndexOnce() {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    fetch("/api/search-index")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: SearchIndexEntry[] | null) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setEntries(data);
-        }
-      })
-      .catch(() => {
-        // Keep bundled initialEntries on network error
-      });
-  }
 
   const results = useMemo<SearchIndexEntry[]>(() => {
     const q = query.trim().toLowerCase();
@@ -61,26 +50,36 @@ export function CommandSearch({
       .slice(0, 12);
   }, [entries, query]);
 
-  useEffect(() => {
-    setActiveIdx(0);
-  }, [query]);
-
-  function openDialog() {
+  const openDialog = useCallback(() => {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
-    refreshIndexOnce();
+
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetch("/api/search-index")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: SearchIndexEntry[] | null) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setEntries(data);
+          }
+        })
+        .catch(() => {
+          // Keep the bundled search index on network error.
+        });
+    }
+
     dialog.showModal();
     setQuery("");
     setActiveIdx(0);
     window.requestAnimationFrame(() => inputRef.current?.focus());
-  }
+  }, []);
 
-  function closeDialog() {
+  const closeDialog = useCallback(() => {
     const dialog = dialogRef.current;
     if (dialog?.open) {
       dialog.close();
     }
-  }
+  }, []);
 
   function selectTicker(ticker: string) {
     closeDialog();
@@ -102,43 +101,7 @@ export function CommandSearch({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [variant]);
-
-  // Safari fallback for closedby="any" (pointer position outside bounding rect)
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (typeof HTMLDialogElement !== "undefined" && "closedBy" in HTMLDialogElement.prototype) {
-      return;
-    }
-
-    const isOutside = (e: PointerEvent) => {
-      const r = dialog.getBoundingClientRect();
-      return (
-        e.clientX < r.left ||
-        e.clientX > r.right ||
-        e.clientY < r.top ||
-        e.clientY > r.bottom
-      );
-    };
-
-    let pressedOutside = false;
-    const onDown = (e: PointerEvent) => {
-      pressedOutside = isOutside(e);
-    };
-    const onUp = (e: PointerEvent) => {
-      if (pressedOutside && isOutside(e)) {
-        dialog.close();
-      }
-    };
-
-    dialog.addEventListener("pointerdown", onDown);
-    dialog.addEventListener("pointerup", onUp);
-    return () => {
-      dialog.removeEventListener("pointerdown", onDown);
-      dialog.removeEventListener("pointerup", onUp);
-    };
-  }, []);
+  }, [variant, openDialog, closeDialog]);
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
@@ -191,7 +154,7 @@ export function CommandSearch({
       <dialog
         ref={dialogRef}
         aria-label="Search companies"
-        {...({ closedby: "any" } as Record<string, string>)}
+        {...lightDismiss}
         className="amber-dialog m-auto mt-[12vh] w-[min(600px,calc(100vw-2rem))] rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-0 text-[var(--text-primary)] shadow-2xl"
       >
         <div className="flex items-center gap-2.5 border-b border-[var(--border)] px-4 py-3">
@@ -207,7 +170,10 @@ export function CommandSearch({
             }
             aria-autocomplete="list"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIdx(0);
+            }}
             onKeyDown={handleInputKeyDown}
             placeholder="Type a ticker, company name, or sector (e.g. NVDA, CRWD, SaaS)…"
             autoFocus

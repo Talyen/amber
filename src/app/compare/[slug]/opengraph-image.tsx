@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getSearchIndex } from "@/data/repository";
+import { resolveComparisonTickers } from "@/lib/compare";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
 export const size = {
@@ -15,14 +16,11 @@ export default async function CompareOpenGraphImage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const tickers = slug
-    .split(/-vs-/i)
-    .map((s) => s.trim().toUpperCase())
-    .slice(0, 2);
-
   const index = await getSearchIndex();
+  const byTicker = new Map(index.map((entry) => [entry.ticker, entry]));
+  const tickers = resolveComparisonTickers(slug, new Set(byTicker.keys())).slice(0, 2);
   const matched = tickers
-    .map((t) => index.find((e) => e.ticker === t))
+    .map((t) => byTicker.get(t))
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
   if (matched.length < 2) {

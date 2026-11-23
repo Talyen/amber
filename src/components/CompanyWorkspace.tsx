@@ -16,14 +16,12 @@ import {
 } from "lucide-react";
 import {
   type CompanySnapshot,
-  computeAnnualMetrics,
-  computeEnterpriseValue,
-  computeNetDilutionCagr,
+  computeCompanyValuation,
   formatCurrencyCompact,
   formatPct,
-  solveReverseDcf,
 } from "@/lib/finance";
 import { buildTickerMarkdown } from "@/lib/export-markdown";
+import { valuationModelFromUrl } from "@/lib/valuation-link";
 import { useWatchlist } from "@/lib/watchlist";
 import type { SearchIndexEntry } from "@/data/universe";
 import type { SectorBenchmark } from "@/data/repository";
@@ -81,14 +79,17 @@ export function CompanyWorkspace({
 }: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
+  const [restoredLocation, setRestoredLocation] = useState(false);
   const [copiedMd, setCopiedMd] = useState(false);
   const watchlist = useWatchlist();
   const isStarred = watchlist.has(company.ticker);
 
-  // Restore shared tab from URL query string (e.g. ?tab=dcf&wacc=10&mult=25)
+  // Restore the tab and valuation model independently for older shared links.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
+    const model = valuationModelFromUrl(params);
+    if (model) setValuationMode(model);
     if (
       tabParam === "overview" ||
       tabParam === "dcf" ||
@@ -97,35 +98,24 @@ export function CompanyWorkspace({
       tabParam === "insiders"
     ) {
       setActiveTab(tabParam);
-    } else if (
-      params.has("rev") ||
-      params.has("m") ||
-      params.has("exit")
-    ) {
+    } else if (model) {
       setActiveTab("dcf");
-      setValuationMode("scenario");
-    } else if (
-      params.has("wacc") ||
-      params.has("mult") ||
-      params.has("margin") ||
-      params.has("sbc")
-    ) {
-      setActiveTab("dcf");
-      setValuationMode("reverse");
     }
+    setRestoredLocation(true);
   }, []);
 
   // Sync active tab to URL so TopNav Share button always captures the exact tab
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!restoredLocation) return;
     const url = new URL(window.location.href);
-    if (activeTab === "overview") {
+    if (activeTab === "overview" && !valuationModelFromUrl(url.searchParams)) {
       url.searchParams.delete("tab");
     } else {
       url.searchParams.set("tab", activeTab);
     }
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }, [activeTab]);
+    if (activeTab === "dcf") url.searchParams.set("model", valuationMode);
+    if (url.href !== window.location.href) window.history.replaceState(null, "", url);
+  }, [activeTab, restoredLocation, valuationMode]);
 
   // Keyboard shortcuts: 1–5 switch analysis tabs when not focused in an input
   useEffect(() => {
@@ -162,20 +152,13 @@ export function CompanyWorkspace({
     }
   }, []);
 
-  const series = useMemo(
-    () => computeAnnualMetrics(company.annuals),
-    [company.annuals]
-  );
-  const latest = series[series.length - 1];
+  const { series, latest, enterpriseValue, netDilutionCagr, reverseDcf } =
+    useMemo(() => computeCompanyValuation(company), [company]);
   const latestFy = useMemo(() => {
     const fy = series.filter((s) => s.fiscalYear !== "TTM");
     return fy[fy.length - 1] ?? latest;
   }, [series, latest]);
   const isFinancialInstitution = FINANCIAL_INSTITUTION_TICKERS.has(company.ticker);
-  const enterpriseValue = useMemo(
-    () => computeEnterpriseValue(company),
-    [company]
-  );
   const evToTrueFcf =
     latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
   const evToRepFcf =
@@ -192,36 +175,16 @@ export function CompanyWorkspace({
     () => company.filingDiffs.filter((d) => d.materiality === "High").length,
     [company.filingDiffs]
   );
-  const netDilutionCagr = useMemo(
-    () => computeNetDilutionCagr(company.annuals),
-    [company.annuals]
-  );
-
-  const baselineDcf = useMemo(
-    () =>
-      solveReverseDcf({
-        enterpriseValue,
-        baseRevenue: latest.revenue,
-        waccPct: company.defaultDcf.wacc,
-        terminalMultiple: company.defaultDcf.terminalMultiple,
-        targetTrueFcfMarginPct: Math.max(
-          1.5,
-          company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
-        ),
-        currentTrueFcfMarginPct: latest.trueFcfMargin,
-      }),
-    [company.defaultDcf, enterpriseValue, latest.revenue, latest.trueFcfMargin]
-  );
 
   const briefing = useMemo(
     () =>
       buildCompanyBriefing(
         company,
         series,
-        baselineDcf.impliedRevenueCagrPct,
+        reverseDcf.impliedRevenueCagrPct,
         insiderTrades
       ),
-    [company, series, baselineDcf.impliedRevenueCagrPct, insiderTrades]
+    [company, series, reverseDcf.impliedRevenueCagrPct, insiderTrades]
   );
 
   const tabs: Array<{
@@ -268,10 +231,7 @@ export function CompanyWorkspace({
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
               {company.name}
             </h1>
-            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--text-primary)]">
-              <span className="mr-1.5 inline-flex rounded bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)] align-middle">
-                Reality Check
-              </span>
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
               {briefing.realityCheckSummary}
             </p>
 
@@ -326,7 +286,7 @@ export function CompanyWorkspace({
                       buildTickerMarkdown(
                         company,
                         series,
-                        baselineDcf.impliedRevenueCagrPct,
+                        reverseDcf.impliedRevenueCagrPct,
                         window.location.origin
                       )
                     );
@@ -414,13 +374,13 @@ export function CompanyWorkspace({
             className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
           >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>Priced-In 10Y Growth</span>
+              <span>Implied 10Y Growth</span>
               <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
-                Stress-test →
+                Model →
               </span>
             </div>
             <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              {formatPct(baselineDcf.impliedRevenueCagrPct)}
+              {formatPct(reverseDcf.impliedRevenueCagrPct)}
             </div>
             <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
               <span className="font-mono-num">
@@ -518,9 +478,9 @@ export function CompanyWorkspace({
             className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
           >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>SEC Fine-Print &amp; Insiders</span>
+              <span>Filings &amp; Insiders</span>
               <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
-                Inspect →
+                View →
               </span>
             </div>
             <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">

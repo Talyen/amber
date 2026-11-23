@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { BookOpen, X } from "lucide-react";
 
 export function MethodologyModal() {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const lightDismiss = useDialogLightDismiss(dialogRef);
 
   function openModal() {
     const dialog = dialogRef.current;
@@ -15,40 +17,6 @@ export function MethodologyModal() {
     const dialog = dialogRef.current;
     if (dialog?.open) dialog.close();
   }
-
-  // Safari fallback for closedby="any"
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (
-      typeof HTMLDialogElement !== "undefined" &&
-      "closedBy" in HTMLDialogElement.prototype
-    ) {
-      return;
-    }
-    const isOutside = (e: PointerEvent) => {
-      const r = dialog.getBoundingClientRect();
-      return (
-        e.clientX < r.left ||
-        e.clientX > r.right ||
-        e.clientY < r.top ||
-        e.clientY > r.bottom
-      );
-    };
-    let pressedOutside = false;
-    const onDown = (e: PointerEvent) => {
-      pressedOutside = isOutside(e);
-    };
-    const onUp = (e: PointerEvent) => {
-      if (pressedOutside && isOutside(e)) dialog.close();
-    };
-    dialog.addEventListener("pointerdown", onDown);
-    dialog.addEventListener("pointerup", onUp);
-    return () => {
-      dialog.removeEventListener("pointerdown", onDown);
-      dialog.removeEventListener("pointerup", onUp);
-    };
-  }, []);
 
   return (
     <>
@@ -64,7 +32,7 @@ export function MethodologyModal() {
       <dialog
         ref={dialogRef}
         aria-labelledby="methodology-title"
-        {...({ closedby: "any" } as Record<string, string>)}
+        {...lightDismiss}
         className="amber-dialog m-auto w-[min(580px,calc(100vw-2rem))] rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-6 text-[var(--text-primary)] shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] pb-4">

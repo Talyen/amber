@@ -2,21 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSearchIndex } from "@/data/repository";
 import { CompareStudio } from "@/components/CompareStudio";
-import { POPULAR_COMPARE_SLUGS } from "@/app/sitemap";
+import { POPULAR_COMPARE_SLUGS, resolveComparisonTickers } from "@/lib/compare";
 
 export const revalidate = 86400;
 export const dynamicParams = true;
 
-function parseSlugTickers(slug: string): string[] {
-  return slug
-    .split(/-vs-/i)
-    .map((s) => s.trim().toUpperCase())
-    .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
-    .slice(0, 4);
-}
-
-export function generateStaticParams() {
-  return POPULAR_COMPARE_SLUGS.map((slug) => ({ slug }));
+export async function generateStaticParams() {
+  const entries = await getSearchIndex();
+  const available = new Set(entries.map((entry) => entry.ticker));
+  return POPULAR_COMPARE_SLUGS
+    .filter((slug) => resolveComparisonTickers(slug, available).length > 0)
+    .map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({
@@ -25,8 +21,9 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const tickers = parseSlugTickers(slug);
-  if (tickers.length < 2) return { title: "Comparison Not Found" };
+  const entries = await getSearchIndex();
+  const tickers = resolveComparisonTickers(slug, new Set(entries.map((entry) => entry.ticker)));
+  if (tickers.length === 0) notFound();
 
   const title = `${tickers.join(" vs. ")}: True FCF, SBC & Valuation`;
   return {
@@ -41,13 +38,8 @@ export default async function HeadToHeadComparePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const tickers = parseSlugTickers(slug);
-  if (tickers.length < 2) notFound();
-
   const entries = await getSearchIndex();
-  const validSet = new Set(entries.map((e) => e.ticker));
-  const initialTickers = tickers.filter((t) => validSet.has(t));
-
+  const initialTickers = resolveComparisonTickers(slug, new Set(entries.map((entry) => entry.ticker)));
   if (initialTickers.length === 0) notFound();
 
   return <CompareStudio entries={entries} initialTickers={initialTickers} />;

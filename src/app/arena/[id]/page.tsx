@@ -6,7 +6,7 @@ import {
   getArenaEquityCurve,
   getArenaPortfolioById,
   getSpyBenchmarks,
-} from "@/data/repository";
+} from "@/data/arena-repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Download, RotateCcw } from "lucide-react";
 import {
   type CompanySnapshot,
@@ -8,6 +8,7 @@ import {
   computeEnterpriseValue,
   formatCurrencyCompact,
   formatPct,
+  reverseDcfTargetMargin,
   solveReverseDcf,
 } from "@/lib/finance";
 import { exportReverseDcfCard } from "@/lib/export-card";
@@ -21,43 +22,53 @@ function progressPct(value: number, min: number, max: number): string {
   return `${(((value - min) / (max - min)) * 100).toFixed(1)}%`;
 }
 
+const WACC_MIN = 6.5;
+const WACC_MAX = 15;
+const MULTIPLE_MIN = 12;
+const MULTIPLE_MAX = 40;
+const MARGIN_MIN = 1;
+const MARGIN_MAX = 55;
+
+function readSharedValue(
+  params: URLSearchParams,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const raw = params.get(key)?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= min && value <= max ? value : fallback;
+}
+
 export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
-  const [wacc, setWacc] = useState(company.defaultDcf.wacc);
-  const [terminalMultiple, setTerminalMultiple] = useState(
-    company.defaultDcf.terminalMultiple
+  const defaults = company.defaultDcf;
+  const sbcMax = Math.max(25, Math.ceil(defaults.sbcDragPct * 2) / 2);
+  const [sharedParams] = useState(
+    () => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)
   );
-  const [targetFcfMargin, setTargetFcfMargin] = useState(
-    company.defaultDcf.targetFcfMargin
+  const [wacc, setWacc] = useState(() =>
+    readSharedValue(sharedParams, "wacc", defaults.wacc, WACC_MIN, WACC_MAX)
   );
-  const [sbcDrag, setSbcDrag] = useState(company.defaultDcf.sbcDragPct);
+  const [terminalMultiple, setTerminalMultiple] = useState(() =>
+    readSharedValue(sharedParams, "mult", defaults.terminalMultiple, MULTIPLE_MIN, MULTIPLE_MAX)
+  );
+  const [targetFcfMargin, setTargetFcfMargin] = useState(() =>
+    readSharedValue(sharedParams, "margin", defaults.targetFcfMargin, MARGIN_MIN, MARGIN_MAX)
+  );
+  const [sbcDrag, setSbcDrag] = useState(() =>
+    readSharedValue(sharedParams, "sbc", defaults.sbcDragPct, 0, sbcMax)
+  );
   const [exported, setExported] = useState(false);
-  const hydratedFromUrl = useRef(false);
-
-  // Hydrate custom Reverse DCF assumptions from shareable URL query params
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pWacc = parseFloat(params.get("wacc") ?? "");
-    const pMult = parseInt(params.get("mult") ?? "", 10);
-    const pMargin = parseFloat(params.get("margin") ?? "");
-    const pSbc = parseFloat(params.get("sbc") ?? "");
-
-    if (Number.isFinite(pWacc) && pWacc >= 6.5 && pWacc <= 15) setWacc(pWacc);
-    if (Number.isFinite(pMult) && pMult >= 12 && pMult <= 40)
-      setTerminalMultiple(pMult);
-    if (Number.isFinite(pMargin) && pMargin >= 2 && pMargin <= 55)
-      setTargetFcfMargin(pMargin);
-    if (Number.isFinite(pSbc) && pSbc >= 0 && pSbc <= 25) setSbcDrag(pSbc);
-    hydratedFromUrl.current = true;
-  }, []);
 
   // Keep URL query params cleanly synced so "Share" captures exact assumptions
   useEffect(() => {
-    if (!hydratedFromUrl.current) return;
     const isDefault =
-      wacc === company.defaultDcf.wacc &&
-      terminalMultiple === company.defaultDcf.terminalMultiple &&
-      targetFcfMargin === company.defaultDcf.targetFcfMargin &&
-      sbcDrag === company.defaultDcf.sbcDragPct;
+      wacc === defaults.wacc &&
+      terminalMultiple === defaults.terminalMultiple &&
+      targetFcfMargin === defaults.targetFcfMargin &&
+      sbcDrag === defaults.sbcDragPct;
 
     const url = new URL(window.location.href);
     if (isDefault) {
@@ -66,22 +77,16 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
       url.searchParams.delete("margin");
       url.searchParams.delete("sbc");
     } else {
-      url.searchParams.set("tab", "dcf");
       url.searchParams.set("wacc", String(wacc));
       url.searchParams.set("mult", String(terminalMultiple));
       url.searchParams.set("margin", String(targetFcfMargin));
       url.searchParams.set("sbc", String(sbcDrag));
     }
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }, [wacc, terminalMultiple, targetFcfMargin, sbcDrag, company.defaultDcf]);
+    if (url.href !== window.location.href) window.history.replaceState(null, "", url);
+  }, [wacc, terminalMultiple, targetFcfMargin, sbcDrag, defaults]);
 
-  const enterpriseValue = useMemo(
-    () => computeEnterpriseValue(company),
-    [company]
-  );
-
-  // Net True FCF Margin at Year 10 = Target Reported FCF Margin - Ongoing SBC Drag
-  const effectiveTargetTrueMargin = Math.max(1.5, targetFcfMargin - sbcDrag);
+  const enterpriseValue = computeEnterpriseValue(company);
+  const effectiveTargetTrueMargin = reverseDcfTargetMargin(targetFcfMargin, sbcDrag);
 
   const result = useMemo(
     () =>
@@ -104,15 +109,15 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
   );
 
   // 5x5 Sensitivity Matrix centered around current sliders (clamping center so rows/cols never duplicate)
-  const waccCenter = Math.max(7.5, Math.min(14.5, wacc));
-  const multCenter = Math.max(16, Math.min(39, Math.round(terminalMultiple)));
-  const waccSteps = [-1.5, -0.75, 0, 0.75, 1.5].map((d) =>
-    Number((waccCenter + d).toFixed(2))
-  );
-  const multSteps = [-6, -3, 0, 3, 6].map((d) => multCenter + d);
+  const waccCenter = Math.max(WACC_MIN + 1.5, Math.min(WACC_MAX - 1.5, wacc));
+  const multCenter = Math.max(MULTIPLE_MIN + 6, Math.min(MULTIPLE_MAX - 6, Math.round(terminalMultiple)));
 
-  const matrix = useMemo(() => {
-    return waccSteps.map((w) =>
+  const { waccSteps, multSteps, matrix } = useMemo(() => {
+    const waccSteps = [-1.5, -0.75, 0, 0.75, 1.5].map((d) =>
+      Number((waccCenter + d).toFixed(2))
+    );
+    const multSteps = [-6, -3, 0, 3, 6].map((d) => multCenter + d);
+    const matrix = waccSteps.map((w) =>
       multSteps.map((m) =>
         solveReverseDcf({
           enterpriseValue,
@@ -124,20 +129,21 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
         })
       )
     );
+    return { waccSteps, multSteps, matrix };
   }, [
     enterpriseValue,
     latest.revenue,
     latest.trueFcfMargin,
     effectiveTargetTrueMargin,
-    waccSteps,
-    multSteps,
+    waccCenter,
+    multCenter,
   ]);
 
   function resetDefaults() {
-    setWacc(company.defaultDcf.wacc);
-    setTerminalMultiple(company.defaultDcf.terminalMultiple);
-    setTargetFcfMargin(company.defaultDcf.targetFcfMargin);
-    setSbcDrag(company.defaultDcf.sbcDragPct);
+    setWacc(defaults.wacc);
+    setTerminalMultiple(defaults.terminalMultiple);
+    setTargetFcfMargin(defaults.targetFcfMargin);
+    setSbcDrag(defaults.sbcDragPct);
   }
 
   return (
@@ -180,15 +186,15 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
             <input
               id="dcf-wacc"
               type="range"
-              min={6.5}
-              max={15}
+              min={WACC_MIN}
+              max={WACC_MAX}
               step={0.25}
               value={wacc}
               onChange={(e) => setWacc(parseFloat(e.target.value))}
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(wacc, 6.5, 15),
+                  "--range-progress": progressPct(wacc, WACC_MIN, WACC_MAX),
                 } as React.CSSProperties
               }
             />
@@ -215,15 +221,15 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
             <input
               id="dcf-terminal"
               type="range"
-              min={12}
-              max={40}
+              min={MULTIPLE_MIN}
+              max={MULTIPLE_MAX}
               step={1}
               value={terminalMultiple}
               onChange={(e) => setTerminalMultiple(parseInt(e.target.value, 10))}
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(terminalMultiple, 12, 40),
+                  "--range-progress": progressPct(terminalMultiple, MULTIPLE_MIN, MULTIPLE_MAX),
                 } as React.CSSProperties
               }
             />
@@ -250,15 +256,15 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
             <input
               id="dcf-margin"
               type="range"
-              min={1}
-              max={55}
+              min={MARGIN_MIN}
+              max={MARGIN_MAX}
               step={0.5}
               value={targetFcfMargin}
               onChange={(e) => setTargetFcfMargin(parseFloat(e.target.value))}
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(targetFcfMargin, 1, 55),
+                  "--range-progress": progressPct(targetFcfMargin, MARGIN_MIN, MARGIN_MAX),
                 } as React.CSSProperties
               }
             />
@@ -286,14 +292,14 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
               id="dcf-sbc"
               type="range"
               min={0}
-              max={25}
+              max={sbcMax}
               step={0.5}
               value={sbcDrag}
               onChange={(e) => setSbcDrag(parseFloat(e.target.value))}
               className="amber-range"
               style={
                 {
-                  "--range-progress": progressPct(sbcDrag, 0, 25),
+                  "--range-progress": progressPct(sbcDrag, 0, sbcMax),
                 } as React.CSSProperties
               }
             />

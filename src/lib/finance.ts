@@ -116,7 +116,9 @@ export function computeAnnualMetrics(
   });
 }
 
-export function computeEnterpriseValue(company: CompanySnapshot): number {
+type EnterpriseValueInputs = Pick<CompanySnapshot, "marketCap" | "totalDebt" | "cashAndEquiv">;
+
+export function computeEnterpriseValue(company: EnterpriseValueInputs): number {
   return company.marketCap + company.totalDebt - company.cashAndEquiv;
 }
 
@@ -393,6 +395,34 @@ export function solveReverseDcf(inputs: ReverseDcfInputs): ReverseDcfResult {
     impliedEvToYear10Fcf:
       final.yrNFcf > 0 ? inputs.enterpriseValue / final.yrNFcf : 0,
     clamped,
+  };
+}
+
+export function reverseDcfTargetMargin(targetFcfMargin: number, sbcDragPct: number): number {
+  return Math.max(1.5, targetFcfMargin - sbcDragPct);
+}
+
+export function computeCompanyValuation(
+  company: EnterpriseValueInputs & Pick<CompanySnapshot, "annuals" | "defaultDcf">
+) {
+  const series = computeAnnualMetrics(company.annuals);
+  const latest = series[series.length - 1];
+  const enterpriseValue = computeEnterpriseValue(company);
+  const { wacc, terminalMultiple, targetFcfMargin, sbcDragPct } = company.defaultDcf;
+
+  return {
+    series,
+    latest,
+    enterpriseValue,
+    netDilutionCagr: computeNetDilutionCagr(company.annuals),
+    reverseDcf: solveReverseDcf({
+      enterpriseValue,
+      baseRevenue: latest.revenue,
+      waccPct: wacc,
+      terminalMultiple,
+      targetTrueFcfMarginPct: reverseDcfTargetMargin(targetFcfMargin, sbcDragPct),
+      currentTrueFcfMarginPct: latest.trueFcfMargin,
+    }),
   };
 }
 

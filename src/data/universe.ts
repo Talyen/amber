@@ -1,24 +1,9 @@
 import type { CompanySnapshot } from "@/lib/finance";
+import type { SearchIndexEntry } from "@/data/search-index";
 import companiesJson from "@/data/generated/companies.json";
 import searchIndexJson from "@/data/generated/search-index.json";
 
-export interface SearchIndexEntry {
-  ticker: string;
-  name: string;
-  exchange: "NASDAQ" | "NYSE";
-  sector: string;
-  marketCap: number;
-  revenue: number;
-  reportedFcf: number;
-  sbc: number;
-  trueFcf: number;
-  trueFcfMargin: number;
-  sbcPctRevenue: number;
-  sbcPctReportedFcf: number;
-  netDilutionCagr: number;
-  impliedCagr: number;
-  lastFilingDate: string;
-}
+export type { SearchIndexEntry } from "@/data/search-index";
 
 export const ALL_COMPANIES: CompanySnapshot[] =
   companiesJson as unknown as CompanySnapshot[];
