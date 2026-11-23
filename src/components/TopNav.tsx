@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
   Check,
-  FileText,
   GitCompareArrows,
   LayoutGrid,
   Link2,
   Moon,
   PieChart,
+  Rss,
   Sun,
   Trophy,
 } from "lucide-react";
@@ -19,7 +19,7 @@ import { CommandSearch } from "@/components/CommandSearch";
 
 interface TopNavProps {
   activeTicker?: string;
-  activeRoute?: "index" | "compare" | "portfolio" | "arena" | "filings" | "ticker";
+  activeRoute?: "index" | "compare" | "portfolio" | "arena" | "feed" | "ticker";
 }
 
 const NAV_LINKS: Array<{
@@ -32,7 +32,7 @@ const NAV_LINKS: Array<{
   { href: "/compare", label: "Compare", route: "compare", icon: GitCompareArrows },
   { href: "/portfolio", label: "Portfolio", route: "portfolio", icon: PieChart },
   { href: "/arena", label: "Arena", route: "arena", icon: Trophy },
-  { href: "/filings", label: "Filings", route: "filings", icon: FileText },
+  { href: "/feed", label: "Feed", route: "feed", icon: Rss },
 ];
 
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
