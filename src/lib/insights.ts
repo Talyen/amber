@@ -323,6 +323,11 @@ export type IndexSortKey =
   | "netDilutionCagr"
   | "impliedCagr";
 
+export interface LensFilterContext {
+  insiderBuyTickers?: ReadonlySet<string>;
+  materialEventTickers?: ReadonlySet<string>;
+}
+
 export interface DiscoveryLens {
   id: string;
   title: string;
@@ -331,7 +336,7 @@ export interface DiscoveryLens {
   whyItMatters: string;
   defaultSortKey: IndexSortKey;
   defaultSortDir: "desc" | "asc";
-  filter: (entry: SearchIndexEntry) => boolean;
+  filter: (entry: SearchIndexEntry, ctx?: LensFilterContext) => boolean;
   sort: (a: SearchIndexEntry, b: SearchIndexEntry) => number;
 }
 
@@ -368,19 +373,21 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     sort: (a, b) => a.netDilutionCagr - b.netDilutionCagr,
   },
   {
-    id: "priced-for-perfection",
-    title: "High Bar",
-    subtitle: "Steepest market-implied 10Y growth",
-    criteriaSummary: "Implied 10Y revenue CAGR 15% to 60%, revenue >= $300M",
+    id: "underpriced",
+    title: "Underpriced",
+    subtitle: "Cash-generative companies pricing in modest growth",
+    criteriaSummary: "True FCF margin >= 12%, implied 10Y growth 0% to 9%, revenue >= $1B",
     whyItMatters:
-      "Great companies can still be risky stocks when the share price already bakes in 18%+ annual growth for the next decade.",
+      "Profitable businesses where today's price only implies single-digit long-term growth, leaving room for upside surprises.",
     defaultSortKey: "impliedCagr",
-    defaultSortDir: "desc",
+    defaultSortDir: "asc",
     filter: (c) =>
-      c.revenue >= 300 &&
-      c.impliedCagr >= 15 &&
-      c.impliedCagr < 60,
-    sort: (a, b) => b.impliedCagr - a.impliedCagr,
+      c.revenue >= 1000 &&
+      c.trueFcfMargin >= 12 &&
+      c.trueFcfMargin <= 75 &&
+      c.impliedCagr > 0 &&
+      c.impliedCagr <= 9,
+    sort: (a, b) => a.impliedCagr - b.impliedCagr,
   },
   {
     id: "hidden-dilution",
@@ -396,5 +403,29 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
       c.sbcPctRevenue >= 12 &&
       c.sbcPctRevenue <= 85,
     sort: (a, b) => b.sbcPctRevenue - a.sbcPctRevenue,
+  },
+  {
+    id: "insider-buys",
+    title: "Insider Buys",
+    subtitle: "Recent open-market executive & director purchases",
+    criteriaSummary: "Recent SEC Form 4 open-market purchase (Code P)",
+    whyItMatters:
+      "Executives sell shares for many reasons, but open-market purchases with personal cash signal conviction.",
+    defaultSortKey: "marketCap",
+    defaultSortDir: "desc",
+    filter: (c, ctx) => Boolean(ctx?.insiderBuyTickers?.has(c.ticker)),
+    sort: (a, b) => b.marketCap - a.marketCap,
+  },
+  {
+    id: "material-events",
+    title: "Material Events",
+    subtitle: "Recent SEC Form 8-K leadership, M&A, or restructuring filings",
+    criteriaSummary: "High-signal SEC Form 8-K (Items 1.01, 2.01, 2.05, 2.06, 4.02, 5.02)",
+    whyItMatters:
+      "Form 8-K filings disclose material corporate events between quarterly reports — executive departures, acquisitions, and restructurings.",
+    defaultSortKey: "marketCap",
+    defaultSortDir: "desc",
+    filter: (c, ctx) => Boolean(ctx?.materialEventTickers?.has(c.ticker)),
+    sort: (a, b) => b.marketCap - a.marketCap,
   },
 ];

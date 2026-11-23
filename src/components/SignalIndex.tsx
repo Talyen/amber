@@ -45,17 +45,21 @@ const LENS_STYLES: Record<
     icon: Flame,
     badge: "bg-orange-500/12 text-orange-600 ring-orange-500/25 dark:text-orange-400",
   },
-  "priced-for-perfection": {
-    icon: Gauge,
-    badge: "bg-violet-500/12 text-violet-600 ring-violet-500/25 dark:text-violet-400",
+  underpriced: {
+    icon: Compass,
+    badge: "bg-teal-500/12 text-teal-600 ring-teal-500/25 dark:text-teal-400",
   },
   "hidden-dilution": {
     icon: AlertTriangle,
     badge: "bg-rose-500/12 text-rose-600 ring-rose-500/25 dark:text-rose-400",
   },
-  "modest-expectations": {
-    icon: Compass,
-    badge: "bg-teal-500/12 text-teal-600 ring-teal-500/25 dark:text-teal-400",
+  "insider-buys": {
+    icon: UserCheck,
+    badge: "bg-green-500/12 text-green-600 ring-green-500/25 dark:text-green-400",
+  },
+  "material-events": {
+    icon: FileDiff,
+    badge: "bg-sky-500/12 text-sky-600 ring-sky-500/25 dark:text-sky-400",
   },
 };
 
@@ -65,12 +69,16 @@ export function SignalIndex({
   recentDiffs = [],
   recentInsiders = [],
   trendingTickers = [],
+  insiderBuyTickers = [],
+  materialEventTickers = [],
 }: {
   entries?: SearchIndexEntry[];
   initialLensId?: string | null;
   recentDiffs?: MarketFilingDiffItem[];
   recentInsiders?: MarketInsiderFeedItem[];
   trendingTickers?: string[];
+  insiderBuyTickers?: string[];
+  materialEventTickers?: string[];
 }) {
   const initialLens = initialLensId
     ? DISCOVERY_LENSES.find((l) => l.id === initialLensId) ?? null
@@ -161,13 +169,21 @@ export function SignalIndex({
     [activeLensId]
   );
 
+  const lensCtx = useMemo(
+    () => ({
+      insiderBuyTickers: new Set(insiderBuyTickers),
+      materialEventTickers: new Set(materialEventTickers),
+    }),
+    [insiderBuyTickers, materialEventTickers]
+  );
+
   const lensCounts = useMemo(() => {
     const map = new Map<string, number>();
     for (const lens of DISCOVERY_LENSES) {
-      map.set(lens.id, entries.filter(lens.filter).length);
+      map.set(lens.id, entries.filter((e) => lens.filter(e, lensCtx)).length);
     }
     return map;
-  }, [entries]);
+  }, [entries, lensCtx]);
 
   function selectLens(lensId: string | null) {
     if (!lensId || lensId === activeLensId) {
@@ -257,7 +273,7 @@ export function SignalIndex({
 
     const filtered = entries.filter((c) => {
       if (watchlistOnly && !watchlist.has(c.ticker)) return false;
-      if (activeLens && !activeLens.filter(c)) return false;
+      if (activeLens && !activeLens.filter(c, lensCtx)) return false;
       if (selectedSector !== "All" && c.sector !== selectedSector) return false;
       if (minFcfVal !== null && Number.isFinite(minFcfVal) && c.trueFcfMargin < minFcfVal) return false;
       if (maxSbcVal !== null && Number.isFinite(maxSbcVal) && c.sbcPctRevenue > maxSbcVal) return false;
@@ -282,6 +298,7 @@ export function SignalIndex({
     activeLens,
     watchlistOnly,
     watchlist,
+    lensCtx,
     minFcfMargin,
     maxSbcPct,
     maxImplied,

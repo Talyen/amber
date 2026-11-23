@@ -1,6 +1,10 @@
 import { ImageResponse } from "next/og";
 import { DISCOVERY_LENSES } from "@/lib/insights";
-import { getSearchIndex } from "@/data/repository";
+import {
+  getInsiderBuyTickers,
+  getMaterialEventTickers,
+  getSearchIndex,
+} from "@/data/repository";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -12,8 +16,16 @@ export default async function LensOgImage({
 }) {
   const { slug } = await params;
   const lens = DISCOVERY_LENSES.find((l) => l.id === slug);
-  const entries = await getSearchIndex();
-  const matches = lens ? entries.filter(lens.filter).sort(lens.sort) : [];
+  const [entries, insiderBuyTickers, materialEventTickers] = await Promise.all([
+    getSearchIndex(),
+    getInsiderBuyTickers(),
+    getMaterialEventTickers(),
+  ]);
+  const ctx = {
+    insiderBuyTickers: new Set(insiderBuyTickers),
+    materialEventTickers: new Set(materialEventTickers),
+  };
+  const matches = lens ? entries.filter((e) => lens.filter(e, ctx)).sort(lens.sort) : [];
   const topTickers = matches.slice(0, 6).map((m) => m.ticker);
 
   return new ImageResponse(

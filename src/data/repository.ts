@@ -600,3 +600,47 @@ export async function getInsiderTradesForTickers(
     return [];
   }
 }
+
+export async function getInsiderBuyTickers(): Promise<string[]> {
+  if (!process.env.DATABASE_URL) return [];
+  const cachedFetch = unstable_cache(
+    async () => {
+      const db = getDb();
+      if (!db) return [];
+      const rows = await db
+        .selectDistinct({ ticker: insiderTrades.ticker })
+        .from(insiderTrades)
+        .where(eq(insiderTrades.transactionType, "Buy"));
+      return rows.map((r) => r.ticker);
+    },
+    ["amber-insider-buy-tickers-v1"],
+    { revalidate: 900, tags: ["insiders"] }
+  );
+  try {
+    return await cachedFetch();
+  } catch {
+    return [];
+  }
+}
+
+export async function getMaterialEventTickers(): Promise<string[]> {
+  if (!process.env.DATABASE_URL) return [];
+  const cachedFetch = unstable_cache(
+    async () => {
+      const db = getDb();
+      if (!db) return [];
+      const rows = await db
+        .selectDistinct({ ticker: filingDiffs.ticker })
+        .from(filingDiffs)
+        .where(eq(filingDiffs.filingType, "8-K"));
+      return rows.map((r) => r.ticker);
+    },
+    ["amber-material-event-tickers-v1"],
+    { revalidate: 900, tags: ["filings"] }
+  );
+  try {
+    return await cachedFetch();
+  } catch {
+    return [];
+  }
+}

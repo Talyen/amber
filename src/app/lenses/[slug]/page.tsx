@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getSearchIndex } from "@/data/repository";
+import {
+  getInsiderBuyTickers,
+  getMaterialEventTickers,
+  getSearchIndex,
+} from "@/data/repository";
 import { SignalIndex } from "@/components/SignalIndex";
 import { DISCOVERY_LENSES } from "@/lib/insights";
 
@@ -34,6 +38,17 @@ export default async function LensPage({
   const lens = DISCOVERY_LENSES.find((l) => l.id === slug);
   if (!lens) notFound();
 
-  const entries = await getSearchIndex();
-  return <SignalIndex entries={entries} initialLensId={lens.id} />;
+  const [entries, insiderBuyTickers, materialEventTickers] = await Promise.all([
+    getSearchIndex(),
+    getInsiderBuyTickers(),
+    getMaterialEventTickers(),
+  ]);
+  return (
+    <SignalIndex
+      entries={entries}
+      initialLensId={lens.id}
+      insiderBuyTickers={insiderBuyTickers}
+      materialEventTickers={materialEventTickers}
+    />
+  );
 }
