@@ -16,7 +16,8 @@
     "sync:prices": "node --experimental-strip-types scripts/sync-prices.ts",
     "send:alerts": "node --experimental-strip-types scripts/send-filing-alerts.ts",
     "db:push": "drizzle-kit push",
-    "db:seed": "node --experimental-strip-types scripts/seed-neon.ts"
+    "db:seed": "node --experimental-strip-types scripts/seed-neon.ts",
+    "release": "vercel --prod --yes"
   },
   "dependencies": {
     "@microsoft/focusgroup-polyfill": "^1.0.2",
