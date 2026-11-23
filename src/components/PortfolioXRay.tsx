@@ -22,7 +22,7 @@ import { LockPortfolioModal } from "@/components/LockPortfolioModal";
 import { formatPct } from "@/lib/finance";
 import { exportPortfolioXRayCard } from "@/lib/export-card";
 
-const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "PLTR"];
+const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "META"];
 
 interface PortfolioXRayProps {
   entries: SearchIndexEntry[];

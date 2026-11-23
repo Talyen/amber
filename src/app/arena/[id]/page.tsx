@@ -19,8 +19,8 @@ export async function generateMetadata({
   if (!portfolio) return { title: "Portfolio Not Found" };
 
   return {
-    title: `${portfolio.title} (@${portfolio.handle}) — Arena`,
-    description: `Verified Amber Arena portfolio locked ${portfolio.lockedAt.slice(0, 10)}: ${formatPct(portfolio.totalReturnPct, true)} return.`,
+    title: `${portfolio.title} (@${portfolio.handle}) | Arena`,
+    description: `Amber Arena portfolio started ${portfolio.lockedAt.slice(0, 10)}: ${formatPct(portfolio.totalReturnPct, true)} return.`,
   };
 }
 
@@ -101,7 +101,7 @@ export default async function ArenaDetailPage({
                   .map((p) => `${p.ticker}:${Math.round(p.weightPct)}`)
                   .join(",")
               )}`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white"
             >
               <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
               Analyze in Portfolio

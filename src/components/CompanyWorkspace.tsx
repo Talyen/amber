@@ -210,7 +210,7 @@ export function CompanyWorkspace({
               <Link
                 href={`/compare?t=${[
                   company.ticker,
-                  ...["PLTR", "NVDA", "SNOW", "COST", "MSFT"]
+                  ...["NVDA", "MSFT", "AAPL", "COST", "META"]
                     .filter((t) => t !== company.ticker)
                     .slice(0, 3),
                 ].join(",")}`}
@@ -336,15 +336,15 @@ export function CompanyWorkspace({
             >
               {formatCurrencyCompact(latest.trueFcf)}
             </div>
-            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span>
-                Reported:{" "}
+            <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+              <span className="whitespace-nowrap">
+                Rep:{" "}
                 <strong className="font-mono-num font-medium text-[var(--text-secondary)]">
                   {formatCurrencyCompact(latest.reportedFcf)}
                 </strong>
               </span>
-              <span className="font-mono-num">
-                {formatPct(latest.trueFcfMargin)} margin
+              <span className="font-mono-num whitespace-nowrap">
+                {formatPct(latest.trueFcfMargin)}
                 {sectorBenchmark && (
                   <span className="ml-1 opacity-75">
                     (med {formatPct(sectorBenchmark.medianTrueFcfMargin)})

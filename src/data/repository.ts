@@ -121,9 +121,9 @@ export async function getCompanySnapshot(
 
   const cachedFetch = unstable_cache(
     async () => queryCompanyFromDb(ticker),
-    ["amber-company", ticker],
+    ["amber-company-v2", ticker],
     {
-      revalidate: 86400,
+      revalidate: 3600,
       tags: ["companies", `ticker-${ticker}`],
     }
   );
@@ -229,9 +229,9 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
 
   const cachedFetch = unstable_cache(
     async () => querySearchIndexFromDb(),
-    ["amber-search-index"],
+    ["amber-search-index-v2"],
     {
-      revalidate: 86400,
+      revalidate: 3600,
       tags: ["companies"],
     }
   );
@@ -494,7 +494,7 @@ export async function getArenaLeaderboard(): Promise<ArenaPortfolioView[]> {
   if (!process.env.DATABASE_URL) return [];
   const cachedFetch = unstable_cache(
     async () => queryArenaLeaderboardFromDb(),
-    ["amber-arena-leaderboard"],
+    ["amber-arena-leaderboard-v2"],
     { revalidate: 3600, tags: ["arena", "companies"] }
   );
   return await cachedFetch();
@@ -503,8 +503,94 @@ export async function getArenaLeaderboard(): Promise<ArenaPortfolioView[]> {
 export async function getArenaPortfolioById(
   id: string
 ): Promise<ArenaPortfolioView | undefined> {
-  const all = await getArenaLeaderboard();
-  return all.find((p) => p.id === id);
+  const db = getDb();
+  if (!db) return undefined;
+
+  try {
+    const [port] = await db
+      .select()
+      .from(arenaPortfolios)
+      .where(eq(arenaPortfolios.id, id))
+      .limit(1);
+    if (!port) return undefined;
+
+    const [rawPositions, rebRows, compRows] = await Promise.all([
+      db
+        .select()
+        .from(arenaPositions)
+        .where(eq(arenaPositions.portfolioId, port.id)),
+      db
+        .select()
+        .from(arenaRebalances)
+        .where(eq(arenaRebalances.portfolioId, port.id))
+        .orderBy(desc(arenaRebalances.createdAt)),
+      db
+        .select({
+          ticker: companies.ticker,
+          name: companies.name,
+          price: companies.price,
+        })
+        .from(companies),
+    ]);
+
+    const compMap = new Map(compRows.map((c) => [c.ticker, c]));
+    let weightedReturn = 0;
+    const positions: ArenaPositionView[] = rawPositions.map((p) => {
+      const live = compMap.get(p.ticker);
+      const currentPrice = live?.price ?? p.entryPrice;
+      const ret =
+        p.entryPrice > 0
+          ? ((currentPrice - p.entryPrice) / p.entryPrice) * 100
+          : 0;
+      weightedReturn += ret * (p.weightPct / 100);
+      return {
+        ticker: p.ticker,
+        companyName: live?.name ?? p.ticker,
+        weightPct: Number(p.weightPct.toFixed(1)),
+        entryPrice: p.entryPrice,
+        currentPrice,
+        returnPct: Number(ret.toFixed(2)),
+      };
+    });
+
+    positions.sort((a, b) => b.weightPct - a.weightPct);
+
+    const isoDate = port.lockedAt.toISOString();
+    const lastRebalancedIso = (port.lastRebalancedAt ?? port.lockedAt).toISOString();
+    const resolvedPeriodKey = port.periodKey ?? isoDate.slice(0, 7);
+    const isFinalized = typeof port.finalReturnPct === "number";
+    const nav =
+      typeof port.nav === "number" && Number.isFinite(port.nav) ? port.nav : 100;
+    const liveTotalReturn = nav * (1 + weightedReturn / 100) - 100;
+
+    return {
+      id: port.id,
+      handle: port.handle,
+      title: port.title,
+      thesis: port.thesis,
+      isBot: port.isBot === 1,
+      botTheme: port.botTheme,
+      avatarIcon: port.avatarIcon ?? "compass",
+      periodKey: resolvedPeriodKey,
+      isFinalized,
+      lockedAt: isoDate,
+      lastRebalancedAt: lastRebalancedIso,
+      nav: Number(nav.toFixed(2)),
+      totalReturnPct: Number(
+        (isFinalized ? port.finalReturnPct! : liveTotalReturn).toFixed(2)
+      ),
+      positions,
+      rebalances: rebRows.map((r) => ({
+        id: r.id,
+        navAtRebalance: r.navAtRebalance,
+        summary: r.summary,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  } catch (err) {
+    console.warn(`[amber-repo] Arena portfolio ${id} lookup failed:`, err);
+    return undefined;
+  }
 }
 
 async function fetchSpyBenchmarks(): Promise<Record<string, number>> {

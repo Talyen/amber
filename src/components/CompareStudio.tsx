@@ -11,8 +11,8 @@ import { exportComparisonCsv } from "@/lib/export-csv";
 import { buildComparisonMarkdown } from "@/lib/export-markdown";
 
 const PRESETS: Array<{ label: string; tickers: string[] }> = [
-  { label: "AI & Cloud", tickers: ["PLTR", "NVDA", "MSFT", "ORCL"] },
-  { label: "High-SBC SaaS", tickers: ["SNOW", "CRWD", "DDOG", "NET"] },
+  { label: "AI & Cloud", tickers: ["NVDA", "MSFT", "AVGO", "ORCL"] },
+  { label: "Cloud & Cyber", tickers: ["CRWD", "DDOG", "NET", "PANW"] },
   { label: "Cash Flow Kings", tickers: ["V", "MA", "AAPL", "COST"] },
 ];
 
@@ -30,7 +30,7 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
   const [selectedTickers, setSelectedTickers] = useState<string[]>(
     initialTickers && initialTickers.length > 0
       ? initialTickers
-      : ["PLTR", "SNOW", "NVDA", "COST"]
+      : ["NVDA", "MSFT", "AAPL", "COST"]
   );
   const [addQuery, setAddQuery] = useState("");
   const [copiedMd, setCopiedMd] = useState(false);
@@ -426,7 +426,7 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Revenue (Latest FY)</th>
+                  <th scope="row">Revenue (TTM)</th>
                   {selectedItems.map((i) => (
                     <td key={i.ticker} data-label={i.ticker} className="font-mono-num">
                       {formatCurrencyCompact(i.revenue)}

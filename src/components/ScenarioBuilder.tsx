@@ -22,7 +22,7 @@ function progressPct(value: number, min: number, max: number): string {
 export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const histGrowth = Math.max(
     1,
-    Math.min(40, Math.round(computeRevenueCagr(company.annuals)))
+    Math.min(24, Math.round(computeRevenueCagr(company.annuals)))
   );
   const rawBaseMargin = Math.max(
     1,

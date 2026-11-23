@@ -360,6 +360,9 @@ export function formatCurrencyCompact(millions: number): string {
   if (abs >= 1_000) {
     return `${sign}$${(abs / 1_000).toFixed(abs >= 100_000 ? 0 : 1)}B`;
   }
+  if (abs > 0 && abs < 1) {
+    return `${sign}$${Math.round(abs * 1_000)}K`;
+  }
   return `${sign}$${abs.toFixed(0)}M`;
 }
 

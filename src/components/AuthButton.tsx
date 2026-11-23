@@ -147,16 +147,7 @@ export function AuthButton() {
     await authClient.signOut();
   }
 
-  if (isPending) {
-    return (
-      <div
-        aria-hidden="true"
-        className="h-8 w-16 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] opacity-60"
-      />
-    );
-  }
-
-  if (session?.user) {
+  if (!isPending && session?.user) {
     const displayName =
       session.user.name?.trim() || session.user.email?.split("@")[0] || "Account";
     return (

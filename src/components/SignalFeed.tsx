@@ -17,10 +17,20 @@ interface SignalFeedProps {
 type FeedFilter = "all" | "filings" | "insider-buys" | "insider-sells";
 
 function cleanEntity(str: string): string {
-  return str
+  const decoded = str
     .replace(/&amp;/gi, "&")
     .replace(/&apos;|&#39;/gi, "'")
-    .replace(/&quot;/gi, '"');
+    .replace(/&quot;/gi, '"')
+    .replace(/\/+$/g, "")
+    .trim();
+  // Normalize ALL-CAPS EDGAR names (e.g. "BECHTOLSHEIM ANDREAS") to readable Title Case
+  if (decoded.length >= 4 && decoded === decoded.toUpperCase() && /[A-Z]/.test(decoded)) {
+    return decoded
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase())
+      .replace(/\b(Ceo|Cfo|Coo|Cto|Evp|Svp|Vp|Iii|Ii)\b/g, (m) => m.toUpperCase());
+  }
+  return decoded;
 }
 
 export function SignalFeed({ entries, insiders }: SignalFeedProps) {

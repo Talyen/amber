@@ -58,7 +58,7 @@ const BOTS: BotTemplate[] = [
     title: "Cloud Rocket",
     botTheme: "Cloud Growth",
     avatarIcon: "rocket",
-    thesis: "High-growth cloud & cybersecurity leaders where stock-based compensation heavily trails headline FCF.",
+    thesis: "High-growth cloud & cybersecurity leaders where stock-based compensation weighs heavily on headline FCF.",
     tickers: ["PLTR", "SNOW", "CRWD", "DDOG", "NET", "PANW"],
   },
   {

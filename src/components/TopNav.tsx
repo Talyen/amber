@@ -89,13 +89,13 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           </Link>
 
           <span
-            className="hidden h-4 w-px bg-[var(--border)] sm:inline-block"
+            className="hidden h-4 w-px bg-[var(--border)] md:inline-block"
             aria-hidden="true"
           />
 
           <nav
             aria-label="Primary navigation"
-            className="flex items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="hidden items-center gap-1 py-1 md:flex"
           >
             {NAV_LINKS.map((item) => {
               const isActive = currentRoute === item.route;
@@ -156,6 +156,32 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           <AuthButton />
         </div>
       </div>
+
+      {/* Dedicated mobile & compact-tablet navigation bar (zero clipping) */}
+      <nav
+        aria-label="Mobile navigation"
+        className="flex items-center justify-between gap-1 overflow-x-auto border-t border-[var(--border)] px-3 py-1.5 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {NAV_LINKS.map((item) => {
+          const isActive = currentRoute === item.route;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                isActive
+                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5 opacity-85" aria-hidden="true" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
     </header>
   );
 }
