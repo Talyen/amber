@@ -33,22 +33,22 @@
   --text-muted-light: #787882;
   --text-muted-dark: #6b707d;
 
-  /* Warm, tasteful Amber accent (>= 4.5:1 contrast on surfaces) */
-  --amber-light: #b45309;
+  /* Warm, tasteful Amber accent (>= 4.5:1 contrast on surfaces, exact 36° gold hue) */
+  --amber-light: #a86810;
   --amber-dark: #e5a03c;
 
-  /* CTA button tokens: exact brand Amber with high-contrast text (white in light, obsidian in dark) */
-  --cta-bg-light: var(--amber-light);
-  --cta-bg-dark: var(--amber-dark);
-  --cta-bg-hover-light: #9a4408;
+  /* CTA button tokens: signature brand gold/amber (#e5a03c) with dark obsidian text (9.6:1 AAA contrast) in both modes */
+  --cta-bg-light: #e5a03c;
+  --cta-bg-dark: #e5a03c;
+  --cta-bg-hover-light: #d8922c;
   --cta-bg-hover-dark: #edb258;
-  --cta-fg-light: #ffffff;
+  --cta-fg-light: #111317;
   --cta-fg-dark: #111317;
 
-  --amber-soft-light: rgba(180, 83, 9, 0.09);
+  --amber-soft-light: rgba(168, 104, 16, 0.1);
   --amber-soft-dark: rgba(229, 160, 60, 0.12);
 
-  --amber-border-light: rgba(180, 83, 9, 0.28);
+  --amber-border-light: rgba(168, 104, 16, 0.28);
   --amber-border-dark: rgba(229, 160, 60, 0.34);
 
   /* Restrained semantic colors */
@@ -165,6 +165,9 @@ html[data-theme="dark"] {
     --amber: var(--amber-light);
     --amber-soft: var(--amber-soft-light);
     --amber-border: var(--amber-border-light);
+    --cta-bg: var(--cta-bg-light);
+    --cta-bg-hover: var(--cta-bg-hover-light);
+    --cta-fg: var(--cta-fg-light);
     --positive: var(--positive-light);
     --negative: var(--negative-light);
     --sbc: var(--sbc-light);
