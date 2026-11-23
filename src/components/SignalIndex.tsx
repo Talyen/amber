@@ -907,7 +907,19 @@ export function SignalIndex({
         </section>
 
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <p>© {new Date().getFullYear()} Amber · Not investment advice.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>© {new Date().getFullYear()} Amber</span>
+            <span aria-hidden="true">·</span>
+            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
+              Privacy
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/terms" className="hover:text-[var(--text-primary)]">
+              Terms
+            </Link>
+            <span aria-hidden="true">·</span>
+            <span>Not investment advice.</span>
+          </div>
           <div className="flex flex-wrap items-center gap-4">
             <MethodologyModal />
           </div>
