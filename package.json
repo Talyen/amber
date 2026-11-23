@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src tests",
+    "lint": "eslint src scripts tests",
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "ingest:edgar": "node --experimental-strip-types scripts/ingest-edgar.ts",
@@ -16,8 +16,10 @@
     "sync:prices": "node --experimental-strip-types scripts/sync-prices.ts",
     "send:alerts": "node --experimental-strip-types scripts/send-filing-alerts.ts",
     "db:push": "drizzle-kit push",
+    "db:migrate": "node --experimental-strip-types scripts/migrate-db.ts",
+    "db:migrate:production": "pnpm db:migrate --production",
     "db:seed": "node --experimental-strip-types scripts/seed-neon.ts",
-    "release": "vercel --prod --yes"
+    "release": "pnpm db:migrate:production && vercel --prod --project=amber --scope=talyen-s-projects --yes --non-interactive"
   },
   "dependencies": {
     "@microsoft/focusgroup-polyfill": "^1.0.2",

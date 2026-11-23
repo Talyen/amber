@@ -1,9 +1,11 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { activeArenaEntryForUser } from "@/data/arena-entry";
 import { getDb } from "@/db";
 import { alertSubscriptions, arenaPortfolios, user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { arenaMonth } from "@/lib/arena-period";
 import { normalizeAvatarId } from "@/lib/avatars";
 
 export async function GET(request: Request) {
@@ -30,12 +32,7 @@ export async function GET(request: Request) {
     db
       .select()
       .from(arenaPortfolios)
-      .where(
-        and(
-          eq(arenaPortfolios.userId, session.user.id),
-          eq(arenaPortfolios.isBot, 0)
-        )
-      )
+      .where(activeArenaEntryForUser(session.user.id, arenaMonth(new Date())))
       .limit(1),
   ]);
 
@@ -104,14 +101,14 @@ export async function PATCH(request: Request) {
     db
       .select({ id: arenaPortfolios.id, userId: arenaPortfolios.userId })
       .from(arenaPortfolios)
-      .where(sql`lower(${arenaPortfolios.handle}) = ${lower}`)
-      .limit(2),
+      .where(and(
+        sql`lower(${arenaPortfolios.handle}) = ${lower}`,
+        or(isNull(arenaPortfolios.userId), ne(arenaPortfolios.userId, session.user.id))
+      ))
+      .limit(1),
   ]);
 
-  const takenByOtherPortfolio = portConflict.some(
-    (p) => p.userId !== session.user.id
-  );
-  if (userConflict.length > 0 || takenByOtherPortfolio) {
+  if (userConflict.length > 0 || portConflict.length > 0) {
     return NextResponse.json(
       { error: `Handle @${handle} is already taken. Please choose another.` },
       { status: 409 }
@@ -119,29 +116,26 @@ export async function PATCH(request: Request) {
   }
 
   const avatarIcon = normalizeAvatarId(body.avatarIcon);
+  const now = new Date();
 
   await db
     .update(user)
-    .set({ handle, avatarIcon, updatedAt: new Date() })
+    .set({ handle, avatarIcon, updatedAt: now })
     .where(eq(user.id, session.user.id));
 
   // Keep user's Arena portfolio in sync if they have one
+  const activeEntry = activeArenaEntryForUser(session.user.id, arenaMonth(now));
   const existingPorts = await db
     .select({ id: arenaPortfolios.id, handle: arenaPortfolios.handle })
     .from(arenaPortfolios)
-    .where(
-      and(
-        eq(arenaPortfolios.userId, session.user.id),
-        eq(arenaPortfolios.isBot, 0)
-      )
-    )
+    .where(activeEntry)
     .limit(1);
 
   if (existingPorts[0]) {
     await db
       .update(arenaPortfolios)
       .set({ handle, avatarIcon })
-      .where(eq(arenaPortfolios.id, existingPorts[0].id));
+      .where(and(eq(arenaPortfolios.id, existingPorts[0].id), activeEntry));
 
     revalidateTag("arena");
     revalidatePath("/arena");

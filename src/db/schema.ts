@@ -1,3 +1,4 @@
+import { sql, type SQLWrapper } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -211,6 +212,14 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+export function arenaEntryPeriodKey({ periodKey, lockedAt }: { periodKey: SQLWrapper; lockedAt: SQLWrapper }) {
+  // Use immutable date parts so the index also covers older entries without a period key.
+  const utc = sql`${lockedAt} at time zone 'UTC'`;
+  return sql`coalesce(${periodKey},
+    lpad(extract(year from ${utc})::int::text, 4, '0') || '-' ||
+    lpad(extract(month from ${utc})::int::text, 2, '0'))`;
+}
+
 export const arenaPortfolios = pgTable(
   "arena_portfolios",
   {
@@ -235,6 +244,9 @@ export const arenaPortfolios = pgTable(
   (table) => [
     index("arena_user_idx").on(table.userId),
     index("arena_period_idx").on(table.periodKey),
+    uniqueIndex("arena_open_user_period_idx")
+      .on(table.userId, arenaEntryPeriodKey(table))
+      .where(sql`${table.isBot} = 0 and ${table.finalReturnPct} is null`),
   ]
 );
 

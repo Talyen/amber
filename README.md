@@ -24,6 +24,14 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) to explore Amber locally.
 
+Run `pnpm lint`, `pnpm typecheck`, and `pnpm test` to match the pull request checks.
+
+## Production Releases
+
+`pnpm release` applies and verifies the reviewed SQL migrations using the linked
+Vercel project's production environment, then deploys Amber. Git pushes do not
+deploy automatically. [AGENTS.md](AGENTS.md) describes release ownership and verification.
+
 ## License
 
 Source-available for personal and educational use only. Commercial use, redistribution, or operating a competing hosted service is prohibited without written permission. See [LICENSE](./LICENSE).

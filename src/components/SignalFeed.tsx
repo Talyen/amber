@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, ArrowUpRight, FileDiff, Flame, Radar, Star, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import type {
@@ -119,7 +119,7 @@ function formatRelativeTime(pubDate: string): string {
 
 export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
   const watchlist = useWatchlist();
-  const [scope, setScope] = useState<FeedScope>("market");
+  const [scope, setScope] = useState<FeedScope | null>(null);
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
@@ -128,37 +128,16 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
   const [trending, setTrending] = useState<TrendingTickerItem[]>([]);
   const [loadingNews, setLoadingNews] = useState(true);
   const [showAllHeadlines, setShowAllHeadlines] = useState(false);
-  const [scopeReady, setScopeReady] = useState(false);
-  const autoSelectedRef = useRef(false);
-
-  // Auto-select "My Watchlist" on initial load if the user has starred companies (avoids double-fetch flash)
-  useEffect(() => {
-    if (!autoSelectedRef.current) {
-      try {
-        const raw = window.localStorage.getItem("amber-watchlist-v1");
-        const parsed = raw ? JSON.parse(raw) : [];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setScope("watchlist");
-          autoSelectedRef.current = true;
-        }
-      } catch {
-        // Ignore storage restrictions
-      }
-      setScopeReady(true);
-    }
-  }, []);
+  const hasWatchlist = watchlist.tickers.length > 0;
 
   useEffect(() => {
-    if (!autoSelectedRef.current && watchlist.tickers.length > 0) {
-      setScope("watchlist");
-      autoSelectedRef.current = true;
-    }
-  }, [watchlist.tickers.length]);
+    if (hasWatchlist) setScope((selected) => selected ?? "watchlist");
+  }, [hasWatchlist]);
 
-  const watchlistOnly = scope === "watchlist";
+  const watchlistOnly = scope === "watchlist" || (scope === null && hasWatchlist);
 
   const newsQueryUrl = useMemo(() => {
-    if (!scopeReady) return null;
+    if (!watchlist.ready) return null;
     if (selectedTicker) {
       return `/api/watchlist-news?tickers=${encodeURIComponent(selectedTicker)}&scope=custom`;
     }
@@ -169,7 +148,7 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
       )}&scope=watchlist`;
     }
     return `/api/watchlist-news?scope=market`;
-  }, [scopeReady, selectedTicker, watchlistOnly, watchlist.tickers]);
+  }, [watchlist.ready, selectedTicker, watchlistOnly, watchlist.tickers]);
 
   useEffect(() => {
     if (!newsQueryUrl) {
@@ -360,6 +339,7 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
           <div className="inline-flex shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-xs">
             <button
               type="button"
+              aria-pressed={watchlistOnly}
               onClick={() => {
                 setScope("watchlist");
                 setSelectedTicker(null);
@@ -383,6 +363,7 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
             </button>
             <button
               type="button"
+              aria-pressed={!watchlistOnly}
               onClick={() => {
                 setScope("market");
                 setSelectedTicker(null);

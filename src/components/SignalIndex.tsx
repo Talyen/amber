@@ -33,6 +33,8 @@ import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
 
+import { readExploreLink, writeExploreLink } from "@/lib/explore-link";
+
 type SortKey = IndexSortKey;
 
 const LENS_STYLES: Record<
@@ -64,6 +66,88 @@ const LENS_STYLES: Record<
     badge: "bg-sky-500/12 text-sky-600 ring-sky-500/25 dark:text-sky-400",
   },
 };
+
+function getSortColumns(lensId: string | null) {
+  const isInsiderLens = lensId === "insider-buys";
+  const isEventLens = lensId === "material-events";
+
+  const columns: Array<{
+    key?: SortKey;
+    label: string;
+    tip?: string;
+    alignLeft?: boolean;
+  }> = isInsiderLens
+    ? [
+        { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+        {
+          key: "insiderBuyValue",
+          label: "Insider Buys",
+          tip: "Total recent open-market Form 4 purchase value",
+        },
+        { label: "Latest Buyer", alignLeft: true },
+        {
+          key: "insiderBuyDate",
+          label: "Filed",
+          tip: "Most recent Form 4 open-market buy date",
+        },
+        { key: "trueFcfMargin", label: "True Margin", tip: "True FCF as % of Revenue" },
+        {
+          key: "impliedCagr",
+          label: "Implied 10Y",
+          tip: "10-year annual revenue growth rate priced into today's stock price",
+        },
+      ]
+    : isEventLens
+      ? [
+          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+          { label: "Form 8-K Event", alignLeft: true },
+          { label: "Items" },
+          {
+            key: "eventDate",
+            label: "Filed",
+            tip: "Most recent high-signal Form 8-K filing date",
+          },
+          {
+            key: "impliedCagr",
+            label: "Implied 10Y",
+            tip: "10-year annual revenue growth rate priced into today's stock price",
+          },
+        ]
+      : [
+          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+          {
+            key: "trueFcf",
+            label: "True FCF",
+            tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
+          },
+          {
+            key: "trueFcfMargin",
+            label: "True Margin",
+            tip: "True Free Cash Flow as a percentage of Revenue",
+          },
+          {
+            key: "sbcPctRevenue",
+            label: "SBC / Rev",
+            tip: "Employee stock-based compensation as a % of Revenue",
+          },
+          {
+            key: "netDilutionCagr",
+            label: "Dilution (4Y)",
+            tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
+          },
+          {
+            key: "impliedCagr",
+            label: "Implied 10Y",
+            tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
+          },
+        ];
+
+  return columns;
+}
+
+function sortableKeys(lensId: string | null) {
+  return getSortColumns(lensId).flatMap(({ key }) => key ? [key] : []);
+}
 
 export function SignalIndex({
   entries = SEARCH_INDEX,
@@ -106,30 +190,40 @@ export function SignalIndex({
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
 
-  // Hydrate shareable lens & screener query params (?lens=cash-machines&fcf=20&sbc=5&imp=12&dil=0)
+  const sectors = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of entries) {
+      counts.set(c.sector, (counts.get(c.sector) ?? 0) + 1);
+    }
+    return [
+      "All",
+      ...[...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 7)
+        .map(([sector]) => sector),
+    ];
+  }, [entries]);
+
+  const [hydratedLens, setHydratedLens] = useState<string | null>();
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const lensParam = params.get("lens");
-    if (lensParam) {
-      const found = DISCOVERY_LENSES.find((l) => l.id === lensParam);
-      if (found) {
-        setActiveLensId(found.id);
-        setSortKey(found.defaultSortKey);
-        setSortDir(found.defaultSortDir);
-      }
-    }
-    const fcf = params.get("fcf");
-    const sbc = params.get("sbc");
-    const imp = params.get("imp");
-    const dil = params.get("dil");
-    if (fcf || sbc || imp || dil) {
-      if (fcf) setMinFcfMargin(fcf);
-      if (sbc) setMaxSbcPct(sbc);
-      if (imp) setMaxImplied(imp);
-      if (dil) setMaxDilution(dil);
-      setScreenerOpen(true);
-    }
-  }, []);
+    const state = readExploreLink(
+      new URLSearchParams(window.location.search),
+      initialLens,
+      DISCOVERY_LENSES,
+      sectors,
+      sortableKeys,
+    );
+    setActiveLensId(state.lensId);
+    setSelectedSector(state.sector);
+    setSortKey(state.sortKey);
+    setSortDir(state.sortDir);
+    setMinFcfMargin(state.fcf);
+    setMaxSbcPct(state.sbc);
+    setMaxImplied(state.imp);
+    setMaxDilution(state.dil);
+    setScreenerOpen(Boolean(state.fcf || state.sbc || state.imp || state.dil || state.sector !== "All"));
+    setHydratedLens(initialLens?.id ?? null);
+  }, [initialLens, sectors]);
 
   const activeFilterCount =
     (minFcfMargin.trim() ? 1 : 0) +
@@ -141,35 +235,24 @@ export function SignalIndex({
 
   const hasCustomScreen = activeFilterCount > 0;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (activeLensId) {
-      url.searchParams.set("lens", activeLensId);
-    } else {
-      url.searchParams.delete("lens");
-    }
-    const setOrDel = (k: string, v: string) => {
-      if (v.trim() !== "" && Number.isFinite(Number(v))) url.searchParams.set(k, v.trim());
-      else url.searchParams.delete(k);
-    };
-    setOrDel("fcf", minFcfMargin);
-    setOrDel("sbc", maxSbcPct);
-    setOrDel("imp", maxImplied);
-    setOrDel("dil", maxDilution);
-    if (selectedSector !== "All") url.searchParams.set("sector", selectedSector);
-    else url.searchParams.delete("sector");
-    if (sortKey !== "marketCap") url.searchParams.set("sort", sortKey);
-    else url.searchParams.delete("sort");
-    if (sortDir !== "desc") url.searchParams.set("dir", sortDir);
-    else url.searchParams.delete("dir");
-    window.history.replaceState(null, "", url.pathname + url.search);
-  }, [activeLensId, minFcfMargin, maxSbcPct, maxImplied, maxDilution, selectedSector, sortKey, sortDir]);
+  const activeLens = DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null;
 
-  const activeLens = useMemo(
-    () => DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null,
-    [activeLensId]
-  );
+  useEffect(() => {
+    if (hydratedLens !== (initialLens?.id ?? null)) return;
+    const url = new URL(window.location.href);
+    writeExploreLink(url.searchParams, {
+      sector: selectedSector,
+      sortKey,
+      sortDir,
+      fcf: minFcfMargin,
+      sbc: maxSbcPct,
+      imp: maxImplied,
+      dil: maxDilution,
+    }, activeLens, initialLens);
+    if (url.href !== window.location.href) {
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  }, [activeLens, initialLens, hydratedLens, minFcfMargin, maxSbcPct, maxImplied, maxDilution, selectedSector, sortKey, sortDir]);
 
   const lensCtx = useMemo(
     () => ({
@@ -202,20 +285,6 @@ export function SignalIndex({
     }
     setVisibleLimit(30);
   }
-
-  const sectors = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of entries) {
-      counts.set(c.sector, (counts.get(c.sector) ?? 0) + 1);
-    }
-    return [
-      "All",
-      ...[...counts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 7)
-        .map(([sector]) => sector),
-    ];
-  }, [entries]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -345,76 +414,7 @@ export function SignalIndex({
   const isInsiderLens = activeLensId === "insider-buys";
   const isEventLens = activeLensId === "material-events";
 
-  const sortColumns: Array<{
-    key?: SortKey;
-    label: string;
-    tip?: string;
-    alignLeft?: boolean;
-  }> = isInsiderLens
-    ? [
-        { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
-        {
-          key: "insiderBuyValue",
-          label: "Insider Buys",
-          tip: "Total recent open-market Form 4 purchase value",
-        },
-        { label: "Latest Buyer", alignLeft: true },
-        {
-          key: "insiderBuyDate",
-          label: "Filed",
-          tip: "Most recent Form 4 open-market buy date",
-        },
-        { key: "trueFcfMargin", label: "True Margin", tip: "True FCF as % of Revenue" },
-        {
-          key: "impliedCagr",
-          label: "Implied 10Y",
-          tip: "10-year annual revenue growth rate priced into today's stock price",
-        },
-      ]
-    : isEventLens
-      ? [
-          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
-          { label: "Form 8-K Event", alignLeft: true },
-          { label: "Items" },
-          {
-            key: "eventDate",
-            label: "Filed",
-            tip: "Most recent high-signal Form 8-K filing date",
-          },
-          {
-            key: "impliedCagr",
-            label: "Implied 10Y",
-            tip: "10-year annual revenue growth rate priced into today's stock price",
-          },
-        ]
-      : [
-          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
-          {
-            key: "trueFcf",
-            label: "True FCF",
-            tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
-          },
-          {
-            key: "trueFcfMargin",
-            label: "True Margin",
-            tip: "True Free Cash Flow as a percentage of Revenue",
-          },
-          {
-            key: "sbcPctRevenue",
-            label: "SBC / Rev",
-            tip: "Employee stock-based compensation as a % of Revenue",
-          },
-          {
-            key: "netDilutionCagr",
-            label: "Dilution (4Y)",
-            tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
-          },
-          {
-            key: "impliedCagr",
-            label: "Implied 10Y",
-            tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
-          },
-        ];
+  const sortColumns = getSortColumns(activeLensId);
 
   const colCount = sortColumns.length + 1;
 
@@ -839,7 +839,7 @@ export function SignalIndex({
         )}
 
         {/* Companies Table + Integrated Lens Filters */}
-        <section className="mt-8">
+        <section className="mt-8 @container/explore">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <h2
@@ -898,14 +898,17 @@ export function SignalIndex({
                   setSortKey(k);
                   setSortDir(d);
                 }}
-                className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-xs text-[var(--text-secondary)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)] sm:hidden"
+                className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-xs text-[var(--text-secondary)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)] @min-[642px]/explore:hidden"
               >
-                <option value="marketCap:desc">Sort: Market Cap</option>
-                <option value="trueFcf:desc">Sort: True FCF</option>
-                <option value="trueFcfMargin:desc">Sort: True Margin</option>
-                <option value="sbcPctRevenue:desc">Sort: SBC % (High)</option>
-                <option value="netDilutionCagr:asc">Sort: Buybacks</option>
-                <option value="impliedCagr:desc">Sort: Implied 10Y</option>
+                {sortColumns.flatMap(({ key, label }) => key ? (
+                  (["desc", "asc"] as const).map((direction) => (
+                    <option key={`${key}:${direction}`} value={`${key}:${direction}`}>
+                      {label} ({key.endsWith("Date")
+                        ? direction === "desc" ? "Newest first" : "Oldest first"
+                        : direction === "desc" ? "High to low" : "Low to high"})
+                    </option>
+                  ))
+                ) : [])}
               </select>
 
               <button

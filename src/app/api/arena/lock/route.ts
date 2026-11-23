@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { activeArenaEntryForUser } from "@/data/arena-entry";
 import { getDb } from "@/db";
 import {
   arenaPortfolios,
@@ -11,6 +12,7 @@ import {
   user,
 } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { arenaMonth, arenaPeriodBounds } from "@/lib/arena-period";
 import { normalizeAvatarId } from "@/lib/avatars";
 
 interface LockPositionInput {
@@ -112,8 +114,7 @@ export async function POST(request: Request) {
   }
 
   const totalWeight = [...deduped.values()].reduce((a, b) => a + b, 0);
-  const now = new Date();
-  const periodKey = now.toISOString().slice(0, 7); // e.g. "2026-11"
+  const userId = session.user.id;
 
   // Enforce case-insensitive handle uniqueness across users and Arena portfolios (including Strategy Bots)
   const lowerHandle = handle.toLowerCase();
@@ -124,20 +125,23 @@ export async function POST(request: Request) {
       .where(
         and(
           sql`lower(${user.handle}) = ${lowerHandle}`,
-          ne(user.id, session.user.id)
+          ne(user.id, userId)
         )
       )
       .limit(1),
     db
       .select({ id: arenaPortfolios.id, userId: arenaPortfolios.userId })
       .from(arenaPortfolios)
-      .where(sql`lower(${arenaPortfolios.handle}) = ${lowerHandle}`)
+      .where(and(
+        sql`lower(${arenaPortfolios.handle}) = ${lowerHandle}`,
+        or(isNull(arenaPortfolios.userId), ne(arenaPortfolios.userId, userId))
+      ))
       .limit(1),
   ]);
 
   if (
     conflictingUser.length > 0 ||
-    (conflictingPort.length > 0 && conflictingPort[0].userId !== session.user.id)
+    conflictingPort.length > 0
   ) {
     return NextResponse.json(
       { error: `Handle @${handle} is already taken. Please choose another.` },
@@ -145,25 +149,22 @@ export async function POST(request: Request) {
     );
   }
 
-  // Keep user's standalone account handle & avatar icon in sync
-  await db
-    .update(user)
-    .set({ handle, avatarIcon, updatedAt: now })
-    .where(eq(user.id, session.user.id));
+  const now = new Date();
+  const periodKey = arenaMonth(now);
+  const nextPeriodAt = new Date(arenaPeriodBounds(periodKey)!.end * 1000).toISOString();
+  const activeEntry = activeArenaEntryForUser(userId, periodKey);
 
-  // Enforce 1 portfolio per user: check if this user already has one
-  const existingRows = await db
+  const [existing] = await db
     .select()
     .from(arenaPortfolios)
-    .where(
-      and(
-        eq(arenaPortfolios.userId, session.user.id),
-        eq(arenaPortfolios.isBot, 0)
-      )
-    )
+    .where(activeEntry)
     .limit(1);
 
-  const existing = existingRows[0];
+  const newPositions = dbCompanies.map(({ ticker, price }) => ({
+    ticker,
+    weightPct: Number((((deduped.get(ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
+    entryPrice: price,
+  }));
 
   if (existing) {
     const oldPositions = await db
@@ -206,39 +207,55 @@ export async function POST(request: Request) {
     if (parts.length === 0) parts.push("Adjusted target weights");
     const summary = `${parts.join(", ")} (${tickers.length} holdings)`;
 
-    // Execute all 4 rebalance writes atomically in a single Neon HTTP batch transaction
-    await db.batch([
-      db
-        .update(arenaPortfolios)
-        .set({
-          handle,
-          title,
-          thesis: thesis || existing.thesis,
-          avatarIcon,
-          nav: newNav,
-          lastRebalancedAt: now,
-        })
-        .where(eq(arenaPortfolios.id, existing.id)),
-      db
-        .delete(arenaPositions)
-        .where(eq(arenaPositions.portfolioId, existing.id)),
-      db.insert(arenaPositions).values(
-        dbCompanies.map((c) => ({
-          id: `${existing.id}:${c.ticker}`,
-          portfolioId: existing.id,
-          ticker: c.ticker,
-          weightPct: Number((((deduped.get(c.ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
-          entryPrice: c.price,
-        }))
+    const previousRebalance = existing.lastRebalancedAt.getTime();
+    const rebalancedAt = new Date(Math.max(Date.now(), previousRebalance + 1)).toISOString();
+    const rebalanceId = `${existing.id}:reb:${crypto.randomUUID()}`;
+    const positionValues = sql.join(newPositions.map((position) => sql`(
+      ${`${rebalanceId}:${position.ticker}`}::text,
+      ${position.ticker}::text,
+      ${position.weightPct}::double precision,
+      ${position.entryPrice}::double precision
+    )`), sql`, `);
+
+    // Every write depends on the update claiming the version used to calculate NAV.
+    const result = await db.execute(sql`
+      with updated as (
+        update ${arenaPortfolios}
+        set handle = ${handle}, title = ${title}, thesis = ${thesis || existing.thesis},
+          avatar_icon = ${avatarIcon}, nav = ${newNav}, period_key = ${periodKey},
+          last_rebalanced_at = ${rebalancedAt}::timestamptz
+        where ${eq(arenaPortfolios.id, existing.id)} and ${activeEntry}
+          and date_trunc('milliseconds', ${arenaPortfolios.lastRebalancedAt}) =
+            ${existing.lastRebalancedAt.toISOString()}::timestamptz
+          and statement_timestamp() < ${nextPeriodAt}::timestamptz
+        returning id
       ),
-      db.insert(arenaRebalances).values({
-        id: `${existing.id}:reb:${crypto.randomBytes(4).toString("hex")}`,
-        portfolioId: existing.id,
-        navAtRebalance: newNav,
-        summary,
-        createdAt: now,
-      }),
-    ]);
+      removed as (
+        delete from ${arenaPositions} using updated
+        where ${arenaPositions.portfolioId} = updated.id
+      ),
+      replacements as (
+        insert into ${arenaPositions} (id, portfolio_id, ticker, weight_pct, entry_price)
+        select position.id, updated.id, position.ticker, position.weight_pct, position.entry_price
+        from updated cross join (values ${positionValues}) as position(id, ticker, weight_pct, entry_price)
+      ),
+      logged as (
+        insert into ${arenaRebalances} (id, portfolio_id, nav_at_rebalance, summary, created_at)
+        select ${rebalanceId}, updated.id, ${newNav}, ${summary}, ${rebalancedAt}::timestamptz
+        from updated
+      )
+      update ${user}
+      set handle = ${handle}, avatar_icon = ${avatarIcon}, updated_at = ${rebalancedAt}::timestamptz
+      from updated
+      where ${eq(user.id, userId)}
+      returning updated.id
+    `);
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { error: "The Arena entry changed while saving. Please reload and try again." },
+        { status: 409 }
+      );
+    }
 
     revalidateTag("arena");
     revalidatePath("/arena");
@@ -251,41 +268,57 @@ export async function POST(request: Request) {
       url: `/arena/${existing.id}`,
       rebalanced: true,
       nav: newNav,
-      lockedAt: now.toISOString(),
+      lockedAt: rebalancedAt,
     });
   }
 
-  // Create initial portfolio for this user
+  // Publish this month's entry and its positions together.
   const id = `${handle.toLowerCase().replace(/[^a-z0-9]/g, "")}-${crypto.randomBytes(3).toString("hex")}`;
 
-  await db.insert(arenaPortfolios).values({
-    id,
-    userId: session.user.id,
-    handle,
-    title,
-    thesis: thesis || `${tickers.length}-stock conviction portfolio.`,
-    isBot: 0,
-    botTheme: null,
-    avatarIcon,
-    periodKey,
-    nav: 100,
-    finalReturnPct: null,
-    lockedAt: now,
-    lastRebalancedAt: now,
-  });
+  if (arenaMonth(new Date()) !== periodKey) {
+    return NextResponse.json(
+      { error: "A new Arena period has started. Please reload and try again." },
+      { status: 409 }
+    );
+  }
 
-  await db.insert(arenaPositions).values(
-    dbCompanies.map((c) => ({
-      id: `${id}:${c.ticker}`,
-      portfolioId: id,
-      ticker: c.ticker,
-      weightPct: Number((((deduped.get(c.ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
-      entryPrice: c.price,
-    }))
-  );
+  try {
+    await db.batch([
+      db.update(user).set({ handle, avatarIcon, updatedAt: now }).where(eq(user.id, userId)),
+      db.insert(arenaPortfolios).values({
+        id,
+        userId,
+        handle,
+        title,
+        thesis: thesis || `${tickers.length}-stock conviction portfolio.`,
+        isBot: 0,
+        avatarIcon,
+        periodKey,
+        lockedAt: now,
+        lastRebalancedAt: now,
+      }),
+      db.insert(arenaPositions).values(newPositions.map((position) => ({
+        ...position,
+        id: `${id}:${position.ticker}`,
+        portfolioId: id,
+      }))),
+    ]);
+  } catch (error) {
+    if (
+      typeof error === "object" && error !== null &&
+      "constraint" in error && error.constraint === "arena_open_user_period_idx"
+    ) {
+      return NextResponse.json(
+        { error: "This month's Arena entry was already published. Please reload and try again." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   revalidateTag("arena");
   revalidatePath("/arena");
+  revalidatePath(`/u/${handle}`);
 
   return NextResponse.json({
     id,

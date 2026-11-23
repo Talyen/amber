@@ -53,19 +53,30 @@ async function run() {
     `[amber-seed] Batch-upserting ${snapshots.length} companies into Neon Postgres...`
   );
 
-  const validSnapshots = snapshots.filter(
-    (c) =>
-      c.annuals.length > 0 &&
-      Number.isFinite(c.price) &&
-      c.price > 0 &&
-      c.marketCap > 0
-  );
+  const hasQuote = (c: Pick<CompanySnapshot, "price" | "marketCap">) =>
+    Number.isFinite(c.price) && c.price > 0 && Number.isFinite(c.marketCap) && c.marketCap > 0;
+  const financialSnapshots = snapshots.filter((c) => c.annuals.length > 0);
+  const missingQuotes = financialSnapshots.filter((c) => !hasQuote(c)).map((c) => c.ticker);
+  const savedQuotes = missingQuotes.length > 0
+    ? await db.select({
+        ticker: companies.ticker,
+        price: companies.price,
+        marketCap: companies.marketCap,
+      }).from(companies).where(inArray(companies.ticker, missingQuotes))
+    : [];
+  const quoteByTicker = new Map(savedQuotes.map((quote) => [quote.ticker, quote]));
+  const validSnapshots = financialSnapshots.flatMap((company) => {
+    if (hasQuote(company)) return [company];
+    const saved = quoteByTicker.get(company.ticker);
+    return saved && hasQuote(saved) ? [{ ...company, ...saved }] : [];
+  });
   if (validSnapshots.length < snapshots.length) {
     console.warn(
       `[amber-seed] Skipping ${snapshots.length - validSnapshots.length} ticker(s) with missing financial periods or invalid EOD valuation.`
     );
   }
 
+  // Keep existing quotes; sync-prices owns market data updates after the first insert.
   // Replace each company's financial window in the same transaction as its filing metadata.
   let seededAnnualCount = 0;
   for (const batch of chunk(validSnapshots, 30)) {
@@ -128,8 +139,6 @@ async function run() {
             exchange: sql`excluded.exchange`,
             sector: sql`excluded.sector`,
             tagline: sql`excluded.tagline`,
-            price: sql`excluded.price`,
-            marketCap: sql`excluded.market_cap`,
             cashAndEquiv: sql`excluded.cash_and_equiv`,
             totalDebt: sql`excluded.total_debt`,
             lastFilingType: sql`excluded.last_filing_type`,
@@ -137,7 +146,6 @@ async function run() {
             lastFilingPeriodEnd: sql`excluded.last_filing_period_end`,
             lastFilingAccession: sql`excluded.last_filing_accession`,
             defaultDcf: sql`excluded.default_dcf`,
-            priceHistory: sql`excluded.price_history`,
             quarterlyFinancials: sql`excluded.quarterly_financials`,
             isActive: true,
             updatedAt: sql`excluded.updated_at`,

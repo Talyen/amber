@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { activeArenaEntryForUser } from "@/data/arena-entry";
 import { getDb } from "@/db";
 import { arenaPortfolios, arenaPositions } from "@/db/schema";
+import { arenaMonth } from "@/lib/arena-period";
 import { getAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -19,12 +21,7 @@ export async function GET(request: Request) {
     const rows = await db
       .select()
       .from(arenaPortfolios)
-      .where(
-        and(
-          eq(arenaPortfolios.userId, session.user.id),
-          eq(arenaPortfolios.isBot, 0)
-        )
-      )
+      .where(activeArenaEntryForUser(session.user.id, arenaMonth(new Date())))
       .limit(1);
 
     const port = rows[0];

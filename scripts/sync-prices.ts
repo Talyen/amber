@@ -25,7 +25,6 @@ interface YahooChartResponse {
     result?: Array<{
       meta?: {
         regularMarketPrice?: number;
-        chartPreviousClose?: number;
       };
       timestamp?: number[];
       indicators?: {
@@ -66,7 +65,7 @@ async function fetchPriceAndHistory(
       const json = (await res.json()) as YahooChartResponse;
       const result = json.chart?.result?.[0];
       const meta = result?.meta;
-      const latestPrice = meta?.regularMarketPrice ?? meta?.chartPreviousClose ?? null;
+      const latestPrice = meta?.regularMarketPrice;
       if (typeof latestPrice !== "number" || !Number.isFinite(latestPrice) || latestPrice <= 0) {
         return null;
       }
@@ -126,7 +125,7 @@ async function run() {
   const dbUrl = process.env.DATABASE_URL;
   const db = dbUrl ? drizzle(neon(dbUrl)) : null;
 
-  let updatedCount = 0;
+  const refreshed: Pick<CompanySnapshot, "ticker" | "price" | "marketCap" | "priceHistory">[] = [];
   const concurrency = 6;
 
   for (let i = 0; i < snapshots.length; i += concurrency) {
@@ -168,7 +167,12 @@ async function run() {
         company.priceHistory = history;
       }
 
-      updatedCount++;
+      refreshed.push({
+        ticker: company.ticker,
+        price: company.price,
+        marketCap: company.marketCap,
+        priceHistory: history.length >= 2 ? history : undefined,
+      });
     }
 
     // Polite throttle between batches
@@ -183,11 +187,11 @@ async function run() {
 
   if (db) {
     console.log(
-      `[amber-prices] Updating ${updatedCount} prices in Neon Postgres...`
+      `[amber-prices] Updating ${refreshed.length} prices in Neon Postgres...`
     );
     const chunkSize = 20;
-    for (let i = 0; i < snapshots.length; i += chunkSize) {
-      const slice = snapshots.slice(i, i + chunkSize);
+    for (let i = 0; i < refreshed.length; i += chunkSize) {
+      const slice = refreshed.slice(i, i + chunkSize);
       await Promise.all(
         slice.map((c) =>
           db
@@ -195,7 +199,7 @@ async function run() {
             .set({
               price: c.price,
               marketCap: c.marketCap,
-              priceHistory: c.priceHistory ?? null,
+              priceHistory: c.priceHistory,
               updatedAt: new Date(),
             })
             .where(eq(companiesTable.ticker, c.ticker))
@@ -205,7 +209,7 @@ async function run() {
   }
 
   console.log(
-    `[amber-prices] ✓ Updated live EOD prices for ${updatedCount}/${snapshots.length} companies.`
+    `[amber-prices] ✓ Updated live EOD prices for ${refreshed.length}/${snapshots.length} companies.`
   );
 }
 
