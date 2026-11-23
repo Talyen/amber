@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
+  Bell,
   Check,
   LogOut,
   Monitor,
@@ -12,6 +13,7 @@ import {
   Shield,
   Sun,
   Trash2,
+  X,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { openAuthDialog } from "@/components/AuthButton";
@@ -45,6 +47,8 @@ export function SettingsWorkspace() {
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
+  const [alertTickers, setAlertTickers] = useState<string[]>([]);
+  const [removingAlert, setRemovingAlert] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("amber-theme");
@@ -54,6 +58,7 @@ export function SettingsWorkspace() {
   useEffect(() => {
     if (!session?.user) {
       setProfile(null);
+      setAlertTickers([]);
       return;
     }
     let active = true;
@@ -68,10 +73,34 @@ export function SettingsWorkspace() {
         }
       })
       .catch(() => {});
+
+    fetch("/api/alerts")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { tickers?: string[] } | null) => {
+        if (active && Array.isArray(data?.tickers)) {
+          setAlertTickers(data.tickers);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       active = false;
     };
   }, [session?.user]);
+
+  async function handleUnsubscribeAlert(ticker: string) {
+    setRemovingAlert(ticker);
+    try {
+      const res = await fetch(`/api/alerts?ticker=${encodeURIComponent(ticker)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setAlertTickers((prev) => prev.filter((t) => t !== ticker));
+      }
+    } finally {
+      setRemovingAlert(null);
+    }
+  }
 
   function applyTheme(next: "system" | "light" | "dark") {
     setTheme(next);
@@ -319,6 +348,50 @@ export function SettingsWorkspace() {
                   {session?.user?.email ?? ""}
                 </div>
               </div>
+            </section>
+
+            {/* SEC Filing Alerts */}
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  SEC Filing Alerts
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                Email notifications when tracked companies file a new 10-K or 10-Q.
+              </p>
+
+              {alertTickers.length === 0 ? (
+                <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-3 text-xs text-[var(--text-muted)]">
+                  No active filing alerts. Open any company&apos;s Filing Diffs tab to subscribe.
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {alertTickers.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-xs"
+                    >
+                      <Link
+                        href={`/t/${t}`}
+                        className="font-mono-num font-semibold text-[var(--amber)] hover:underline"
+                      >
+                        {t}
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={removingAlert === t}
+                        onClick={() => handleUnsubscribeAlert(t)}
+                        aria-label={`Unsubscribe from ${t} filing alerts`}
+                        className="inline-flex h-4 w-4 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--negative)] disabled:opacity-50 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Appearance */}
