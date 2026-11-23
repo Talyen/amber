@@ -141,7 +141,7 @@ export function ArenaLeaderboard({
 
           <Link
             href="/portfolio"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
           >
             Enter Portfolio
             <ArrowRight className="h-3.5 w-3.5" />
@@ -278,7 +278,7 @@ export function ArenaLeaderboard({
               </p>
               <Link
                 href="/portfolio"
-                className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--amber)] px-3.5 text-xs font-semibold text-white"
+                className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--cta-bg)] px-3.5 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
               >
                 Go to Portfolio Builder
                 <ArrowRight className="h-3.5 w-3.5" />

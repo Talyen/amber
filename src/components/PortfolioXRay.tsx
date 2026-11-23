@@ -434,7 +434,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             />
             <button
               type="submit"
-              className="h-9 shrink-0 rounded-md bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
+              className="h-9 shrink-0 rounded-md bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] cursor-pointer"
             >
               Apply Portfolio
             </button>

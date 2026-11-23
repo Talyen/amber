@@ -96,7 +96,7 @@ export default async function InvestorProfilePage({
 
           <Link
             href={`/arena/${primary.id}`}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
           >
             View Active Portfolio
             <ArrowRight className="h-3.5 w-3.5" />

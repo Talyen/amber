@@ -126,7 +126,7 @@ export default async function ArenaDetailPage({
                     .map((p) => `${p.ticker}:${Math.round(p.weightPct)}`)
                     .join(",")
                 )}`}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--cta-bg)] hover:text-[var(--cta-fg)]"
               >
                 <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
                 Analyze in Portfolio

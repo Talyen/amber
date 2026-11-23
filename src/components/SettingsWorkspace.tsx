@@ -204,7 +204,7 @@ export function SettingsWorkspace() {
             <button
               type="button"
               onClick={openAuthDialog}
-              className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer"
+              className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] cursor-pointer"
             >
               Sign In
             </button>
@@ -294,7 +294,7 @@ export function SettingsWorkspace() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="inline-flex h-9 items-center rounded-lg bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                    className="inline-flex h-9 items-center rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-50 cursor-pointer"
                   >
                     {saving ? "Saving…" : "Save Profile"}
                   </button>

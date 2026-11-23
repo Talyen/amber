@@ -175,7 +175,7 @@ export function LockPortfolioModal({
                 ? "Update your Arena portfolio weights and holdings"
                 : "Publish this portfolio to compete on the Arena leaderboard"
         }
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--amber)] px-3.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-45 cursor-pointer disabled:cursor-not-allowed"
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-3.5 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-45 cursor-pointer disabled:cursor-not-allowed"
       >
         {isRebalance ? (
           <RefreshCw className="h-3.5 w-3.5" />
@@ -332,7 +332,7 @@ export function LockPortfolioModal({
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--amber)] px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-50 cursor-pointer"
             >
               {isRebalance ? (
                 <RefreshCw className="h-3 w-3" />

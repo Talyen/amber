@@ -436,7 +436,7 @@ export function SignalIndex({
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className="font-mono-num rounded-full bg-[var(--amber)] px-1.5 py-0.2 text-[10px] font-semibold text-white">
+                  <span className="font-mono-num rounded-full bg-[var(--cta-bg)] px-1.5 py-0.2 text-[10px] font-semibold text-[var(--cta-fg)]">
                     {activeFilterCount}
                   </span>
                 )}

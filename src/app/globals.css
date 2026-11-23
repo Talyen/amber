@@ -37,6 +37,11 @@
   --amber-light: #b45309;
   --amber-dark: #e5a03c;
 
+  /* High-contrast CTA button tokens (>= 5.0:1 WCAG AA in both light & dark) */
+  --cta-bg: #b45309;
+  --cta-bg-hover: #9a4408;
+  --cta-fg: #ffffff;
+
   --amber-soft-light: rgba(180, 83, 9, 0.09);
   --amber-soft-dark: rgba(229, 160, 60, 0.12);
 

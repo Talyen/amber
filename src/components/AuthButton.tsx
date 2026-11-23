@@ -202,7 +202,7 @@ export function AuthButton() {
       <button
         type="button"
         onClick={openModal}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white cursor-pointer"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--cta-bg)] hover:text-[var(--cta-fg)] cursor-pointer"
       >
         <LogIn className="h-3.5 w-3.5" />
         <span>Sign In</span>

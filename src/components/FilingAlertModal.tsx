@@ -199,7 +199,7 @@ export function FilingAlertModal({
               <button
                 type="submit"
                 disabled={status === "submitting"}
-                className="h-8 rounded-md bg-[var(--amber)] px-3.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                className="h-8 rounded-md bg-[var(--cta-bg)] px-3.5 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-50 cursor-pointer"
               >
                 {status === "submitting" ? "Saving…" : `Track ${ticker}`}
               </button>
