@@ -71,6 +71,10 @@ async function run() {
     lastFilingAccession: c.lastFiling.accessionNumber,
     defaultDcf: c.defaultDcf,
     priceHistory: c.priceHistory ?? null,
+    quarterlyFinancials:
+      c.quarterlyFinancials && c.quarterlyFinancials.length >= 4
+        ? c.quarterlyFinancials
+        : null,
     updatedAt: new Date(),
   }));
 
@@ -95,6 +99,7 @@ async function run() {
           lastFilingAccession: sql`excluded.last_filing_accession`,
           defaultDcf: sql`excluded.default_dcf`,
           priceHistory: sql`excluded.price_history`,
+          quarterlyFinancials: sql`excluded.quarterly_financials`,
           updatedAt: sql`excluded.updated_at`,
         },
       });

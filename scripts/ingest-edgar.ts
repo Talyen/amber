@@ -806,6 +806,140 @@ async function ingestCandidate(
         "USD"
       );
 
+function extractSingleQuarterMap(
+  facts: CompanyFactsResponse,
+  tags: string[],
+  unit: "USD" | "shares"
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const gaap = facts.facts?.["us-gaap"];
+  if (!gaap) return out;
+
+  for (const tag of tags) {
+    const entries = gaap[tag]?.units?.[unit];
+    if (!entries) continue;
+
+    // 1. Collect standalone ~90-day quarterly facts directly
+    for (const e of entries) {
+      if ((e.form !== "10-Q" && e.form !== "10-Q/A") || !e.start || !e.end) continue;
+      const days =
+        (Date.parse(e.end) - Date.parse(e.start)) / (1000 * 60 * 60 * 24);
+      if (days >= 70 && days <= 110 && Number.isFinite(e.val)) {
+        if (!out.has(e.end)) out.set(e.end, e.val);
+      }
+    }
+
+    // 2. For cash-flow items reported only as YTD cumulative (e.g. 6M/9M), differencing consecutive YTDs yields standalone quarters
+    if (out.size < 4) {
+      const ytdByStart = new Map<string, Array<{ end: string; days: number; val: number }>>();
+      for (const e of entries) {
+        if ((e.form !== "10-Q" && e.form !== "10-Q/A") || !e.start || !e.end) continue;
+        const days =
+          (Date.parse(e.end) - Date.parse(e.start)) / (1000 * 60 * 60 * 24);
+        if (days >= 70 && days <= 300 && Number.isFinite(e.val)) {
+          const list = ytdByStart.get(e.start) ?? [];
+          if (!list.some((x) => x.end === e.end)) {
+            list.push({ end: e.end, days, val: e.val });
+          }
+          ytdByStart.set(e.start, list);
+        }
+      }
+      for (const list of ytdByStart.values()) {
+        list.sort((a, b) => a.days - b.days);
+        for (let i = 0; i < list.length; i++) {
+          const cur = list[i];
+          if (out.has(cur.end)) continue;
+          if (cur.days <= 110) {
+            out.set(cur.end, cur.val);
+          } else if (i > 0 && cur.days - list[i - 1].days >= 65 && cur.days - list[i - 1].days <= 115) {
+            out.set(cur.end, cur.val - list[i - 1].val);
+          }
+        }
+      }
+    }
+    if (out.size >= 6) break;
+  }
+  return out;
+}
+
+function formatQuarterLabel(isoEnd: string): string {
+  const yr = isoEnd.slice(2, 4);
+  const mo = Number(isoEnd.slice(5, 7));
+  const q = Math.min(4, Math.max(1, Math.ceil(mo / 3)));
+  return `${yr}Q${q}`;
+}
+
+function extractQuarterlySeries(
+  facts: CompanyFactsResponse,
+  fallbackShares: number
+): AnnualFinancials[] {
+  const revMap = extractSingleQuarterMap(
+    facts,
+    [
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "Revenues",
+      "SalesRevenueNet",
+      "RevenueFromContractWithCustomerIncludingAssessedTax",
+    ],
+    "USD"
+  );
+  if (revMap.size < 4) return [];
+
+  const ocfMap = extractSingleQuarterMap(
+    facts,
+    [
+      "NetCashProvidedByUsedInOperatingActivities",
+      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    ],
+    "USD"
+  );
+  const capexMap = extractSingleQuarterMap(
+    facts,
+    [
+      "PaymentsToAcquirePropertyPlantAndEquipment",
+      "PaymentsToAcquireProductiveAssets",
+      "CapitalExpendituresIncurredButNotYetPaid",
+    ],
+    "USD"
+  );
+  const sbcMap = extractSingleQuarterMap(
+    facts,
+    ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
+    "USD"
+  );
+  const buybackMap = extractSingleQuarterMap(
+    facts,
+    ["PaymentsForRepurchaseOfCommonStock"],
+    "USD"
+  );
+  const shareMap = extractSingleQuarterMap(
+    facts,
+    ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+    "shares"
+  );
+
+  const endDates = [...revMap.keys()]
+    .filter((d) => (revMap.get(d) ?? 0) > 0 && ocfMap.has(d))
+    .sort()
+    .slice(-8);
+
+  if (endDates.length < 4) return [];
+
+  const rawQuarters: AnnualFinancials[] = endDates.map((d) => ({
+    fiscalYear: formatQuarterLabel(d),
+    revenue: Math.round((revMap.get(d) ?? 0) / 1e6),
+    operatingCashFlow: Math.round((ocfMap.get(d) ?? 0) / 1e6),
+    capex: Math.round(Math.abs(capexMap.get(d) ?? 0) / 1e6),
+    sbc: Math.round(Math.abs(sbcMap.get(d) ?? 0) / 1e6),
+    buybacks: Math.round(Math.abs(buybackMap.get(d) ?? 0) / 1e6),
+    dilutedShares: shareMap.has(d)
+      ? Math.max(1, Math.round((shareMap.get(d) ?? 0) / 1e6))
+      : fallbackShares,
+  }));
+
+  return normalizeStockSplits(rawQuarters);
+}
+
     // Normalize stock splits retroactively so Dilution (4Y) is never distorted by 5:1 / 10:1 / 50:1 splits
     const normalizedAnnuals = normalizeStockSplits(annuals);
 
@@ -856,6 +990,10 @@ async function ingestCandidate(
         accessionNumber: lastFilingAccession,
       },
       annuals: normalizedAnnuals,
+      quarterlyFinancials: extractQuarterlySeries(
+        facts,
+        latestComputed.dilutedShares
+      ),
       defaultDcf,
     };
 
