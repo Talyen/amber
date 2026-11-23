@@ -21,8 +21,10 @@ import {
 } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
 import type {
+  InsiderBuySummary,
   MarketFilingDiffItem,
   MarketInsiderFeedItem,
+  MaterialEventSummary,
 } from "@/data/repository";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
@@ -69,16 +71,16 @@ export function SignalIndex({
   recentDiffs = [],
   recentInsiders = [],
   trendingTickers = [],
-  insiderBuyTickers = [],
-  materialEventTickers = [],
+  insiderBuySummaries = {},
+  materialEventSummaries = {},
 }: {
   entries?: SearchIndexEntry[];
   initialLensId?: string | null;
   recentDiffs?: MarketFilingDiffItem[];
   recentInsiders?: MarketInsiderFeedItem[];
   trendingTickers?: string[];
-  insiderBuyTickers?: string[];
-  materialEventTickers?: string[];
+  insiderBuySummaries?: Record<string, InsiderBuySummary>;
+  materialEventSummaries?: Record<string, MaterialEventSummary>;
 }) {
   const initialLens = initialLensId
     ? DISCOVERY_LENSES.find((l) => l.id === initialLensId) ?? null
@@ -171,10 +173,10 @@ export function SignalIndex({
 
   const lensCtx = useMemo(
     () => ({
-      insiderBuyTickers: new Set(insiderBuyTickers),
-      materialEventTickers: new Set(materialEventTickers),
+      insiderBuyTickers: new Set(Object.keys(insiderBuySummaries)),
+      materialEventTickers: new Set(Object.keys(materialEventSummaries)),
     }),
-    [insiderBuyTickers, materialEventTickers]
+    [insiderBuySummaries, materialEventSummaries]
   );
 
   const lensCounts = useMemo(() => {
@@ -288,7 +290,24 @@ export function SignalIndex({
     });
 
     return [...filtered].sort((a, b) => {
-      const diff = a[sortKey] - b[sortKey];
+      let diff = 0;
+      if (sortKey === "insiderBuyValue") {
+        diff =
+          (insiderBuySummaries[a.ticker]?.totalBuyValue ?? 0) -
+          (insiderBuySummaries[b.ticker]?.totalBuyValue ?? 0);
+      } else if (sortKey === "insiderBuyDate") {
+        const da = insiderBuySummaries[a.ticker]?.latestDate ?? "";
+        const db = insiderBuySummaries[b.ticker]?.latestDate ?? "";
+        diff = da.localeCompare(db) ||
+          (insiderBuySummaries[a.ticker]?.totalBuyValue ?? 0) -
+          (insiderBuySummaries[b.ticker]?.totalBuyValue ?? 0);
+      } else if (sortKey === "eventDate") {
+        const da = materialEventSummaries[a.ticker]?.filingDate ?? "";
+        const db = materialEventSummaries[b.ticker]?.filingDate ?? "";
+        diff = da.localeCompare(db) || a.marketCap - b.marketCap;
+      } else {
+        diff = a[sortKey] - b[sortKey];
+      }
       return sortDir === "desc" ? -diff : diff;
     });
   }, [
@@ -299,6 +318,8 @@ export function SignalIndex({
     watchlistOnly,
     watchlist,
     lensCtx,
+    insiderBuySummaries,
+    materialEventSummaries,
     minFcfMargin,
     maxSbcPct,
     maxImplied,
@@ -321,34 +342,234 @@ export function SignalIndex({
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [groupBySector, visibleRows]);
 
-  const sortColumns: Array<{ key: SortKey; label: string; tip?: string }> = [
-    { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
-    {
-      key: "trueFcf",
-      label: "True FCF",
-      tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
-    },
-    {
-      key: "trueFcfMargin",
-      label: "True Margin",
-      tip: "True Free Cash Flow as a percentage of Revenue",
-    },
-    {
-      key: "sbcPctRevenue",
-      label: "SBC / Rev",
-      tip: "Employee stock-based compensation as a % of Revenue",
-    },
-    {
-      key: "netDilutionCagr",
-      label: "Dilution (4Y)",
-      tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
-    },
-    {
-      key: "impliedCagr",
-      label: "Implied 10Y",
-      tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
-    },
-  ];
+  const isInsiderLens = activeLensId === "insider-buys";
+  const isEventLens = activeLensId === "material-events";
+
+  const sortColumns: Array<{
+    key?: SortKey;
+    label: string;
+    tip?: string;
+    alignLeft?: boolean;
+  }> = isInsiderLens
+    ? [
+        { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+        {
+          key: "insiderBuyValue",
+          label: "Insider Buys",
+          tip: "Total recent open-market Form 4 purchase value",
+        },
+        { label: "Latest Buyer", alignLeft: true },
+        {
+          key: "insiderBuyDate",
+          label: "Filed",
+          tip: "Most recent Form 4 open-market buy date",
+        },
+        { key: "trueFcfMargin", label: "True Margin", tip: "True FCF as % of Revenue" },
+        {
+          key: "impliedCagr",
+          label: "Implied 10Y",
+          tip: "10-year annual revenue growth rate priced into today's stock price",
+        },
+      ]
+    : isEventLens
+      ? [
+          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+          { label: "Form 8-K Event", alignLeft: true },
+          { label: "Items" },
+          {
+            key: "eventDate",
+            label: "Filed",
+            tip: "Most recent high-signal Form 8-K filing date",
+          },
+          {
+            key: "impliedCagr",
+            label: "Implied 10Y",
+            tip: "10-year annual revenue growth rate priced into today's stock price",
+          },
+        ]
+      : [
+          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+          {
+            key: "trueFcf",
+            label: "True FCF",
+            tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
+          },
+          {
+            key: "trueFcfMargin",
+            label: "True Margin",
+            tip: "True Free Cash Flow as a percentage of Revenue",
+          },
+          {
+            key: "sbcPctRevenue",
+            label: "SBC / Rev",
+            tip: "Employee stock-based compensation as a % of Revenue",
+          },
+          {
+            key: "netDilutionCagr",
+            label: "Dilution (4Y)",
+            tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
+          },
+          {
+            key: "impliedCagr",
+            label: "Implied 10Y",
+            tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
+          },
+        ];
+
+  const colCount = sortColumns.length + 1;
+
+  function renderRow(c: SearchIndexEntry) {
+    const starred = watchlist.has(c.ticker);
+    const href = isInsiderLens
+      ? `/t/${c.ticker}?tab=insiders`
+      : isEventLens
+        ? `/t/${c.ticker}?tab=diffs`
+        : `/t/${c.ticker}`;
+    const buyInfo = insiderBuySummaries[c.ticker];
+    const eventInfo = materialEventSummaries[c.ticker];
+
+    return (
+      <tr key={c.ticker}>
+        <th scope="row">
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => watchlist.toggle(c.ticker)}
+              aria-label={
+                starred
+                  ? `Remove ${c.ticker} from watchlist`
+                  : `Add ${c.ticker} to watchlist`
+              }
+              className={`transition-colors cursor-pointer ${
+                starred
+                  ? "text-[var(--amber)]"
+                  : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              <Star
+                className="h-3.5 w-3.5"
+                fill={starred ? "currentColor" : "none"}
+              />
+            </button>
+            <Link
+              href={href}
+              className="group inline-flex items-center gap-2 hover:text-[var(--amber)]"
+            >
+              <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
+                {c.ticker}
+              </span>
+              <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                {c.name}
+              </span>
+            </Link>
+          </div>
+        </th>
+        <td data-label="Mkt Cap" className="font-mono-num">
+          {formatCurrencyCompact(c.marketCap)}
+        </td>
+
+        {isInsiderLens ? (
+          <>
+            <td
+              data-label="Insider Buys"
+              className="font-mono-num font-semibold text-[var(--positive)]"
+            >
+              {buyInfo ? formatCurrencyCompact(buyInfo.totalBuyValue) : "—"}
+              {buyInfo && buyInfo.buyCount > 1 && (
+                <span className="ml-1 text-[11px] font-normal text-[var(--text-muted)]">
+                  ({buyInfo.buyCount})
+                </span>
+              )}
+            </td>
+            <td data-label="Latest Buyer" className="!text-left">
+              <div className="max-w-[200px] truncate text-xs text-[var(--text-primary)]">
+                {buyInfo?.latestBuyer ?? "—"}
+              </div>
+              {buyInfo?.latestTitle && (
+                <div className="max-w-[200px] truncate text-[11px] text-[var(--text-muted)]">
+                  {buyInfo.latestTitle}
+                </div>
+              )}
+            </td>
+            <td data-label="Filed" className="font-mono-num text-[var(--text-secondary)]">
+              {buyInfo?.latestDate ?? "—"}
+            </td>
+            <td data-label="True Margin" className="font-mono-num">
+              {formatPct(c.trueFcfMargin)}
+            </td>
+            <td data-label="Implied 10Y" className="font-mono-num font-medium">
+              {formatPct(c.impliedCagr)}
+            </td>
+          </>
+        ) : isEventLens ? (
+          <>
+            <td data-label="Form 8-K Event" className="!text-left">
+              <Link
+                href={href}
+                className="block max-w-[240px] truncate text-xs font-medium text-[var(--text-primary)] hover:text-[var(--amber)]"
+              >
+                {eventInfo?.headline ?? "—"}
+              </Link>
+              {eventInfo && eventInfo.eventCount > 1 && (
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  +{eventInfo.eventCount - 1} more recent 8-K
+                </span>
+              )}
+            </td>
+            <td data-label="Items" className="font-mono-num text-xs text-[var(--amber)]">
+              {eventInfo?.section ?? "—"}
+            </td>
+            <td data-label="Filed" className="font-mono-num text-[var(--text-secondary)]">
+              {eventInfo?.filingDate ?? "—"}
+            </td>
+            <td data-label="Implied 10Y" className="font-mono-num font-medium">
+              {formatPct(c.impliedCagr)}
+            </td>
+          </>
+        ) : (
+          <>
+            <td
+              data-label="True FCF"
+              className={`font-mono-num font-semibold ${
+                c.trueFcf >= 0
+                  ? "text-[var(--amber)]"
+                  : "text-[var(--negative)]"
+              }`}
+            >
+              {formatCurrencyCompact(c.trueFcf)}
+            </td>
+            <td data-label="True Margin" className="font-mono-num">
+              {formatPct(c.trueFcfMargin)}
+            </td>
+            <td
+              data-label="SBC / Rev"
+              className="font-mono-num text-[var(--sbc)]"
+            >
+              {formatPct(c.sbcPctRevenue)}
+            </td>
+            <td
+              data-label="Dilution (4Y)"
+              className={`font-mono-num ${
+                c.netDilutionCagr > 1.5
+                  ? "text-[var(--negative)]"
+                  : c.netDilutionCagr < -0.5
+                    ? "text-[var(--positive)]"
+                    : "text-[var(--text-secondary)]"
+              }`}
+            >
+              {formatPct(c.netDilutionCagr, true)}
+            </td>
+            <td
+              data-label="Implied 10Y"
+              className="font-mono-num font-medium"
+            >
+              {formatPct(c.impliedCagr)}
+            </td>
+          </>
+        )}
+      </tr>
+    );
+  }
 
   const trendingRank = useMemo(
     () => new Map(trendingTickers.map((t, idx) => [t, idx])),
@@ -887,40 +1108,47 @@ export function SignalIndex({
                 <tr>
                   <th scope="col">Company</th>
                   {sortColumns.map((col) => {
-                    const isSorted = sortKey === col.key;
+                    const isSorted = Boolean(col.key) && sortKey === col.key;
                     return (
                       <th
-                        key={col.key}
+                        key={col.label}
                         scope="col"
+                        className={col.alignLeft ? "!text-left" : undefined}
                         aria-sort={
-                          isSorted
-                            ? sortDir === "desc"
-                              ? "descending"
-                              : "ascending"
-                            : "none"
+                          col.key
+                            ? isSorted
+                              ? sortDir === "desc"
+                                ? "descending"
+                                : "ascending"
+                              : "none"
+                            : undefined
                         }
                       >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(col.key)}
-                          title={col.tip}
-                          className={`inline-flex items-center gap-1 transition-colors cursor-pointer ${
-                            isSorted
-                              ? "font-semibold text-[var(--amber)]"
-                              : "hover:text-[var(--text-primary)]"
-                          }`}
-                        >
-                          {col.label}
-                          {isSorted ? (
-                            sortDir === "desc" ? (
-                              <ArrowDown className="h-3 w-3 text-[var(--amber)]" />
+                        {col.key ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col.key!)}
+                            title={col.tip}
+                            className={`inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                              isSorted
+                                ? "font-semibold text-[var(--amber)]"
+                                : "hover:text-[var(--text-primary)]"
+                            }`}
+                          >
+                            {col.label}
+                            {isSorted ? (
+                              sortDir === "desc" ? (
+                                <ArrowDown className="h-3 w-3 text-[var(--amber)]" />
+                              ) : (
+                                <ArrowUp className="h-3 w-3 text-[var(--amber)]" />
+                              )
                             ) : (
-                              <ArrowUp className="h-3 w-3 text-[var(--amber)]" />
-                            )
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-45" />
-                          )}
-                        </button>
+                              <ArrowUpDown className="h-3 w-3 opacity-45" />
+                            )}
+                          </button>
+                        ) : (
+                          <span>{col.label}</span>
+                        )}
                       </th>
                     );
                   })}
@@ -930,7 +1158,7 @@ export function SignalIndex({
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={colCount}
                       className="!py-12 !text-center text-sm text-[var(--text-secondary)]"
                     >
                       <p>
@@ -962,7 +1190,7 @@ export function SignalIndex({
                       <Fragment key={sector}>
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={colCount}
                             className="!bg-[var(--surface-subtle)] !py-2 !text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
                           >
                             {sector}{" "}
@@ -971,170 +1199,10 @@ export function SignalIndex({
                             </span>
                           </td>
                         </tr>
-                        {sectorRows.map((c) => {
-                          const starred = watchlist.has(c.ticker);
-                          return (
-                            <tr key={c.ticker}>
-                              <th scope="row">
-                                <div className="inline-flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => watchlist.toggle(c.ticker)}
-                                    aria-label={
-                                      starred
-                                        ? `Remove ${c.ticker} from watchlist`
-                                        : `Add ${c.ticker} to watchlist`
-                                    }
-                                    className={`transition-colors cursor-pointer ${
-                                      starred
-                                        ? "text-[var(--amber)]"
-                                        : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
-                                    }`}
-                                  >
-                                    <Star
-                                      className="h-3.5 w-3.5"
-                                      fill={starred ? "currentColor" : "none"}
-                                    />
-                                  </button>
-                                  <Link
-                                    href={`/t/${c.ticker}`}
-                                    className="group inline-flex items-center gap-2 hover:text-[var(--amber)]"
-                                  >
-                                    <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
-                                      {c.ticker}
-                                    </span>
-                                    <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                                      {c.name}
-                                    </span>
-                                  </Link>
-                                </div>
-                              </th>
-                              <td data-label="Mkt Cap" className="font-mono-num">
-                                {formatCurrencyCompact(c.marketCap)}
-                              </td>
-                              <td
-                                data-label="True FCF"
-                                className={`font-mono-num font-semibold ${
-                                  c.trueFcf >= 0
-                                    ? "text-[var(--amber)]"
-                                    : "text-[var(--negative)]"
-                                }`}
-                              >
-                                {formatCurrencyCompact(c.trueFcf)}
-                              </td>
-                              <td data-label="True Margin" className="font-mono-num">
-                                {formatPct(c.trueFcfMargin)}
-                              </td>
-                              <td
-                                data-label="SBC / Rev"
-                                className="font-mono-num text-[var(--sbc)]"
-                              >
-                                {formatPct(c.sbcPctRevenue)}
-                              </td>
-                              <td
-                                data-label="Dilution (4Y)"
-                                className={`font-mono-num ${
-                                  c.netDilutionCagr > 1.5
-                                    ? "text-[var(--negative)]"
-                                    : c.netDilutionCagr < -0.5
-                                      ? "text-[var(--positive)]"
-                                      : "text-[var(--text-secondary)]"
-                                }`}
-                              >
-                                {formatPct(c.netDilutionCagr, true)}
-                              </td>
-                              <td
-                                data-label="Implied 10Y"
-                                className="font-mono-num font-medium"
-                              >
-                                {formatPct(c.impliedCagr)}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {sectorRows.map((c) => renderRow(c))}
                       </Fragment>
                     ))
-                  : visibleRows.map((c) => {
-                  const starred = watchlist.has(c.ticker);
-                  return (
-                  <tr key={c.ticker}>
-                    <th scope="row">
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => watchlist.toggle(c.ticker)}
-                          aria-label={
-                            starred
-                              ? `Remove ${c.ticker} from watchlist`
-                              : `Add ${c.ticker} to watchlist`
-                          }
-                          className={`transition-colors cursor-pointer ${
-                            starred
-                              ? "text-[var(--amber)]"
-                              : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
-                          }`}
-                        >
-                          <Star
-                            className="h-3.5 w-3.5"
-                            fill={starred ? "currentColor" : "none"}
-                          />
-                        </button>
-                        <Link
-                          href={`/t/${c.ticker}`}
-                          className="group inline-flex items-center gap-2 hover:text-[var(--amber)]"
-                        >
-                          <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
-                            {c.ticker}
-                          </span>
-                          <span className="font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                            {c.name}
-                          </span>
-                        </Link>
-                      </div>
-                    </th>
-                    <td data-label="Mkt Cap" className="font-mono-num">
-                      {formatCurrencyCompact(c.marketCap)}
-                    </td>
-                    <td
-                      data-label="True FCF"
-                      className={`font-mono-num font-semibold ${
-                        c.trueFcf >= 0
-                          ? "text-[var(--amber)]"
-                          : "text-[var(--negative)]"
-                      }`}
-                    >
-                      {formatCurrencyCompact(c.trueFcf)}
-                    </td>
-                    <td data-label="True Margin" className="font-mono-num">
-                      {formatPct(c.trueFcfMargin)}
-                    </td>
-                    <td
-                      data-label="SBC / Rev"
-                      className="font-mono-num text-[var(--sbc)]"
-                    >
-                      {formatPct(c.sbcPctRevenue)}
-                    </td>
-                    <td
-                      data-label="Dilution (4Y)"
-                      className={`font-mono-num ${
-                        c.netDilutionCagr > 1.5
-                          ? "text-[var(--negative)]"
-                          : c.netDilutionCagr < -0.5
-                            ? "text-[var(--positive)]"
-                            : "text-[var(--text-secondary)]"
-                      }`}
-                    >
-                      {formatPct(c.netDilutionCagr, true)}
-                    </td>
-                    <td
-                      data-label="Implied 10Y"
-                      className="font-mono-num font-medium"
-                    >
-                      {formatPct(c.impliedCagr)}
-                    </td>
-                  </tr>
-                  );
-                })}
+                  : visibleRows.map((c) => renderRow(c))}
               </tbody>
             </table>
           </div>

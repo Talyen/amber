@@ -601,46 +601,115 @@ export async function getInsiderTradesForTickers(
   }
 }
 
-export async function getInsiderBuyTickers(): Promise<string[]> {
-  if (!process.env.DATABASE_URL) return [];
+export interface InsiderBuySummary {
+  ticker: string;
+  totalBuyValue: number;
+  buyCount: number;
+  latestBuyer: string;
+  latestTitle: string;
+  latestDate: string;
+}
+
+export interface MaterialEventSummary {
+  ticker: string;
+  headline: string;
+  section: string;
+  category: string;
+  filingDate: string;
+  eventCount: number;
+}
+
+export async function getInsiderBuySummaries(): Promise<
+  Record<string, InsiderBuySummary>
+> {
+  if (!process.env.DATABASE_URL) return {};
   const cachedFetch = unstable_cache(
     async () => {
       const db = getDb();
-      if (!db) return [];
+      if (!db) return {};
       const rows = await db
-        .selectDistinct({ ticker: insiderTrades.ticker })
+        .select()
         .from(insiderTrades)
-        .where(eq(insiderTrades.transactionType, "Buy"));
-      return rows.map((r) => r.ticker);
+        .where(eq(insiderTrades.transactionType, "Buy"))
+        .orderBy(desc(insiderTrades.filingDate), desc(insiderTrades.totalValue));
+
+      const map: Record<string, InsiderBuySummary> = {};
+      for (const r of rows) {
+        const existing = map[r.ticker];
+        if (!existing) {
+          map[r.ticker] = {
+            ticker: r.ticker,
+            totalBuyValue: r.totalValue,
+            buyCount: 1,
+            latestBuyer: r.insiderName,
+            latestTitle: r.insiderTitle,
+            latestDate: r.filingDate,
+          };
+        } else {
+          existing.totalBuyValue += r.totalValue;
+          existing.buyCount += 1;
+        }
+      }
+      return map;
     },
-    ["amber-insider-buy-tickers-v1"],
+    ["amber-insider-buy-summaries-v1"],
     { revalidate: 900, tags: ["insiders"] }
   );
   try {
     return await cachedFetch();
   } catch {
-    return [];
+    return {};
   }
 }
 
-export async function getMaterialEventTickers(): Promise<string[]> {
-  if (!process.env.DATABASE_URL) return [];
+export async function getMaterialEventSummaries(): Promise<
+  Record<string, MaterialEventSummary>
+> {
+  if (!process.env.DATABASE_URL) return {};
   const cachedFetch = unstable_cache(
     async () => {
       const db = getDb();
-      if (!db) return [];
+      if (!db) return {};
       const rows = await db
-        .selectDistinct({ ticker: filingDiffs.ticker })
+        .select()
         .from(filingDiffs)
-        .where(eq(filingDiffs.filingType, "8-K"));
-      return rows.map((r) => r.ticker);
+        .where(eq(filingDiffs.filingType, "8-K"))
+        .orderBy(desc(filingDiffs.filingDate));
+
+      const map: Record<string, MaterialEventSummary> = {};
+      for (const r of rows) {
+        const existing = map[r.ticker];
+        if (!existing) {
+          map[r.ticker] = {
+            ticker: r.ticker,
+            headline: r.headline.replace(/\s*\(Item[^)]*\)\s*$/i, ""),
+            section: r.section,
+            category: r.category,
+            filingDate: r.filingDate,
+            eventCount: 1,
+          };
+        } else {
+          existing.eventCount += 1;
+        }
+      }
+      return map;
     },
-    ["amber-material-event-tickers-v1"],
+    ["amber-material-event-summaries-v1"],
     { revalidate: 900, tags: ["filings"] }
   );
   try {
     return await cachedFetch();
   } catch {
-    return [];
+    return {};
   }
+}
+
+export async function getInsiderBuyTickers(): Promise<string[]> {
+  const map = await getInsiderBuySummaries();
+  return Object.keys(map);
+}
+
+export async function getMaterialEventTickers(): Promise<string[]> {
+  const map = await getMaterialEventSummaries();
+  return Object.keys(map);
 }

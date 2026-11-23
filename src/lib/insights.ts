@@ -321,7 +321,10 @@ export type IndexSortKey =
   | "trueFcfMargin"
   | "sbcPctRevenue"
   | "netDilutionCagr"
-  | "impliedCagr";
+  | "impliedCagr"
+  | "insiderBuyValue"
+  | "insiderBuyDate"
+  | "eventDate";
 
 export interface LensFilterContext {
   insiderBuyTickers?: ReadonlySet<string>;
@@ -411,7 +414,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     criteriaSummary: "Recent SEC Form 4 open-market purchase (Code P)",
     whyItMatters:
       "Executives sell shares for many reasons, but open-market purchases with personal cash signal conviction.",
-    defaultSortKey: "marketCap",
+    defaultSortKey: "insiderBuyDate",
     defaultSortDir: "desc",
     filter: (c, ctx) => Boolean(ctx?.insiderBuyTickers?.has(c.ticker)),
     sort: (a, b) => b.marketCap - a.marketCap,
@@ -423,7 +426,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     criteriaSummary: "High-signal SEC Form 8-K (Items 1.01, 2.01, 2.05, 2.06, 4.02, 5.02)",
     whyItMatters:
       "Form 8-K filings disclose material corporate events between quarterly reports — executive departures, acquisitions, and restructurings.",
-    defaultSortKey: "marketCap",
+    defaultSortKey: "eventDate",
     defaultSortDir: "desc",
     filter: (c, ctx) => Boolean(ctx?.materialEventTickers?.has(c.ticker)),
     sort: (a, b) => b.marketCap - a.marketCap,

@@ -1,9 +1,9 @@
 import { SignalIndex } from "@/components/SignalIndex";
 import {
   getFilingDiffsForTickers,
-  getInsiderBuyTickers,
+  getInsiderBuySummaries,
   getInsiderTradesForTickers,
-  getMaterialEventTickers,
+  getMaterialEventSummaries,
   getRecentFilingDiffs,
   getRecentMarketInsiders,
   getSearchIndex,
@@ -13,12 +13,12 @@ import { getTrendingTickers } from "@/lib/trending";
 export const revalidate = 900;
 
 export default async function HomePage() {
-  const [entries, trending, insiderBuyTickers, materialEventTickers] =
+  const [entries, trending, insiderBuySummaries, materialEventSummaries] =
     await Promise.all([
       getSearchIndex(),
       getTrendingTickers(),
-      getInsiderBuyTickers(),
-      getMaterialEventTickers(),
+      getInsiderBuySummaries(),
+      getMaterialEventSummaries(),
     ]);
   const trendingSyms = trending.map((t) => t.ticker);
 
@@ -45,8 +45,8 @@ export default async function HomePage() {
       recentDiffs={recentDiffs}
       recentInsiders={recentInsiders}
       trendingTickers={trendingSyms}
-      insiderBuyTickers={insiderBuyTickers}
-      materialEventTickers={materialEventTickers}
+      insiderBuySummaries={insiderBuySummaries}
+      materialEventSummaries={materialEventSummaries}
     />
   );
 }
