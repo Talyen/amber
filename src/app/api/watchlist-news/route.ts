@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { arenaPositions, insiderTrades, userWatchlists } from "@/db/schema";
 import { getSearchIndex } from "@/data/repository";
+import type { SearchIndexEntry } from "@/data/universe";
 
 export interface HeadlineItem {
   title: string;
@@ -35,47 +36,53 @@ function decodeXml(str: string): string {
     .trim();
 }
 
-// Common English words that happen to be valid stock tickers (require $ prefix or company name match)
-const AMBIGUOUS_TICKERS = new Set([
-  "A", "ALL", "AME", "AMP", "AN", "APP", "ARE", "ARM", "ash", "AT", "BALL",
-  "BILL", "BOX", "BRO", "C", "CAT", "CF", "CG", "COKE", "COP", "COST", "D",
-  "DAY", "DE", "DECK", "DG", "DIS", "DO", "DOC", "DOW", "E", "EAT", "ELF",
-  "ES", "ET", "EW", "EXC", "EXP", "F", "FAST", "FI", "FIT", "FIVE", "FIX",
-  "FLEX", "FLOW", "FORM", "FOX", "G", "GAP", "GE", "GEN", "GH", "GLOB", "GM",
-  "GO", "GOLD", "HAL", "HAS", "HD", "HE", "HES", "HIMS", "HON", "HOOD", "HP",
-  "I", "ICE", "II", "IN", "IOT", "IP", "IR", "IT", "ITT", "J", "K", "KEY",
-  "KEYS", "KMI", "KO", "L", "KEYS", "LEN", "LIN", "LINE", "LIVE", "LO",
-  "LOW", "LULU", "M", "MA", "MAIN", "MAN", "MAR", "MAS", "MAT", "MED",
-  "MET", "MGM", "MID", "MNDY", "MO", "MOH", "MP", "MS", "MT", "MU", "N",
-  "NET", "NEW", "NEXT", "NICE", "NKE", "NOW", "NU", "O", "ODFL", "ON",
-  "ONE", "ONTO", "OPEN", "OR", "OUT", "OWL", "P", "PATH", "PAY", "PEG",
-  "PEP", "PG", "PH", "PINS", "PKG", "PLAY", "PLUS", "PM", "POOL", "POST",
-  "PPG", "PR", "PSA", "PTC", "PWR", "Q", "R", "RE", "REAL", "REG", "RF",
-  "RH", "RIO", "RL", "ROAD", "ROCK", "ROL", "ROLL", "ROP", "ROST", "RS",
-  "RUN", "RYAN", "S", "SAFE", "SAIA", "SAVE", "SE", "SEE", "SHOP", "SITE",
-  "SK", "SM", "SNAP", "SNOW", "SO", "SON", "SPOT", "ST", "STAY", "STE",
-  "STEP", "STT", "STZ", "SYM", "T", "TALK", "TAP", "TASK", "TD", "TE",
-  "TECH", "TEL", "TER", "TEX", "TGT", "THC", "TM", "TOL", "TOST", "TPG",
-  "TPL", "TR", "TRUE", "TT", "TTC", "TTD", "TXT", "U", "UBER", "UGI",
-  "ULTA", "UNIT", "UNP", "UPS", "URI", "US", "V", "VICI", "VIEW", "VRSK",
-  "VST", "VZ", "W", "WAT", "WAY", "WEC", "WELL", "WES", "WEX", "WM",
-  "WMT", "WORK", "WP", "WPP", "WRB", "WSM", "WST", "WY", "X", "XYZ",
-  "YUM", "Z", "ZS",
+// Tickers that are unmistakable even as standalone uppercase tokens in a headline
+const UNMISTAKABLE_UPPER_TICKERS = new Set([
+  "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "GOOG", "TSLA", "PLTR", "AVGO",
+  "NFLX", "AMD", "INTC", "QCOM", "ASML", "JPM", "BAC", "WFC", "AXP", "PYPL",
+  "SOFI", "LLY", "ABBV", "MRNA", "VRTX", "SBUX", "CMG", "LULU", "XOM", "CVX",
+  "SHEL", "ORCL", "CRWD", "PANW", "DDOG", "ADBE", "INTU", "WDAY", "HUBS",
+  "DUOL", "RBLX", "RDDT", "ABNB", "BKNG", "DKNG", "CMCSA", "TMUS", "BABA",
+  "MSTR", "SMCI", "CSCO", "IBM", "KLAC", "LRCX", "AMAT", "SNPS", "CDNS",
+  "ANET", "FTNT", "VEEV", "CFLT", "GTLB", "TWLO", "DOCU", "OKTA", "MDB",
+  "SNOW", "ZS", "MRVL", "NXPI", "MCHP", "ISRG", "DXCM", "PODD", "REGN",
+  "GILD", "AMGN", "BIIB", "BMY", "SCHW", "MSCI", "SPGI", "FICO", "VRSK",
 ]);
 
-const BRAND_KEYWORDS: Array<[RegExp, string]> = [
+// Generic first words of company names that must include the second word to avoid false matches
+const GENERIC_FIRST_WORDS = new Set([
+  "american", "bank", "first", "general", "global", "international", "national",
+  "united", "western", "southern", "northern", "eastern", "pacific", "atlantic",
+  "central", "digital", "advanced", "applied", "public", "republic", "standard",
+  "universal", "premier", "select", "choice", "crown", "royal", "imperial",
+  "liberty", "freedom", "enterprise", "consolidated", "associated", "allied",
+  "fidelity", "citizens", "regions", "PNC", "us", "new", "old", "east", "west",
+  "north", "south", "texas", "california", "new york",
+]);
+
+// Words that are too common in financial headlines to ever be used alone as a company brand match
+const STOPWORD_BRANDS = new Set([
+  "apple", // handled via custom rule below to avoid "apple of" idioms if needed, though Apple is safe
+  "target", "gap", "visa", "block", "square", "match", "zoom", "box", "BILL",
+  "bill", "nice", "fast", "five", "flex", "globe", "guardant", "brown", "waters",
+  "jacobs", "ball", "pool", "rollins", "loews", "popular", "ally", "discover",
+  "expand", "next", "open", "real", "step", "talk", "task", "true", "unit",
+  "view", "well", "work", "on", "sea", "arm", "fox", "news",
+]);
+
+const EXPLICIT_BRAND_PATTERNS: Array<[RegExp, string]> = [
   [/\bnvidia\b/i, "NVDA"],
   [/\bapple\b/i, "AAPL"],
   [/\bmicrosoft\b/i, "MSFT"],
-  [/\bamazon\b/i, "AMZN"],
-  [/\b(alphabet|google)\b/i, "GOOGL"],
-  [/\bmeta platforms|\bmeta's\b|\bzuckerberg\b/i, "META"],
+  [/\bamazon(?:\.com)?\b/i, "AMZN"],
+  [/\b(?:alphabet|google)\b/i, "GOOGL"],
+  [/\b(?:meta platforms|meta's|zuckerberg)\b/i, "META"],
   [/\btesla\b/i, "TSLA"],
   [/\bpalantir\b/i, "PLTR"],
   [/\bbroadcom\b/i, "AVGO"],
   [/\bnetflix\b/i, "NFLX"],
-  [/\bmicron\b/i, "MU"],
-  [/\b(advanced micro devices|\bamd\b)/i, "AMD"],
+  [/\bmicron(?:\s+technology)?\b/i, "MU"],
+  [/\b(?:advanced micro devices|amd)\b/i, "AMD"],
   [/\bintel\b/i, "INTC"],
   [/\bqualcomm\b/i, "QCOM"],
   [/\barm holdings\b/i, "ARM"],
@@ -86,8 +93,9 @@ const BRAND_KEYWORDS: Array<[RegExp, string]> = [
   [/\bbank of america\b/i, "BAC"],
   [/\bwells fargo\b/i, "WFC"],
   [/\bblackstone\b/i, "BX"],
+  [/\bkkr\b/i, "KKR"],
   [/\bamerican express\b/i, "AXP"],
-  [/\bvisa\b/i, "V"],
+  [/\bvisa(?:\s+inc|\s+stock|\s+shares|\s+earnings|\s+network)?\b/i, "V"],
   [/\bmastercard\b/i, "MA"],
   [/\bpaypal\b/i, "PYPL"],
   [/\bcoinbase\b/i, "COIN"],
@@ -95,33 +103,35 @@ const BRAND_KEYWORDS: Array<[RegExp, string]> = [
   [/\bsofi\b/i, "SOFI"],
   [/\beli lilly\b/i, "LLY"],
   [/\bunitedhealth\b/i, "UNH"],
+  [/\belevance(?:\s+health)?\b/i, "ELV"],
   [/\bjohnson & johnson\b/i, "JNJ"],
   [/\babbvie\b/i, "ABBV"],
   [/\bmerck\b/i, "MRK"],
   [/\bpfizer\b/i, "PFE"],
   [/\bmoderna\b/i, "MRNA"],
-  [/\bvertex pharma/i, "VRTX"],
+  [/\bvertex pharmaceuticals\b/i, "VRTX"],
   [/\bhims & hers\b/i, "HIMS"],
   [/\bcostco\b/i, "COST"],
   [/\bwalmart\b/i, "WMT"],
   [/\bhome depot\b/i, "HD"],
   [/\blowe's\b/i, "LOW"],
-  [/\btarget\b/i, "TGT"],
+  [/\btarget(?:\s+corp|\s+stock|\s+shares|\s+stores|\s+earnings)\b/i, "TGT"],
+  [/\btjx(?:\s+companies)?\b/i, "TJX"],
   [/\bmcdonald's\b/i, "MCD"],
   [/\bstarbucks\b/i, "SBUX"],
   [/\bchipotle\b/i, "CMG"],
-  [/\bcava\b/i, "CAVA"],
+  [/\bcava(?:\s+group|\s+stock|\s+shares)?\b/i, "CAVA"],
   [/\bnike\b/i, "NKE"],
   [/\blululemon\b/i, "LULU"],
   [/\bcoca-cola\b/i, "KO"],
-  [/\bpepsico|\bpepsi\b/i, "PEP"],
+  [/\bpepsico\b/i, "PEP"],
   [/\bprocter & gamble\b/i, "PG"],
-  [/\bexxon\b/i, "XOM"],
+  [/\bexxon(?:\s*mobil)?\b/i, "XOM"],
   [/\bchevron\b/i, "CVX"],
   [/\bconocophillips\b/i, "COP"],
-  [/\bshell\b/i, "SHEL"],
+  [/\bshell(?:\s+plc|\s+stock|\s+shares|\s+oil)\b/i, "SHEL"],
   [/\bge vernova\b/i, "GEV"],
-  [/\bvistra\b/i, "VST"],
+  [/\bvistra(?:\s+energy|\s+corp|\s+stock|\s+shares)?\b/i, "VST"],
   [/\bconstellation energy\b/i, "CEG"],
   [/\boracle\b/i, "ORCL"],
   [/\bsalesforce\b/i, "CRM"],
@@ -138,6 +148,7 @@ const BRAND_KEYWORDS: Array<[RegExp, string]> = [
   [/\bworkday\b/i, "WDAY"],
   [/\batlassian\b/i, "TEAM"],
   [/\bhubspot\b/i, "HUBS"],
+  [/\bakamai\b/i, "AKAM"],
   [/\bapplovin\b/i, "APP"],
   [/\btrade desk\b/i, "TTD"],
   [/\bduolingo\b/i, "DUOL"],
@@ -149,55 +160,107 @@ const BRAND_KEYWORDS: Array<[RegExp, string]> = [
   [/\bairbnb\b/i, "ABNB"],
   [/\bbooking holdings\b/i, "BKNG"],
   [/\bdraftkings\b/i, "DKNG"],
-  [/\bdisney\b/i, "DIS"],
+  [/\b(?:walt\s+)?disney\b/i, "DIS"],
   [/\bcomcast\b/i, "CMCSA"],
   [/\bt-mobile\b/i, "TMUS"],
   [/\bverizon\b/i, "VZ"],
   [/\bat&t\b/i, "T"],
   [/\bboeing\b/i, "BA"],
   [/\bcaterpillar\b/i, "CAT"],
-  [/\bdeere\b/i, "DE"],
+  [/\beaton(?:\s+corp)?\b/i, "ETN"],
+  [/\bdeere(?:\s+&\s+co)?|\bjohn deere\b/i, "DE"],
   [/\balibaba\b/i, "BABA"],
-  [/\bmicrostrategy|\bstrategy's\b/i, "MSTR"],
+  [/\bmicrostrategy\b/i, "MSTR"],
   [/\bsuper micro\b/i, "SMCI"],
   [/\bcisco\b/i, "CSCO"],
   [/\bibm\b/i, "IBM"],
+  [/\bdell(?:\s+technologies)?\b/i, "DELL"],
+  [/\bsandisk\b/i, "SNDK"],
+  [/\bwestern digital\b/i, "WDC"],
+  [/\bseagate\b/i, "STX"],
 ];
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractBrandPhrase(rawName: string): string {
+  const stripped = rawName
+    .replace(
+      /\b(Inc\.?|Corp\.?|Corporation|Company|Co\.?|Holdings?|Group|PLC|plc|Ltd\.?|Limited|N\.V\.|S\.A\.|S\.A\.B\. de C\.V\.|SE|LP|LLC|A\/S|Technologies|Technology|Pharmaceuticals|Therapeutics|Biosciences|International| Enterprises|Systems|Networks|Solutions|Platforms| Laboratories|Brands|Resources|Energy|Partners)\b/gi,
+      " "
+    )
+    .replace(/[.,/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const words = stripped.split(" ").filter(Boolean);
+  if (words.length === 0) return rawName;
+  if (words.length >= 2 && GENERIC_FIRST_WORDS.has(words[0].toLowerCase())) {
+    return `${words[0]} ${words[1]}`;
+  }
+  return words[0];
+}
+
+function buildDynamicBrandMatchers(
+  entries: SearchIndexEntry[]
+): Array<[RegExp, string]> {
+  const out: Array<[RegExp, string]> = [...EXPLICIT_BRAND_PATTERNS];
+  const coveredTickers = new Set(EXPLICIT_BRAND_PATTERNS.map(([, t]) => t));
+
+  for (const e of entries) {
+    if (coveredTickers.has(e.ticker)) continue;
+    const phrase = extractBrandPhrase(e.name);
+    if (phrase.length < 4) continue;
+    if (STOPWORD_BRANDS.has(phrase.toLowerCase())) continue;
+    out.push([new RegExp(`\\b${escapeRegex(phrase)}\\b`, "i"), e.ticker]);
+  }
+  return out;
+}
 
 function detectTickersInHeadline(
   title: string,
   validTickers: Set<string>,
-  hintTickers: string[] = []
+  brandMatchers: Array<[RegExp, string]>
 ): string[] {
   const matched = new Set<string>();
 
   // 1. Match explicit brand names
-  for (const [regex, ticker] of BRAND_KEYWORDS) {
+  for (const [regex, ticker] of brandMatchers) {
     if (validTickers.has(ticker) && regex.test(title)) {
       matched.add(ticker);
     }
   }
 
-  // 2. Match explicit $TICKER cashtags or (TICKER) / (NASDAQ: TICKER)
-  const cashtagMatches = title.matchAll(
-    /(?:\$([A-Z]{1,5})\b|\((?:NASDAQ|NYSE|AMEX)?\s*:?\s*([A-Z]{1,5})\))/g
+  // 2. Match explicit ticker notation: $NVDA, (NVDA), (NASDAQ: NVDA), (NVDA.O), or "TICKER Stock / Shares"
+  const explicitNotation = title.matchAll(
+    /(?:\$([A-Z]{1,5})\b|\((?:NASDAQ|NYSE|AMEX)?\s*:?\s*([A-Z]{1,5})(?:\.[A-Z])?\)|\b([A-Z]{2,5})\s+(?:Stock|Shares)\b)/g
   );
-  for (const m of cashtagMatches) {
-    const sym = (m[1] || m[2] || "").toUpperCase();
-    if (validTickers.has(sym)) matched.add(sym);
+  for (const m of explicitNotation) {
+    const sym = (m[1] || m[2] || m[3] || "").toUpperCase();
+    const norm = sym === "GOOG" ? "GOOGL" : sym;
+    if (validTickers.has(norm)) matched.add(norm);
   }
 
-  // 3. Match unambiguous uppercase tickers directly in the headline
-  const upperTokens = title.match(/\b[A-Z]{2,5}\b/g) ?? [];
-  for (const tok of upperTokens) {
-    if (validTickers.has(tok) && !AMBIGUOUS_TICKERS.has(tok)) {
-      matched.add(tok);
+  // 3. Match comma-separated ticker lists at the start of a headline (e.g. "NVDA, INTC, MU, AMD Chip Stocks...")
+  const leadingListMatch = title.match(
+    /^([A-Z]{2,5}(?:\s*,\s*[A-Z]{2,5})+)\b/
+  );
+  if (leadingListMatch) {
+    for (const rawSym of leadingListMatch[1].split(",")) {
+      const sym = rawSym.trim();
+      const norm = sym === "GOOG" ? "GOOGL" : sym;
+      if (validTickers.has(norm)) matched.add(norm);
     }
   }
 
-  // 4. If queried for a single specific ticker and nothing matched yet, attach that ticker
-  if (matched.size === 0 && hintTickers.length === 1 && validTickers.has(hintTickers[0])) {
-    matched.add(hintTickers[0]);
+  // 4. Match unmistakable multi-letter tickers (e.g. NVDA, MSFT, TSLA, PLTR)
+  const upperTokens = title.match(/\b[A-Z]{3,5}\b/g) ?? [];
+  for (const tok of upperTokens) {
+    const norm = tok === "GOOG" ? "GOOGL" : tok;
+    if (UNMISTAKABLE_UPPER_TICKERS.has(norm) && validTickers.has(norm)) {
+      matched.add(norm);
+    }
   }
 
   return [...matched].slice(0, 4);
@@ -232,9 +295,11 @@ function inferSourceFromUrl(link: string, fallback = "Yahoo Finance"): string {
 
 async function fetchYahooRssBatch(
   tickers: string[],
-  validSet: Set<string>
+  validSet: Set<string>,
+  brandMatchers: Array<[RegExp, string]>
 ): Promise<HeadlineItem[]> {
   if (tickers.length === 0) return [];
+  const requestedSet = new Set(tickers);
   try {
     const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(
       tickers.join(",")
@@ -262,15 +327,20 @@ async function fetchYahooRssBatch(
         ? decodeXml(sourceMatch[1])
         : inferSourceFromUrl(link, "Yahoo Finance");
 
-      if (title && link) {
-        out.push({
-          title,
-          link,
-          pubDate,
-          source,
-          tickers: detectTickersInHeadline(title, validSet, tickers),
-        });
-      }
+      if (!title || !link) continue;
+
+      // Require the headline itself to genuinely mention at least one of the requested companies
+      const detected = detectTickersInHeadline(title, validSet, brandMatchers);
+      const relevant = detected.filter((t) => requestedSet.has(t));
+      if (relevant.length === 0) continue;
+
+      out.push({
+        title,
+        link,
+        pubDate,
+        source,
+        tickers: detected,
+      });
     }
     return out;
   } catch {
@@ -280,13 +350,24 @@ async function fetchYahooRssBatch(
 
 async function fetchGoogleFinanceNewsRss(
   tickers: string[],
+  byTicker: Map<string, SearchIndexEntry>,
   validSet: Set<string>,
-  isMarketScope: boolean
+  brandMatchers: Array<[RegExp, string]>
 ): Promise<HeadlineItem[]> {
+  if (tickers.length === 0) return [];
+  const requestedSet = new Set(tickers);
   try {
-    const query = isMarketScope
-      ? `(${tickers.slice(0, 10).join(" OR ")}) (stock OR earnings OR shares OR revenue) when:2d`
-      : `(${tickers.slice(0, 8).join(" OR ")}) stock when:4d`;
+    // Build query terms combining brand names and tickers for high precision
+    const terms = tickers.slice(0, 8).map((t) => {
+      const entry = byTicker.get(t);
+      const brand = entry ? extractBrandPhrase(entry.name) : "";
+      if (brand && brand.length >= 4 && brand.toLowerCase() !== t.toLowerCase()) {
+        return `"${brand}" OR ${t}`;
+      }
+      return `${t} stock`;
+    });
+    const whenWindow = tickers.length <= 2 ? "when:14d" : "when:3d";
+    const query = `(${terms.join(" OR ")}) (stock OR shares OR earnings OR revenue) ${whenWindow}`;
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(
       query
     )}&hl=en-US&gl=US&ceid=US:en`;
@@ -301,7 +382,7 @@ async function fetchGoogleFinanceNewsRss(
     const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
     let match: RegExpExecArray | null;
 
-    while ((match = itemRegex.exec(xml)) !== null && out.length < 14) {
+    while ((match = itemRegex.exec(xml)) !== null && out.length < 16) {
       const block = match[1];
       const titleMatch = block.match(/<title>([\s\S]*?)<\/title>/i);
       const linkMatch = block.match(/<link>([\s\S]*?)<\/link>/i);
@@ -313,7 +394,7 @@ async function fetchGoogleFinanceNewsRss(
       const pubDate = dateMatch ? decodeXml(dateMatch[1]) : "";
       const source = sourceMatch ? decodeXml(sourceMatch[1]) : "Financial News";
 
-      // Google News appends " - Publisher Name" at the end of <title>; strip it cleanly
+      // Strip trailing " - Publisher Name" from Google News titles
       if (source && title.endsWith(` - ${source}`)) {
         title = title.slice(0, -` - ${source}`.length).trim();
       } else {
@@ -321,8 +402,9 @@ async function fetchGoogleFinanceNewsRss(
       }
 
       if (!title || !link) continue;
-      const detected = detectTickersInHeadline(title, validSet, tickers);
-      if (isMarketScope && detected.length === 0) continue;
+      const detected = detectTickersInHeadline(title, validSet, brandMatchers);
+      const relevant = detected.filter((t) => requestedSet.has(t));
+      if (relevant.length === 0) continue;
 
       out.push({
         title,
@@ -339,7 +421,7 @@ async function fetchGoogleFinanceNewsRss(
 }
 
 async function computeTrendingTickers(
-  entries: Awaited<ReturnType<typeof getSearchIndex>>
+  entries: SearchIndexEntry[]
 ): Promise<TrendingTickerItem[]> {
   const byTicker = new Map(entries.map((e) => [e.ticker, e]));
   const trending: TrendingTickerItem[] = [];
@@ -427,7 +509,7 @@ async function computeTrendingTickers(
     }
   }
 
-  // 3. Guarantee at least 10 trending items using recent SEC filers & bellwethers
+  // 3. Guarantee at least 10 trending items using bellwethers
   const fallbacks = [
     "NVDA",
     "AAPL",
@@ -453,10 +535,11 @@ async function computeTrendingTickers(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawTickers = searchParams.get("tickers");
-  const scope = searchParams.get("scope") ?? (rawTickers ? "custom" : "market");
 
   const entries = await getSearchIndex();
+  const byTicker = new Map(entries.map((e) => [e.ticker, e]));
   const validSet = new Set(entries.map((e) => e.ticker));
+  const brandMatchers = buildDynamicBrandMatchers(entries);
   const trending = await computeTrendingTickers(entries);
 
   let targetTickers: string[];
@@ -493,12 +576,13 @@ export async function GET(request: Request) {
 
   const batchA = targetTickers.slice(0, 8);
   const batchB = targetTickers.slice(8, 16);
-  const isMarketScope = scope === "market";
 
   const [yahooA, yahooB, googleNews] = await Promise.all([
-    fetchYahooRssBatch(batchA, validSet),
-    batchB.length > 0 ? fetchYahooRssBatch(batchB, validSet) : Promise.resolve([]),
-    fetchGoogleFinanceNewsRss(targetTickers, validSet, isMarketScope),
+    fetchYahooRssBatch(batchA, validSet, brandMatchers),
+    batchB.length > 0
+      ? fetchYahooRssBatch(batchB, validSet, brandMatchers)
+      : Promise.resolve([]),
+    fetchGoogleFinanceNewsRss(targetTickers, byTicker, validSet, brandMatchers),
   ]);
 
   // Deduplicate by normalized title prefix and sort newest first
