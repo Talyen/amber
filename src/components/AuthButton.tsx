@@ -58,6 +58,25 @@ export function AuthButton() {
   const [submitting, setSubmitting] = useState<"google" | "github" | null>(null);
   const [error, setError] = useState("");
   const [providers, setProviders] = useState<ProviderAvailability | null>(null);
+  const [userHandle, setUserHandle] = useState<string>("");
+
+  useEffect(() => {
+    if (!session?.user) {
+      setUserHandle("");
+      return;
+    }
+    const fetchProfile = () => {
+      fetch("/api/account/profile")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { user?: { handle?: string } } | null) => {
+          setUserHandle(data?.user?.handle ?? "");
+        })
+        .catch(() => {});
+    };
+    fetchProfile();
+    window.addEventListener("amber:profile-updated", fetchProfile);
+    return () => window.removeEventListener("amber:profile-updated", fetchProfile);
+  }, [session?.user]);
 
   function openModal() {
     const dialog = dialogRef.current;
@@ -149,8 +168,7 @@ export function AuthButton() {
   }
 
   if (!isPending && session?.user) {
-    const displayName =
-      session.user.name?.trim() || session.user.email?.split("@")[0] || "Account";
+    const displayLabel = userHandle ? `@${userHandle}` : "Settings";
     return (
       <div className="inline-flex items-center gap-1">
         <Link
@@ -160,7 +178,7 @@ export function AuthButton() {
         >
           <Settings className="h-3.5 w-3.5 text-[var(--amber)]" />
           <span className="hidden max-w-[110px] truncate md:inline">
-            {displayName}
+            {displayLabel}
           </span>
         </Link>
         <button

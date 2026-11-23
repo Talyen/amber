@@ -8,6 +8,7 @@ import {
   arenaPositions,
   arenaRebalances,
   companies,
+  user,
 } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { normalizeAvatarId } from "@/lib/avatars";
@@ -113,6 +114,12 @@ export async function POST(request: Request) {
   const totalWeight = [...deduped.values()].reduce((a, b) => a + b, 0);
   const now = new Date();
   const periodKey = now.toISOString().slice(0, 7); // e.g. "2026-11"
+
+  // Keep user's standalone account handle & avatar icon in sync
+  await db
+    .update(user)
+    .set({ handle, avatarIcon, updatedAt: now })
+    .where(eq(user.id, session.user.id));
 
   // Enforce 1 portfolio per user: check if this user already has one
   const existingRows = await db

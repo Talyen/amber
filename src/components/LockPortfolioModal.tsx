@@ -47,19 +47,31 @@ export function LockPortfolioModal({
       return;
     }
     let active = true;
-    fetch("/api/arena/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { portfolio: ExistingArenaPortfolio | null } | null) => {
-        if (!active) return;
-        const port = data?.portfolio ?? null;
-        setExisting(port);
-        if (port) {
-          setHandle(port.handle);
-          setTitle(port.title);
-          setThesis(port.thesis);
-          setAvatarIcon(normalizeAvatarId(port.avatarIcon));
+    Promise.all([
+      fetch("/api/arena/me").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/account/profile").then((res) => (res.ok ? res.json() : null)),
+    ])
+      .then(
+        ([arenaData, profileData]: [
+          { portfolio: ExistingArenaPortfolio | null } | null,
+          { user?: { handle?: string; avatarIcon?: string } } | null,
+        ]) => {
+          if (!active) return;
+          const port = arenaData?.portfolio ?? null;
+          setExisting(port);
+          if (port) {
+            setHandle(port.handle);
+            setTitle(port.title);
+            setThesis(port.thesis);
+            setAvatarIcon(normalizeAvatarId(port.avatarIcon));
+          } else if (profileData?.user) {
+            if (profileData.user.handle) setHandle(profileData.user.handle);
+            if (profileData.user.avatarIcon) {
+              setAvatarIcon(normalizeAvatarId(profileData.user.avatarIcon));
+            }
+          }
         }
-      })
+      )
       .catch(() => {});
     return () => {
       active = false;

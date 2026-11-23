@@ -2,7 +2,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { arenaPortfolios, userWatchlists } from "@/db/schema";
+import { arenaPortfolios, user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { normalizeAvatarId } from "@/lib/avatars";
 
@@ -17,7 +17,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
 
-  const [portRows, wlRows] = await Promise.all([
+  const [userRows, portRows] = await Promise.all([
+    db
+      .select({
+        email: user.email,
+        handle: user.handle,
+        avatarIcon: user.avatarIcon,
+      })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .limit(1),
     db
       .select()
       .from(arenaPortfolios)
@@ -28,21 +37,18 @@ export async function GET(request: Request) {
         )
       )
       .limit(1),
-    db
-      .select({ ticker: userWatchlists.ticker })
-      .from(userWatchlists)
-      .where(eq(userWatchlists.userId, session.user.id)),
   ]);
 
+  const dbUser = userRows[0];
   const port = portRows[0] ?? null;
 
   return NextResponse.json({
     authenticated: true,
     user: {
-      email: session.user.email,
-      name: session.user.name,
+      email: dbUser?.email ?? session.user.email,
+      handle: dbUser?.handle ?? port?.handle ?? "",
+      avatarIcon: dbUser?.avatarIcon ?? port?.avatarIcon ?? "compass",
     },
-    watchlistCount: wlRows.length,
     portfolio: port
       ? {
           id: port.id,
@@ -67,33 +73,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  let body: { handle?: string; avatarIcon?: string; title?: string; thesis?: string };
+  let body: { handle?: string; avatarIcon?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const existingRows = await db
-    .select()
-    .from(arenaPortfolios)
-    .where(
-      and(
-        eq(arenaPortfolios.userId, session.user.id),
-        eq(arenaPortfolios.isBot, 0)
-      )
-    )
-    .limit(1);
-
-  const existing = existingRows[0];
-  if (!existing) {
-    return NextResponse.json(
-      { error: "Publish a portfolio to the Arena first to customize your public handle." },
-      { status: 404 }
-    );
-  }
-
-  const handle = String(body.handle ?? existing.handle)
+  const handle = String(body.handle ?? "")
     .trim()
     .replace(/^@+/, "")
     .slice(0, 28);
@@ -105,51 +92,67 @@ export async function PATCH(request: Request) {
     );
   }
 
-  // Enforce case-insensitive uniqueness across other Arena entries
-  const conflict = await db
-    .select({ id: arenaPortfolios.id })
-    .from(arenaPortfolios)
-    .where(
-      and(
-        sql`lower(${arenaPortfolios.handle}) = ${handle.toLowerCase()}`,
-        ne(arenaPortfolios.id, existing.id)
-      )
-    )
-    .limit(1);
+  const lower = handle.toLowerCase();
 
-  if (conflict.length > 0) {
+  // Check uniqueness across other users AND other Arena portfolios (including Strategy Bots)
+  const [userConflict, portConflict] = await Promise.all([
+    db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(sql`lower(${user.handle}) = ${lower}`, ne(user.id, session.user.id)))
+      .limit(1),
+    db
+      .select({ id: arenaPortfolios.id, userId: arenaPortfolios.userId })
+      .from(arenaPortfolios)
+      .where(sql`lower(${arenaPortfolios.handle}) = ${lower}`)
+      .limit(2),
+  ]);
+
+  const takenByOtherPortfolio = portConflict.some(
+    (p) => p.userId !== session.user.id
+  );
+  if (userConflict.length > 0 || takenByOtherPortfolio) {
     return NextResponse.json(
       { error: `Handle @${handle} is already taken. Please choose another.` },
       { status: 409 }
     );
   }
 
-  const avatarIcon = body.avatarIcon
-    ? normalizeAvatarId(body.avatarIcon)
-    : existing.avatarIcon;
-  const title =
-    typeof body.title === "string" && body.title.trim().length >= 3
-      ? body.title.trim().slice(0, 64)
-      : existing.title;
-  const thesis =
-    typeof body.thesis === "string"
-      ? body.thesis.trim().slice(0, 220)
-      : existing.thesis;
+  const avatarIcon = normalizeAvatarId(body.avatarIcon);
 
   await db
-    .update(arenaPortfolios)
-    .set({ handle, avatarIcon, title, thesis })
-    .where(eq(arenaPortfolios.id, existing.id));
+    .update(user)
+    .set({ handle, avatarIcon, updatedAt: new Date() })
+    .where(eq(user.id, session.user.id));
 
-  revalidateTag("arena");
-  revalidatePath("/arena");
-  revalidatePath(`/arena/${existing.id}`);
-  revalidatePath(`/u/${existing.handle}`);
-  revalidatePath(`/u/${handle}`);
+  // Keep user's Arena portfolio in sync if they have one
+  const existingPorts = await db
+    .select({ id: arenaPortfolios.id, handle: arenaPortfolios.handle })
+    .from(arenaPortfolios)
+    .where(
+      and(
+        eq(arenaPortfolios.userId, session.user.id),
+        eq(arenaPortfolios.isBot, 0)
+      )
+    )
+    .limit(1);
+
+  if (existingPorts[0]) {
+    await db
+      .update(arenaPortfolios)
+      .set({ handle, avatarIcon })
+      .where(eq(arenaPortfolios.id, existingPorts[0].id));
+
+    revalidateTag("arena");
+    revalidatePath("/arena");
+    revalidatePath(`/arena/${existingPorts[0].id}`);
+    revalidatePath(`/u/${existingPorts[0].handle}`);
+    revalidatePath(`/u/${handle}`);
+  }
 
   return NextResponse.json({
     ok: true,
-    portfolio: { id: existing.id, handle, avatarIcon, title, thesis },
+    user: { handle, avatarIcon },
   });
 }
 
@@ -164,6 +167,17 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const scope = searchParams.get("scope") ?? "portfolio";
+
+  if (scope === "account") {
+    // Cascades to session, account, user_watchlists, arena_portfolios, arena_positions, arena_rebalances
+    await db.delete(user).where(eq(user.id, session.user.id));
+    revalidateTag("arena");
+    revalidatePath("/arena");
+    return NextResponse.json({ ok: true, deleted: "account" });
+  }
+
   await db
     .delete(arenaPortfolios)
     .where(
@@ -176,5 +190,5 @@ export async function DELETE(request: Request) {
   revalidateTag("arena");
   revalidatePath("/arena");
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, deleted: "portfolio" });
 }
