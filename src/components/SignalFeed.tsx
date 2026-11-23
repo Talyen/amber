@@ -303,7 +303,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                   onClick={() =>
                     setSelectedTicker(active ? null : item.ticker)
                   }
-                  title={`${item.name} (${item.reason})`}
+                  title={item.name}
                   className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
                     active
                       ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
@@ -313,11 +313,6 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                   <span className="font-mono-num font-semibold text-[var(--amber)]">
                     {item.ticker}
                   </span>
-                  {item.reason === "Insider Buy" && (
-                    <span className="rounded bg-[var(--surface-subtle)] px-1 py-0.2 text-[10px] font-semibold text-[var(--positive)]">
-                      Buy
-                    </span>
-                  )}
                   {active && <X className="h-3 w-3 opacity-75" />}
                 </button>
               );
