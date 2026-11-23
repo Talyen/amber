@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
 const STORAGE_KEY = "amber-watchlist-v1";
@@ -32,6 +32,7 @@ function writeWatchlist(tickers: string[]) {
 export function useWatchlist() {
   const { data: session } = authClient.useSession();
   const [tickers, setTickers] = useState<string[]>([]);
+  const wasSignedIn = useRef(false);
 
   useEffect(() => {
     setTickers(readWatchlist());
@@ -44,9 +45,17 @@ export function useWatchlist() {
     };
   }, []);
 
-  // Hydrate from Neon Postgres when signed in
+  // Hydrate from Neon Postgres when signed in; clear local cache on sign-out
   useEffect(() => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      if (wasSignedIn.current) {
+        wasSignedIn.current = false;
+        writeWatchlist([]);
+        setTickers([]);
+      }
+      return;
+    }
+    wasSignedIn.current = true;
     let active = true;
     fetch("/api/watchlist")
       .then((res) => (res.ok ? res.json() : null))
@@ -58,14 +67,20 @@ export function useWatchlist() {
           writeWatchlist(remote);
           setTickers(remote);
         } else if (local.length > 0) {
-          // Seed cloud watchlist from existing local stars on first sign-in
-          for (const t of local.slice(0, 20)) {
-            fetch("/api/watchlist", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ticker: t, action: "add" }),
-            }).catch(() => {});
-          }
+          // Seed cloud watchlist from existing local stars in a single batch request
+          fetch("/api/watchlist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tickers: local.slice(0, 30) }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((res: { tickers?: string[] } | null) => {
+              if (active && Array.isArray(res?.tickers)) {
+                writeWatchlist(res.tickers);
+                setTickers(res.tickers);
+              }
+            })
+            .catch(() => {});
         }
       })
       .catch(() => {});
@@ -93,7 +108,22 @@ export function useWatchlist() {
             ticker,
             action: isRemoving ? "remove" : "add",
           }),
-        }).catch(() => {});
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("Sync failed");
+            return res.json();
+          })
+          .then((data: { tickers?: string[] }) => {
+            if (Array.isArray(data.tickers)) {
+              writeWatchlist(data.tickers);
+              setTickers(data.tickers);
+            }
+          })
+          .catch(() => {
+            // Revert optimistic update if cloud write failed so local and DB never drift silently
+            writeWatchlist(current);
+            setTickers(current);
+          });
       }
     },
     [session?.user]

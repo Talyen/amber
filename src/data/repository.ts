@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   annualFinancials,
@@ -87,6 +87,9 @@ async function queryCompanyFromDb(
         operatingIncome: a.operatingIncome,
         netIncome: a.netIncome,
         stockholdersEquity: a.stockholdersEquity,
+        periodEndDate: a.periodEndDate,
+        cashAndEquiv: a.cashAndEquiv,
+        totalDebt: a.totalDebt,
       })),
       priceHistory: row.priceHistory ?? undefined,
       quarterlyFinancials: row.quarterlyFinancials ?? undefined,
@@ -140,7 +143,10 @@ export async function getAllTickers(): Promise<string[]> {
   }
 
   try {
-    const rows = await db.select({ ticker: companies.ticker }).from(companies);
+    const rows = await db
+      .select({ ticker: companies.ticker })
+      .from(companies)
+      .where(eq(companies.isActive, true));
     if (rows.length > 0) {
       return rows.map((r) => r.ticker);
     }
@@ -156,7 +162,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
 
   try {
     const [companyRows, annualRows] = await Promise.all([
-      db.select().from(companies),
+      db.select().from(companies).where(eq(companies.isActive, true)),
       db
         .select()
         .from(annualFinancials)
@@ -398,8 +404,47 @@ export interface ArenaPortfolioView {
   lastRebalancedAt: string; // ISO date string
   nav: number;
   totalReturnPct: number;
+  weightedTrueFcfMargin?: number;
+  weightedSbcPct?: number;
+  weightedImpliedCagr?: number;
+  weightedDilutionCagr?: number;
   positions: ArenaPositionView[];
   rebalances: ArenaRebalanceItem[];
+}
+
+function computeArenaFundamentals(
+  positions: ArenaPositionView[],
+  indexByTicker: Map<string, SearchIndexEntry>
+): {
+  weightedTrueFcfMargin?: number;
+  weightedSbcPct?: number;
+  weightedImpliedCagr?: number;
+  weightedDilutionCagr?: number;
+} {
+  let coveredW = 0;
+  let wMargin = 0;
+  let wSbc = 0;
+  let wImplied = 0;
+  let wDilution = 0;
+
+  for (const p of positions) {
+    const entry = indexByTicker.get(p.ticker);
+    if (!entry) continue;
+    const w = p.weightPct / 100;
+    coveredW += w;
+    wMargin += entry.trueFcfMargin * w;
+    wSbc += entry.sbcPctRevenue * w;
+    wImplied += entry.impliedCagr * w;
+    wDilution += entry.netDilutionCagr * w;
+  }
+
+  if (coveredW < 0.5) return {};
+  return {
+    weightedTrueFcfMargin: Number((wMargin / coveredW).toFixed(1)),
+    weightedSbcPct: Number((wSbc / coveredW).toFixed(1)),
+    weightedImpliedCagr: Number((wImplied / coveredW).toFixed(1)),
+    weightedDilutionCagr: Number((wDilution / coveredW).toFixed(2)),
+  };
 }
 
 async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
@@ -407,7 +452,7 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
   if (!db) return [];
 
   try {
-    const [portRows, posRows, rebRows, compRows] = await Promise.all([
+    const [portRows, posRows, rebRows, compRows, searchIndex] = await Promise.all([
       db.select().from(arenaPortfolios).orderBy(desc(arenaPortfolios.lockedAt)),
       db.select().from(arenaPositions),
       db
@@ -421,9 +466,11 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
           price: companies.price,
         })
         .from(companies),
+      getSearchIndex(),
     ]);
 
     const compMap = new Map(compRows.map((c) => [c.ticker, c]));
+    const indexByTicker = new Map(searchIndex.map((e) => [e.ticker, e]));
     const posByPort = new Map<string, typeof posRows>();
     for (const p of posRows) {
       const list = posByPort.get(p.portfolioId) ?? [];
@@ -492,6 +539,7 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
         totalReturnPct: Number(
           (isFinalized ? port.finalReturnPct! : liveTotalReturn).toFixed(2)
         ),
+        ...computeArenaFundamentals(positions, indexByTicker),
         positions,
         rebalances: rebByPort.get(port.id) ?? [],
       });
@@ -514,11 +562,11 @@ export async function getArenaLeaderboard(): Promise<ArenaPortfolioView[]> {
   return await cachedFetch();
 }
 
-export async function getArenaPortfolioById(
+async function queryArenaPortfolioByIdFromDb(
   id: string
-): Promise<ArenaPortfolioView | undefined> {
+): Promise<ArenaPortfolioView | null> {
   const db = getDb();
-  if (!db) return undefined;
+  if (!db) return null;
 
   try {
     const [port] = await db
@@ -526,9 +574,9 @@ export async function getArenaPortfolioById(
       .from(arenaPortfolios)
       .where(eq(arenaPortfolios.id, id))
       .limit(1);
-    if (!port) return undefined;
+    if (!port) return null;
 
-    const [rawPositions, rebRows, compRows] = await Promise.all([
+    const [rawPositions, rebRows, searchIndex] = await Promise.all([
       db
         .select()
         .from(arenaPositions)
@@ -538,16 +586,24 @@ export async function getArenaPortfolioById(
         .from(arenaRebalances)
         .where(eq(arenaRebalances.portfolioId, port.id))
         .orderBy(desc(arenaRebalances.createdAt)),
-      db
-        .select({
-          ticker: companies.ticker,
-          name: companies.name,
-          price: companies.price,
-        })
-        .from(companies),
+      getSearchIndex(),
     ]);
 
+    const posTickers = [...new Set(rawPositions.map((p) => p.ticker))];
+    const compRows =
+      posTickers.length > 0
+        ? await db
+            .select({
+              ticker: companies.ticker,
+              name: companies.name,
+              price: companies.price,
+            })
+            .from(companies)
+            .where(inArray(companies.ticker, posTickers))
+        : [];
+
     const compMap = new Map(compRows.map((c) => [c.ticker, c]));
+    const indexByTicker = new Map(searchIndex.map((e) => [e.ticker, e]));
     let weightedReturn = 0;
     const positions: ArenaPositionView[] = rawPositions.map((p) => {
       const live = compMap.get(p.ticker);
@@ -593,6 +649,7 @@ export async function getArenaPortfolioById(
       totalReturnPct: Number(
         (isFinalized ? port.finalReturnPct! : liveTotalReturn).toFixed(2)
       ),
+      ...computeArenaFundamentals(positions, indexByTicker),
       positions,
       rebalances: rebRows.map((r) => ({
         id: r.id,
@@ -603,8 +660,20 @@ export async function getArenaPortfolioById(
     };
   } catch (err) {
     console.warn(`[amber-repo] Arena portfolio ${id} lookup failed:`, err);
-    return undefined;
+    return null;
   }
+}
+
+export async function getArenaPortfolioById(
+  id: string
+): Promise<ArenaPortfolioView | undefined> {
+  if (!process.env.DATABASE_URL) return undefined;
+  const cachedFetch = unstable_cache(
+    async () => queryArenaPortfolioByIdFromDb(id),
+    ["amber-arena-portfolio-v2", id],
+    { revalidate: 600, tags: ["arena", "companies"] }
+  );
+  return (await cachedFetch()) ?? undefined;
 }
 
 async function fetchSpyBenchmarks(): Promise<Record<string, number>> {
@@ -653,18 +722,32 @@ async function fetchSpyBenchmarks(): Promise<Record<string, number>> {
         ? Number((((end - start) / start) * 100).toFixed(2))
         : undefined;
 
+    // Dynamically compute SPY benchmarks for current year, prior year, and recent 6 months
     const out: Record<string, number> = {};
-    const pairs: Array<[string, number | undefined, number | undefined]> = [
-      ["2026", monthly["2025-12"], latestPrice],
-      ["2025", monthly["2024-12"], monthly["2025-12"]],
-      ["2026-11", monthly["2026-10"], latestPrice],
-      ["2026-10", monthly["2026-09"], monthly["2026-10"]],
-      ["2026-09", monthly["2026-08"], monthly["2026-09"]],
-    ];
-    for (const [k, s, e] of pairs) {
-      const val = pct(s, e);
-      if (typeof val === "number") out[k] = val;
+    const now = new Date();
+    const curYear = now.getUTCFullYear();
+    const curMonth = now.getUTCMonth() + 1; // 1..12
+
+    const ymKey = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
+    const prevYm = (y: number, m: number) => (m === 1 ? ymKey(y - 1, 12) : ymKey(y, m - 1));
+
+    const curYtd = pct(monthly[ymKey(curYear - 1, 12)], latestPrice);
+    if (typeof curYtd === "number") out[String(curYear)] = curYtd;
+
+    const prevFullYr = pct(monthly[ymKey(curYear - 2, 12)], monthly[ymKey(curYear - 1, 12)]);
+    if (typeof prevFullYr === "number") out[String(curYear - 1)] = prevFullYr;
+
+    for (let offset = 0; offset < 6; offset++) {
+      const d = new Date(Date.UTC(curYear, curMonth - 1 - offset, 1));
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth() + 1;
+      const key = ymKey(y, m);
+      const startPrice = monthly[prevYm(y, m)];
+      const endPrice = offset === 0 ? latestPrice : monthly[key];
+      const val = pct(startPrice, endPrice);
+      if (typeof val === "number") out[key] = val;
     }
+
     return out;
   } catch {
     return {};

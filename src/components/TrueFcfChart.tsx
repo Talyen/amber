@@ -90,7 +90,7 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
             Reported FCF vs. Stock-Based Compensation &amp; True FCF
           </h2>
           <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Hover any period to inspect the economic cash flow bridge and diluted share trend.
+            Select any period to inspect the economic cash flow bridge and diluted share trend.
           </p>
         </div>
 
@@ -281,8 +281,9 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
               <g
                 key={d.fiscalYear}
                 onMouseEnter={() => setHoveredIdx(idx)}
+                onClick={() => setHoveredIdx(idx)}
                 onFocus={() => setHoveredIdx(idx)}
-                className="cursor-pointer outline-none"
+                className="cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--amber)]"
                 tabIndex={0}
                 aria-label={`${d.fiscalYear}: Reported FCF ${formatCurrencyCompact(d.reportedFcf)}, SBC ${formatCurrencyCompact(d.sbc)}, True FCF ${formatCurrencyCompact(d.trueFcf)}`}
               >

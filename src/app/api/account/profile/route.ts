@@ -2,7 +2,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { arenaPortfolios, user } from "@/db/schema";
+import { alertSubscriptions, arenaPortfolios, user } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { normalizeAvatarId } from "@/lib/avatars";
 
@@ -170,11 +170,45 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope") ?? "portfolio";
 
-  if (scope === "account") {
-    // Cascades to session, account, user_watchlists, arena_portfolios, arena_positions, arena_rebalances
-    await db.delete(user).where(eq(user.id, session.user.id));
+  // Fetch existing handle & portfolio ID before deleting so we can revalidate their routes
+  const [userRow, existingPorts] = await Promise.all([
+    db
+      .select({ handle: user.handle, email: user.email })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .limit(1),
+    db
+      .select({ id: arenaPortfolios.id, handle: arenaPortfolios.handle })
+      .from(arenaPortfolios)
+      .where(
+        and(
+          eq(arenaPortfolios.userId, session.user.id),
+          eq(arenaPortfolios.isBot, 0)
+        )
+      ),
+  ]);
+
+  const revalidateTargets = () => {
     revalidateTag("arena");
     revalidatePath("/arena");
+    if (userRow[0]?.handle) revalidatePath(`/u/${userRow[0].handle}`);
+    for (const p of existingPorts) {
+      revalidatePath(`/arena/${p.id}`);
+      if (p.handle) revalidatePath(`/u/${p.handle}`);
+    }
+  };
+
+  if (scope === "account") {
+    // Also purge any filing alert subscriptions tied to this user's email
+    const email = userRow[0]?.email?.trim().toLowerCase();
+    if (email) {
+      await db
+        .delete(alertSubscriptions)
+        .where(eq(alertSubscriptions.email, email));
+    }
+    // Cascades to session, account, user_watchlists, arena_portfolios, arena_positions, arena_rebalances
+    await db.delete(user).where(eq(user.id, session.user.id));
+    revalidateTargets();
     return NextResponse.json({ ok: true, deleted: "account" });
   }
 
@@ -187,8 +221,7 @@ export async function DELETE(request: Request) {
       )
     );
 
-  revalidateTag("arena");
-  revalidatePath("/arena");
+  revalidateTargets();
 
   return NextResponse.json({ ok: true, deleted: "portfolio" });
 }

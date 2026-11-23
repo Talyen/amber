@@ -428,7 +428,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
             </div>
 
             {/* Headlines Strip */}
-            {showHeadlines && (headlines.length > 0 || loadingNews) && (
+            {showHeadlines && (
               <section className="mt-6">
                 <div className="mb-2.5 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-[var(--text-primary)]">
@@ -449,6 +449,14 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
 
                 {loadingNews && headlines.length === 0 ? (
                   <div className="h-64 animate-pulse rounded-xl border border-[var(--border)] bg-[var(--surface)]" />
+                ) : headlines.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-8 text-center text-xs text-[var(--text-secondary)]">
+                    No matching Tier-1 or Tier-2 headlines right now for{" "}
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      {selectedTicker ?? (watchlistOnly ? "your watchlist" : "this view")}
+                    </span>
+                    .
+                  </div>
                 ) : (
                   <>
                     <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
@@ -532,9 +540,13 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                                         href={item.link}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="block text-[13px] font-medium leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[13.5px]"
+                                        className="flex items-start justify-between gap-2 text-[13px] font-medium leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[13.5px]"
                                       >
-                                        {item.title}
+                                        <span>{item.title}</span>
+                                        <ArrowUpRight
+                                          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--amber)]"
+                                          aria-hidden="true"
+                                        />
                                       </a>
                                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
                                         <span className="font-semibold text-[var(--text-secondary)]">
@@ -547,23 +559,13 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                                           <Link
                                             key={sym}
                                             href={`/t/${sym}`}
-                                            className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.2 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                            className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
                                           >
                                             {sym}
                                           </Link>
                                         ))}
                                       </div>
                                     </div>
-
-                                    <a
-                                      href={item.link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      aria-label="Open article"
-                                      className="mt-0.5 shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--amber)]"
-                                    >
-                                      <ArrowUpRight className="h-3.5 w-3.5" />
-                                    </a>
                                   </div>
                                 ))}
                               </div>
@@ -595,7 +597,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
               <section className="mt-6">
                 <div className="mb-2.5 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                    Upcoming Earnings (Est.)
+                    Est. Next Filing Window
                   </h2>
                   <span className="text-[11px] text-[var(--text-muted)]">
                     Quarterly SEC cadence

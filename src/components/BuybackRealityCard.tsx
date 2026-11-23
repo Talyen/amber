@@ -29,9 +29,15 @@ export function BuybackRealityCard({
     tone: string;
     detail: string;
   } =
-    latestNetSpread > latest.sbc * 0.25 && latest.buybacks > 0
+    latest.buybacks === 0 && latest.sbc === 0
       ? {
-          label: "Net Share Retiree",
+          label: "Minimal Equity Activity",
+          tone: "text-[var(--text-secondary)] bg-[var(--surface-subtle)] ring-[var(--border)]",
+          detail: `No material share repurchases or stock-based compensation were recorded in ${latest.fiscalYear}.`,
+        }
+      : latestNetSpread > latest.sbc * 0.25 && latest.buybacks > 0
+      ? {
+          label: "Net Share Reducer",
           tone: "text-[var(--positive)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
           detail: `Buybacks exceeded SBC by ${formatCurrencyCompact(latestNetSpread)} in ${latest.fiscalYear}, genuinely shrinking the share base.`,
         }

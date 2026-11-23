@@ -106,8 +106,31 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
       </div>
 
       {/* Diff Cards */}
+      {visibleDiffs.length === 0 ? (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+          <div className="text-sm font-medium text-[var(--text-primary)]">
+            No filing diffs in this category yet for {company.ticker}
+          </div>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Material SEC 10-K and 10-Q disclosure changes will appear here as new filings are processed.
+          </p>
+        </div>
+      ) : (
       <div className="space-y-4">
-        {visibleDiffs.map((diff) => (
+        {visibleDiffs.map((diff) => {
+          const priorWords = new Set(
+            diff.priorExcerpt
+              .toLowerCase()
+              .replace(/[^a-z0-9\s]/g, " ")
+              .split(/\s+/)
+              .filter((w) => w.length >= 4)
+          );
+          const edgarUrl =
+            /^\d{10}-\d{2}-\d{6}$/.test(diff.accessionNumber) && company.cik
+              ? `https://www.sec.gov/Archives/edgar/data/${Number(company.cik)}/${diff.accessionNumber.replace(/-/g, "")}/`
+              : null;
+
+          return (
           <article
             key={diff.id}
             className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6"
@@ -157,7 +180,23 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
                   Latest Filing Language
                 </div>
                 <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-primary)]">
-                  &ldquo;{diff.currentExcerpt}&rdquo;
+                  &ldquo;
+                  {diff.currentExcerpt.split(/(\s+)/).map((tok, i) => {
+                    const bare = tok.toLowerCase().replace(/[^a-z0-9]/g, "");
+                    const isNovel =
+                      bare.length >= 5 && priorWords.size >= 5 && !priorWords.has(bare);
+                    return isNovel ? (
+                      <mark
+                        key={i}
+                        className="rounded bg-[var(--amber)]/20 px-0.5 text-[var(--text-primary)]"
+                      >
+                        {tok}
+                      </mark>
+                    ) : (
+                      <span key={i}>{tok}</span>
+                    );
+                  })}
+                  &rdquo;
                 </p>
               </div>
             </div>
@@ -170,13 +209,26 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
                 </span>
                 {diff.signalNote}
               </p>
-              <span className="font-mono-num text-[10px] text-[var(--text-muted)]">
-                EDGAR {diff.accessionNumber}
-              </span>
+              {edgarUrl ? (
+                <a
+                  href={edgarUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono-num text-[10px] text-[var(--amber)] hover:underline"
+                >
+                  EDGAR {diff.accessionNumber} ↗
+                </a>
+              ) : (
+                <span className="font-mono-num text-[10px] text-[var(--text-muted)]">
+                  EDGAR {diff.accessionNumber}
+                </span>
+              )}
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
+      )}
     </div>
   );
 }

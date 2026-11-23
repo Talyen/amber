@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { companies, userWatchlists } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
@@ -40,11 +40,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  let body: { ticker?: string; action?: "add" | "remove" | "toggle" };
+  let body: {
+    ticker?: string;
+    tickers?: string[];
+    action?: "add" | "remove" | "toggle";
+  };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
+  }
+
+  // Batch add (e.g. seeding cloud watchlist from local stars on first sign-in)
+  if (Array.isArray(body.tickers) && body.tickers.length > 0) {
+    const clean = [
+      ...new Set(
+        body.tickers
+          .map((t) => String(t ?? "").trim().toUpperCase())
+          .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
+      ),
+    ].slice(0, 30);
+
+    if (clean.length > 0) {
+      const valid = await db
+        .select({ ticker: companies.ticker })
+        .from(companies)
+        .where(inArray(companies.ticker, clean));
+
+      if (valid.length > 0) {
+        await db
+          .insert(userWatchlists)
+          .values(
+            valid.map((v) => ({
+              id: `${session.user.id}:${v.ticker}`,
+              userId: session.user.id,
+              ticker: v.ticker,
+            }))
+          )
+          .onConflictDoNothing();
+      }
+    }
+
+    const rows = await db
+      .select({ ticker: userWatchlists.ticker })
+      .from(userWatchlists)
+      .where(eq(userWatchlists.userId, session.user.id))
+      .orderBy(desc(userWatchlists.createdAt));
+
+    return NextResponse.json({ tickers: rows.map((r) => r.ticker) });
   }
 
   const ticker = String(body.ticker ?? "").trim().toUpperCase();

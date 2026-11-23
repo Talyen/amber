@@ -178,7 +178,7 @@ export function SettingsWorkspace() {
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <TopNav />
+      <TopNav activeRoute="settings" />
 
       <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6">
         <div className="border-b border-[var(--border)] pb-5">

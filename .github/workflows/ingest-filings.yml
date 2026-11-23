@@ -37,18 +37,20 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm sync:prices
 
-      - name: Extract Incremental 10-K Text Diffs (Deterministic)
-        env:
-          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
-          MAX_TICKERS: "10"
-        run: pnpm ingest:diffs
-
       - name: Upsert into Neon Postgres (when configured)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm db:seed
 
-      - name: Close Prior Month Arena Leaderboards (Idempotent)
+      - name: Extract Incremental 10-K Prose Diffs (2-Stage Neon-Backed)
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MAX_TICKERS: "35"
+        run: pnpm ingest:diffs
+
+      - name: Close Prior Period Arena Leaderboards (Idempotent)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node --experimental-strip-types scripts/close-arena-month.ts
@@ -57,7 +59,6 @@ jobs:
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          FORM4_MAX_TICKERS: "40"
         run: pnpm ingest:form4
 
       - name: Dispatch Filing Alerts via Resend (when configured)

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { formatCurrencyCompact } from "@/lib/finance";
 
 export interface InsiderTradeItem {
@@ -17,21 +20,48 @@ interface InsiderRadarProps {
   trades: InsiderTradeItem[];
 }
 
-function cleanEntityText(str: string): string {
-  return str
+function formatInsiderName(raw: string): string {
+  const cleaned = raw
     .replace(/&amp;/gi, "&")
     .replace(/&apos;|&#39;/gi, "'")
-    .replace(/&quot;/gi, '"');
+    .replace(/&quot;/gi, '"')
+    .trim();
+  if (cleaned === cleaned.toUpperCase() && cleaned.length > 3) {
+    return cleaned
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return cleaned;
+}
+
+function formatInsiderTitle(raw: string): string {
+  const cleaned = raw
+    .replace(/&amp;/gi, "&")
+    .replace(/&apos;|&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/See Remarks below\.?/i, "Executive Officer")
+    .trim();
+  if (!cleaned || cleaned === "Dir") return "Director";
+  return cleaned
+    .replace(/\bDir\b/g, "Director")
+    .replace(/\bPres\b/g, "President")
+    .replace(/\bTreas\b/g, "Treasurer")
+    .replace(/\bSec\b/g, "Secretary");
 }
 
 export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
-  const totalBuys = trades
-    .filter((t) => t.transactionType === "Buy")
-    .reduce((s, t) => s + t.totalValue, 0);
-  const totalSells = trades
-    .filter((t) => t.transactionType === "Sell")
-    .reduce((s, t) => s + t.totalValue, 0);
+  const [typeFilter, setTypeFilter] = useState<"all" | "Buy" | "Sell">("all");
+
+  const buyTrades = trades.filter((t) => t.transactionType === "Buy");
+  const sellTrades = trades.filter((t) => t.transactionType === "Sell");
+  const totalBuys = buyTrades.reduce((s, t) => s + t.totalValue, 0);
+  const totalSells = sellTrades.reduce((s, t) => s + t.totalValue, 0);
   const netFlow = totalBuys - totalSells;
+
+  const visibleTrades =
+    typeFilter === "all"
+      ? trades
+      : trades.filter((t) => t.transactionType === typeFilter);
 
   return (
     <div className="space-y-5">
@@ -72,14 +102,48 @@ export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
         </div>
       </div>
 
+      {/* Buy / Sell Filter Bar */}
+      {trades.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { id: "all", label: "All Trades", count: trades.length },
+              { id: "Buy", label: "Open-Market Buys", count: buyTrades.length },
+              { id: "Sell", label: "Open-Market Sales", count: sellTrades.length },
+            ] as const
+          ).map((pill) => {
+            const active = typeFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setTypeFilter(pill.id)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                  active
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {pill.label}
+                <span className="font-mono-num ml-1.5 opacity-70">
+                  {pill.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Table or Empty State */}
-      {trades.length === 0 ? (
+      {visibleTrades.length === 0 ? (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
           <div className="text-sm font-medium text-[var(--text-primary)]">
-            No open-market Form 4 buys or sales cached yet for {ticker}
+            {trades.length === 0
+              ? `No recent open-market Form 4 filings for ${ticker}`
+              : `No ${typeFilter === "Buy" ? "open-market purchases" : "open-market sales"} recorded for ${ticker}`}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Amber filters out routine RSU grants/tax-withholding awards and only surfaces open-market SEC Form 4 transactions (Codes P and S) during nightly syncs.
+            Amber excludes routine RSU grants and tax-withholding awards, surfacing only open-market SEC Form 4 purchases (Code P) and sales (Code S).
           </p>
         </div>
       ) : (
@@ -103,17 +167,19 @@ export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
               </tr>
             </thead>
             <tbody>
-              {trades.map((t) => (
+              {visibleTrades.map((t) => (
                 <tr key={t.id}>
                   <th scope="row" className="font-mono-num">
                     {t.filingDate}
                   </th>
                   <td data-label="Insider" className="!text-left">
-                    <div className="font-medium text-[var(--text-primary)]">
-                      {cleanEntityText(t.insiderName)}
-                    </div>
-                    <div className="text-[11px] text-[var(--text-muted)]">
-                      {cleanEntityText(t.insiderTitle)}
+                    <div className="text-right sm:text-left">
+                      <div className="font-medium text-[var(--text-primary)]">
+                        {formatInsiderName(t.insiderName)}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-muted)]">
+                        {formatInsiderTitle(t.insiderTitle)}
+                      </div>
                     </div>
                   </td>
                   <td data-label="Type">

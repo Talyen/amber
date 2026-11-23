@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { getSearchIndex } from "@/data/repository";
+import { SignalIndex } from "@/components/SignalIndex";
 import { DISCOVERY_LENSES } from "@/lib/insights";
+
+export const revalidate = 3600;
 
 export function generateStaticParams() {
   return DISCOVERY_LENSES.map((lens) => ({ slug: lens.id }));
@@ -30,5 +34,6 @@ export default async function LensPage({
   const lens = DISCOVERY_LENSES.find((l) => l.id === slug);
   if (!lens) notFound();
 
-  redirect(`/?lens=${encodeURIComponent(lens.id)}`);
+  const entries = await getSearchIndex();
+  return <SignalIndex entries={entries} initialLensId={lens.id} />;
 }

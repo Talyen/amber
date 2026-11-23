@@ -82,13 +82,20 @@ export function ArenaLeaderboard({
 
     let scoped: ArenaPortfolioView[];
     if (timeframe === "monthly") {
-      scoped = byType.filter((p) => p.periodKey === selectedMonth);
+      const isLatestMonth = selectedMonth === availableMonths[0];
+      scoped = byType.filter(
+        (p) =>
+          p.periodKey === selectedMonth ||
+          (isLatestMonth && !p.isBot && !p.isFinalized)
+      );
     } else if (timeframe === "yearly") {
-      // Match dedicated yearly entries (e.g. "2026" / "2025") plus any community entries locked that year
+      const isLatestYear = selectedYear === availableYears[0];
+      // Match dedicated yearly entries plus community entries locked that year (or still active in the current year)
       scoped = byType.filter(
         (p) =>
           p.periodKey === selectedYear ||
-          (!p.isBot && p.periodKey.startsWith(`${selectedYear}-`))
+          (!p.isBot && p.periodKey.startsWith(`${selectedYear}-`)) ||
+          (isLatestYear && !p.isBot && !p.isFinalized)
       );
     } else {
       // All-Time: deduplicate by handle so each bot/user appears once (preferring longest-running live entry)
@@ -107,19 +114,20 @@ export function ArenaLeaderboard({
     return [...scoped]
       .sort((a, b) => b.totalReturnPct - a.totalReturnPct)
       .slice(0, 10);
-  }, [portfolios, timeframe, typeFilter, selectedMonth, selectedYear]);
+  }, [portfolios, timeframe, typeFilter, selectedMonth, selectedYear, availableMonths, availableYears]);
 
   const isViewingArchive =
     (timeframe === "monthly" && selectedMonth !== availableMonths[0]) ||
     (timeframe === "yearly" && selectedYear !== availableYears[0]);
 
+  // Only compare against a single-period SPY benchmark on Monthly/Yearly views (never mismatch All-Time vs 1Y SPY)
   const activeBenchmarkKey =
     timeframe === "monthly"
       ? selectedMonth
       : timeframe === "yearly"
         ? selectedYear
-        : availableYears[0] ?? "2026";
-  const spyBenchmark = benchmarks[activeBenchmarkKey];
+        : null;
+  const spyBenchmark = activeBenchmarkKey ? benchmarks[activeBenchmarkKey] : undefined;
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -367,6 +375,33 @@ export function ArenaLeaderboard({
                         </span>
                       ))}
                     </div>
+
+                    {typeof p.weightedTrueFcfMargin === "number" && (
+                      <div className="font-mono-num mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-muted)]">
+                        <span>
+                          True FCF Margin{" "}
+                          <strong className="text-[var(--text-secondary)]">
+                            {formatPct(p.weightedTrueFcfMargin)}
+                          </strong>
+                        </span>
+                        {typeof p.weightedSbcPct === "number" && (
+                          <span>
+                            SBC{" "}
+                            <strong className="text-[var(--text-secondary)]">
+                              {formatPct(p.weightedSbcPct)}
+                            </strong>
+                          </span>
+                        )}
+                        {typeof p.weightedImpliedCagr === "number" && (
+                          <span>
+                            Implied 10Y{" "}
+                            <strong className="text-[var(--amber)]">
+                              {formatPct(p.weightedImpliedCagr)}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

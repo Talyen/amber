@@ -88,6 +88,18 @@ export function CompanyWorkspace({
     }
   }, []);
 
+  // Sync active tab to URL so TopNav Share button always captures the exact tab
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (activeTab === "overview") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", activeTab);
+    }
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [activeTab]);
+
   // Keyboard shortcuts: 1–5 switch analysis tabs when not focused in an input
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -240,7 +252,10 @@ export function CompanyWorkspace({
               <Link
                 href={`/compare?t=${[
                   company.ticker,
-                  ...["NVDA", "MSFT", "AAPL", "COST", "META"]
+                  ...(sectorPeers.length > 0
+                    ? sectorPeers.map((p) => p.ticker)
+                    : ["NVDA", "MSFT", "AAPL", "COST", "META"]
+                  )
                     .filter((t) => t !== company.ticker)
                     .slice(0, 3),
                 ].join(",")}`}
@@ -273,12 +288,12 @@ export function CompanyWorkspace({
                 {copiedMd ? (
                   <>
                     <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
-                    Copied MD
+                    Copied Summary
                   </>
                 ) : (
                   <>
                     <Copy className="h-3.5 w-3.5" />
-                    Copy MD
+                    Copy Summary
                   </>
                 )}
               </button>
@@ -639,11 +654,20 @@ export function CompanyWorkspace({
 
         {/* Subtle Institutional Footer */}
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
+            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[var(--text-primary)]">
+              Terms
+            </Link>
+          </div>
           <div className="flex flex-wrap items-center gap-4">
             <MethodologyModal />
             <span className="font-mono-num">
-              CIK {company.cik} (Press 1–5 for tabs)
+              CIK {company.cik}
+              <span className="hidden sm:inline"> (Press 1–5 for tabs)</span>
             </span>
           </div>
         </footer>

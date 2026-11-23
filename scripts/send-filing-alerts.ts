@@ -31,8 +31,10 @@ async function run() {
   const db = drizzle(neon(dbUrl));
   const subs = await db
     .select({
+      id: alertSubscriptions.id,
       email: alertSubscriptions.email,
       ticker: alertSubscriptions.ticker,
+      lastNotifiedAccession: alertSubscriptions.lastNotifiedAccession,
       name: companies.name,
       filingType: companies.lastFilingType,
       filingDate: companies.lastFilingDate,
@@ -41,12 +43,14 @@ async function run() {
     .from(alertSubscriptions)
     .innerJoin(companies, eq(alertSubscriptions.ticker, companies.ticker));
 
-  // Filter to filings filed within the last 2 days to handle weekend/timezone skew
-  const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+  // Filter to filings filed within the last 3 days that haven't been emailed yet
+  const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
 
-  const due = subs.filter((s) => s.filingDate >= cutoff);
+  const due = subs.filter(
+    (s) => s.filingDate >= cutoff && s.lastNotifiedAccession !== s.accession
+  );
   if (due.length === 0) {
     console.log(
       `[amber-alerts] Checked ${subs.length} subscription(s); no new filings since ${cutoff}.`
@@ -77,12 +81,19 @@ async function run() {
             <a href="${siteUrl}/t/${item.ticker}" style="display:inline-block;padding:10px 16px;background:#B45309;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600;">
               Open ${item.ticker} in Amber →
             </a>
+            <p style="margin:20px 0 0;font-size:11px;color:#71717A;">
+              Manage or cancel alerts anytime in <a href="${siteUrl}/settings" style="color:#B45309;">Amber Settings</a>.
+            </p>
           </div>
         `,
       }),
     });
 
     if (res.ok) {
+      await db
+        .update(alertSubscriptions)
+        .set({ lastNotifiedAccession: item.accession })
+        .where(eq(alertSubscriptions.id, item.id));
       sent++;
     } else {
       console.warn(

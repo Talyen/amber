@@ -166,17 +166,35 @@ interface DirectoryCandidate {
   exchange: "NASDAQ" | "NYSE";
 }
 
-async function fetchSecJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": SEC_USER_AGENT,
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
+async function fetchSecJson<T>(url: string, retries = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": SEC_USER_AGENT,
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 600 * Math.pow(2, attempt)));
+          continue;
+        }
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} for ${url}`);
+      }
+      return (await res.json()) as T;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 600 * Math.pow(2, attempt)));
+      }
+    }
   }
-  return (await res.json()) as T;
+  throw lastErr instanceof Error ? lastErr : new Error(`Failed fetching ${url}`);
 }
 
 export function cleanCompanyName(raw: string): string {
@@ -383,10 +401,11 @@ function extractLatestInstant(
     const sorted = [...entries]
       .filter(
         (e) =>
-          e.form === "10-K" ||
-          e.form === "10-Q" ||
-          e.form === "20-F" ||
-          e.form === "40-F"
+          (e.form === "10-K" ||
+            e.form === "10-Q" ||
+            e.form === "20-F" ||
+            e.form === "40-F") &&
+          e.end >= "2023-01-01"
       )
       .sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed));
 
@@ -691,6 +710,9 @@ export async function ingestCandidate(
       [
         "PaymentsToAcquirePropertyPlantAndEquipment",
         "PaymentsToAcquireProductiveAssets",
+        "PaymentsToAcquireOilAndGasPropertyAndEquipment",
+        "PaymentsToAcquireMachineryAndEquipment",
+        "PaymentsForCapitalImprovements",
         "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
       ],
       "USD"
@@ -774,6 +796,26 @@ export async function ingestCandidate(
       "USD",
       false
     );
+    const annualCashMap = extractAnnualSeries(
+      facts,
+      [
+        "CashCashEquivalentsAndShortTermInvestments",
+        "CashAndCashEquivalentsAtCarryingValue",
+      ],
+      "USD",
+      false
+    );
+    const annualDebtMap = extractAnnualSeries(
+      facts,
+      [
+        "LongTermDebtAndCapitalLeaseObligations",
+        "DebtAndCapitalLeaseObligations",
+        "LongTermDebt",
+        "LongTermDebtNoncurrent",
+      ],
+      "USD",
+      false
+    );
 
     const years = [...revMap.keys()]
       .filter((y) => ocfMap.has(y))
@@ -830,6 +872,9 @@ export async function ingestCandidate(
       const opVal = opIncMap.get(yr)?.val;
       const niVal = netIncMap.get(yr)?.val;
       const eqVal = equityMap.get(yr)?.val;
+      const cashYrVal = annualCashMap.get(yr)?.val;
+      const debtYrVal = annualDebtMap.get(yr)?.val;
+      const periodEndDate = revMap.get(yr)?.end ?? ocfMap.get(yr)?.end ?? null;
 
       // For bank holding companies where GAAP OCF mixes customer loan/trading inventory changes,
       // normalize operating cash flow to Distributable Cash Earnings (Net Income + SBC + CapEx).
@@ -852,6 +897,9 @@ export async function ingestCandidate(
         operatingIncome: opVal !== undefined ? Math.round(opVal / 1e6) : null,
         netIncome: niVal !== undefined ? Math.round(niVal / 1e6) : null,
         stockholdersEquity: eqVal !== undefined ? Math.round(eqVal / 1e6) : null,
+        periodEndDate,
+        cashAndEquiv: cashYrVal !== undefined ? Math.round(cashYrVal / 1e6) : null,
+        totalDebt: debtYrVal !== undefined ? Math.round(debtYrVal / 1e6) : null,
       };
     });
 
@@ -966,37 +1014,49 @@ export async function ingestCandidate(
       }
     }
 
+    // Avoid double-counting short-term investments when using the combined cash+ST-investments tag
+    const cashOnly = extractLatestInstant(
+      facts,
+      ["CashAndCashEquivalentsAtCarryingValue"],
+      "USD"
+    );
+    const cashCombined = extractLatestInstant(
+      facts,
+      ["CashCashEquivalentsAndShortTermInvestments"],
+      "USD"
+    );
+    const stInvestments = extractLatestInstant(
+      facts,
+      ["MarketableSecuritiesCurrent", "ShortTermInvestments"],
+      "USD"
+    );
     const cashRaw =
-      extractLatestInstant(
-        facts,
-        [
-          "CashAndCashEquivalentsAtCarryingValue",
-          "CashCashEquivalentsAndShortTermInvestments",
-        ],
-        "USD"
-      ) +
-      extractLatestInstant(
-        facts,
-        ["MarketableSecuritiesCurrent", "ShortTermInvestments"],
-        "USD"
-      );
+      cashCombined > 0
+        ? Math.max(cashCombined, cashOnly + stInvestments)
+        : cashOnly + stInvestments;
 
+    // Avoid double-counting current debt when using a combined total-debt tag
+    const longTermNonCurrent = extractLatestInstant(
+      facts,
+      ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+      "USD"
+    );
+    const totalDebtCombined = extractLatestInstant(
+      facts,
+      ["DebtAndCapitalLeaseObligations", "LongTermDebt"],
+      "USD"
+    );
+    const currentDebt = extractLatestInstant(
+      facts,
+      ["LongTermDebtCurrent", "ShortTermBorrowings", "DebtCurrent"],
+      "USD"
+    );
     const debtRaw =
-      extractLatestInstant(
-        facts,
-        [
-          "LongTermDebtAndCapitalLeaseObligations",
-          "DebtAndCapitalLeaseObligations",
-          "LongTermDebtNoncurrent",
-          "LongTermDebt",
-        ],
-        "USD"
-      ) +
-      extractLatestInstant(
-        facts,
-        ["LongTermDebtCurrent", "ShortTermBorrowings", "DebtCurrent"],
-        "USD"
-      );
+      longTermNonCurrent > 0
+        ? longTermNonCurrent + currentDebt
+        : totalDebtCombined > 0
+          ? totalDebtCombined
+          : currentDebt;
 
 function extractSingleQuarterMap(
   facts: CompanyFactsResponse,
@@ -1004,6 +1064,7 @@ function extractSingleQuarterMap(
   unit: "USD" | "shares"
 ): Map<string, number> {
   const out = new Map<string, number>();
+  const outFiled = new Map<string, string>();
   const gaap = facts.facts?.["us-gaap"];
   if (!gaap) return out;
 
@@ -1011,13 +1072,17 @@ function extractSingleQuarterMap(
     const entries = gaap[tag]?.units?.[unit];
     if (!entries) continue;
 
-    // 1. Collect standalone ~90-day quarterly facts directly
+    // 1. Collect standalone ~90-day quarterly facts directly, preferring most recently filed (handles 10-Q/A)
     for (const e of entries) {
       if ((e.form !== "10-Q" && e.form !== "10-Q/A") || !e.start || !e.end) continue;
       const days =
         (Date.parse(e.end) - Date.parse(e.start)) / (1000 * 60 * 60 * 24);
       if (days >= 70 && days <= 110 && Number.isFinite(e.val)) {
-        if (!out.has(e.end)) out.set(e.end, e.val);
+        const prevFiled = outFiled.get(e.end);
+        if (!prevFiled || e.filed > prevFiled) {
+          out.set(e.end, e.val);
+          outFiled.set(e.end, e.filed);
+        }
       }
     }
 
@@ -1063,7 +1128,8 @@ function formatQuarterLabel(isoEnd: string): string {
 
 function extractQuarterlySeries(
   facts: CompanyFactsResponse,
-  fallbackShares: number
+  fallbackShares: number,
+  ticker: string
 ): AnnualFinancials[] {
   const revMap = extractSingleQuarterMap(
     facts,
@@ -1125,7 +1191,7 @@ function extractQuarterlySeries(
     sbc: Math.round(Math.abs(sbcMap.get(d) ?? 0) / 1e6),
     buybacks: Math.round(Math.abs(buybackMap.get(d) ?? 0) / 1e6),
     dilutedShares: shareMap.has(d)
-      ? Math.max(1, Math.round((shareMap.get(d) ?? 0) / 1e6))
+      ? normalizeShareCountToMillions(shareMap.get(d) ?? 0, ticker)
       : fallbackShares,
   }));
 
@@ -1151,8 +1217,9 @@ function extractQuarterlySeries(
 
     const dilutionCagr = computeNetDilutionCagr(normalizedAnnuals);
 
-    const price = existing?.price ?? meta?.fallbackPrice ?? 100;
-    const marketCap = Math.round(price * latestComputed.dilutedShares);
+    // Never invent a synthetic $100 price; leave 0 for sync-prices.ts to populate
+    const price = existing?.price ?? meta?.fallbackPrice ?? 0;
+    const marketCap = price > 0 ? Math.round(price * latestComputed.dilutedShares) : 0;
 
     const defaultDcf =
       curated?.defaultDcf ?? computeGroundedDefaultDcf(normalizedAnnuals);
@@ -1184,7 +1251,8 @@ function extractQuarterlySeries(
       annuals: normalizedAnnuals,
       quarterlyFinancials: extractQuarterlySeries(
         facts,
-        latestComputed.dilutedShares
+        latestComputed.dilutedShares,
+        candidate.ticker
       ),
       defaultDcf,
     };

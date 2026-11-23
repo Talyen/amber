@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   arenaPortfolios,
@@ -115,6 +115,36 @@ export async function POST(request: Request) {
   const now = new Date();
   const periodKey = now.toISOString().slice(0, 7); // e.g. "2026-11"
 
+  // Enforce case-insensitive handle uniqueness across users and Arena portfolios (including Strategy Bots)
+  const lowerHandle = handle.toLowerCase();
+  const [conflictingUser, conflictingPort] = await Promise.all([
+    db
+      .select({ id: user.id })
+      .from(user)
+      .where(
+        and(
+          sql`lower(${user.handle}) = ${lowerHandle}`,
+          ne(user.id, session.user.id)
+        )
+      )
+      .limit(1),
+    db
+      .select({ id: arenaPortfolios.id, userId: arenaPortfolios.userId })
+      .from(arenaPortfolios)
+      .where(sql`lower(${arenaPortfolios.handle}) = ${lowerHandle}`)
+      .limit(1),
+  ]);
+
+  if (
+    conflictingUser.length > 0 ||
+    (conflictingPort.length > 0 && conflictingPort[0].userId !== session.user.id)
+  ) {
+    return NextResponse.json(
+      { error: `Handle @${handle} is already taken. Please choose another.` },
+      { status: 409 }
+    );
+  }
+
   // Keep user's standalone account handle & avatar icon in sync
   await db
     .update(user)
@@ -176,43 +206,45 @@ export async function POST(request: Request) {
     if (parts.length === 0) parts.push("Adjusted target weights");
     const summary = `${parts.join(", ")} (${tickers.length} holdings)`;
 
-    await db
-      .update(arenaPortfolios)
-      .set({
-        handle,
-        title,
-        thesis: thesis || existing.thesis,
-        avatarIcon,
-        nav: newNav,
-        lastRebalancedAt: now,
-      })
-      .where(eq(arenaPortfolios.id, existing.id));
-
-    await db
-      .delete(arenaPositions)
-      .where(eq(arenaPositions.portfolioId, existing.id));
-
-    await db.insert(arenaPositions).values(
-      dbCompanies.map((c) => ({
-        id: `${existing.id}:${c.ticker}`,
+    // Execute all 4 rebalance writes atomically in a single Neon HTTP batch transaction
+    await db.batch([
+      db
+        .update(arenaPortfolios)
+        .set({
+          handle,
+          title,
+          thesis: thesis || existing.thesis,
+          avatarIcon,
+          nav: newNav,
+          lastRebalancedAt: now,
+        })
+        .where(eq(arenaPortfolios.id, existing.id)),
+      db
+        .delete(arenaPositions)
+        .where(eq(arenaPositions.portfolioId, existing.id)),
+      db.insert(arenaPositions).values(
+        dbCompanies.map((c) => ({
+          id: `${existing.id}:${c.ticker}`,
+          portfolioId: existing.id,
+          ticker: c.ticker,
+          weightPct: Number((((deduped.get(c.ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
+          entryPrice: c.price,
+        }))
+      ),
+      db.insert(arenaRebalances).values({
+        id: `${existing.id}:reb:${crypto.randomBytes(4).toString("hex")}`,
         portfolioId: existing.id,
-        ticker: c.ticker,
-        weightPct: Number((((deduped.get(c.ticker) ?? 1) / totalWeight) * 100).toFixed(2)),
-        entryPrice: c.price,
-      }))
-    );
-
-    await db.insert(arenaRebalances).values({
-      id: `${existing.id}:reb:${crypto.randomBytes(4).toString("hex")}`,
-      portfolioId: existing.id,
-      navAtRebalance: newNav,
-      summary,
-      createdAt: now,
-    });
+        navAtRebalance: newNav,
+        summary,
+        createdAt: now,
+      }),
+    ]);
 
     revalidateTag("arena");
     revalidatePath("/arena");
     revalidatePath(`/arena/${existing.id}`);
+    if (existing.handle) revalidatePath(`/u/${existing.handle}`);
+    revalidatePath(`/u/${handle}`);
 
     return NextResponse.json({
       id: existing.id,

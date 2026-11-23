@@ -44,50 +44,71 @@ interface YahooChartResponse {
 interface PriceFetchResult {
   latestPrice: number;
   byYear: Map<string, number>; // e.g. "2024" -> 134.2
+  byYearMonth: Map<string, number>; // e.g. "2024-09" -> 134.2
 }
 
-async function fetchPriceAndHistory(ticker: string): Promise<PriceFetchResult | null> {
+async function fetchPriceAndHistory(
+  ticker: string,
+  retries = 2
+): Promise<PriceFetchResult | null> {
   const symbol = ticker.replace(/\./g, "-");
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5y&interval=1mo`;
 
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as YahooChartResponse;
-    const result = json.chart?.result?.[0];
-    const meta = result?.meta;
-    const latestPrice = meta?.regularMarketPrice ?? meta?.chartPreviousClose ?? null;
-    if (typeof latestPrice !== "number" || !Number.isFinite(latestPrice) || latestPrice <= 0) {
-      return null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(12_000),
+      });
+      if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      if (!res.ok) return null;
+      const json = (await res.json()) as YahooChartResponse;
+      const result = json.chart?.result?.[0];
+      const meta = result?.meta;
+      const latestPrice = meta?.regularMarketPrice ?? meta?.chartPreviousClose ?? null;
+      if (typeof latestPrice !== "number" || !Number.isFinite(latestPrice) || latestPrice <= 0) {
+        return null;
+      }
+
+      const byYear = new Map<string, number>();
+      const byYearMonth = new Map<string, number>();
+      const timestamps = result?.timestamp ?? [];
+      // Prefer split-adjusted quote.close over dividend-adjusted adjclose so dividend payers
+      // don't appear artificially expensive relative to historical valuation medians
+      const closes =
+        result?.indicators?.quote?.[0]?.close ??
+        result?.indicators?.adjclose?.[0]?.adjclose ??
+        [];
+
+      for (let i = 0; i < timestamps.length; i++) {
+        const c = closes[i];
+        if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
+        const d = new Date(timestamps[i] * 1000);
+        const yr = String(d.getUTCFullYear());
+        const ym = `${yr}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        const rounded = Number(c.toFixed(2));
+        byYear.set(yr, rounded);
+        byYearMonth.set(ym, rounded);
+      }
+
+      return {
+        latestPrice: Number(latestPrice.toFixed(2)),
+        byYear,
+        byYearMonth,
+      };
+    } catch {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+      }
     }
-
-    const byYear = new Map<string, number>();
-    const timestamps = result?.timestamp ?? [];
-    const closes =
-      result?.indicators?.adjclose?.[0]?.adjclose ??
-      result?.indicators?.quote?.[0]?.close ??
-      [];
-
-    for (let i = 0; i < timestamps.length; i++) {
-      const c = closes[i];
-      if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
-      const yr = new Date(timestamps[i] * 1000).getUTCFullYear();
-      // Keep the latest monthly close recorded in each calendar year
-      byYear.set(String(yr), Number(c.toFixed(2)));
-    }
-
-    return {
-      latestPrice: Number(latestPrice.toFixed(2)),
-      byYear,
-    };
-  } catch {
-    return null;
   }
+  return null;
 }
 
 async function run() {
@@ -131,15 +152,19 @@ async function run() {
       company.price = fetched.latestPrice;
       company.marketCap = Math.round(fetched.latestPrice * latestShares);
 
-      // Map 5-year historical closing prices to each fiscal year in annuals
+      // Map 5-year historical closing prices to each fiscal year's periodEndDate (or calendar year fallback)
       const history: Array<{ fiscalYear: string; price: number }> = [];
       for (const row of company.annuals) {
         if (row.fiscalYear === "TTM") {
           history.push({ fiscalYear: "TTM", price: fetched.latestPrice });
           continue;
         }
-        const fullYear = `20${row.fiscalYear.replace(/^FY/i, "")}`;
-        const yrPrice = fetched.byYear.get(fullYear);
+        const periodYm = row.periodEndDate?.slice(0, 7);
+        const rawYr = row.fiscalYear.replace(/^FY/i, "");
+        const fullYear = rawYr.length === 4 ? rawYr : `20${rawYr}`;
+        const yrPrice =
+          (periodYm ? fetched.byYearMonth.get(periodYm) : undefined) ??
+          fetched.byYear.get(fullYear);
         if (yrPrice) {
           history.push({ fiscalYear: row.fiscalYear, price: yrPrice });
         }

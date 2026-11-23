@@ -91,18 +91,33 @@ function parseOpenInsiderHtml(
     }
 
     const code = txType === "Buy" ? "P" : "S";
-    results.push({
-      id: `${ticker}:${accessionNumber}:${code}`,
-      ticker,
-      filingDate,
-      insiderName: insiderName || "Executive Insider",
-      insiderTitle,
-      transactionType: txType,
-      shares,
-      pricePerShare: Number(price.toFixed(2)),
-      totalValue: Number((valUsd / 1e6).toFixed(3)),
-      accessionNumber,
-    });
+    const id = `${ticker}:${accessionNumber}:${code}`;
+    const existingIdx = results.findIndex((r) => r.id === id);
+    if (existingIdx >= 0) {
+      // Aggregate multi-tranche fills within the same Form 4 filing
+      const prev = results[existingIdx];
+      const combinedShares = prev.shares + shares;
+      const combinedValUsd = prev.totalValue * 1e6 + valUsd;
+      results[existingIdx] = {
+        ...prev,
+        shares: combinedShares,
+        totalValue: Number((combinedValUsd / 1e6).toFixed(3)),
+        pricePerShare: Number((combinedValUsd / combinedShares).toFixed(2)),
+      };
+    } else {
+      results.push({
+        id,
+        ticker,
+        filingDate,
+        insiderName: insiderName || "Executive Insider",
+        insiderTitle,
+        transactionType: txType,
+        shares,
+        pricePerShare: Number(price.toFixed(2)),
+        totalValue: Number((valUsd / 1e6).toFixed(3)),
+        accessionNumber,
+      });
+    }
   }
 
   return results;
@@ -185,24 +200,28 @@ async function run() {
         fetchOpenInsiderBatch(batch, validSet, "Sell"),
       ]);
       for (const b of buys) byId.set(b.id, b);
-      for (const s of sells) {
-        // Keep up to 12 most recent sales per ticker so mega-caps don't bloat DB
-        const existingTickerSales = [...byId.values()].filter(
-          (x) => x.ticker === s.ticker && x.transactionType === "Sell"
-        );
-        if (existingTickerSales.length < 12) {
-          byId.set(s.id, s);
-        }
-      }
+      for (const s of sells) byId.set(s.id, s);
     } catch {
       // Continue cleanly on network hiccups
     }
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  const allTrades = [...byId.values()].sort((a, b) =>
+  // Sort all trades newest-first, then cap sales to 12 most recent per ticker
+  // (so older cached sales never block newer sales from being kept)
+  const sortedRaw = [...byId.values()].sort((a, b) =>
     b.filingDate.localeCompare(a.filingDate)
   );
+  const sellCountByTicker = new Map<string, number>();
+  const allTrades: Array<InsiderTradeItem & { ticker: string }> = [];
+  for (const t of sortedRaw) {
+    if (t.transactionType === "Sell") {
+      const cnt = sellCountByTicker.get(t.ticker) ?? 0;
+      if (cnt >= 12) continue;
+      sellCountByTicker.set(t.ticker, cnt + 1);
+    }
+    allTrades.push(t);
+  }
 
   const byTickerObj: Record<string, InsiderTradeItem[]> = {};
   for (const t of allTrades) {

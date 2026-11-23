@@ -130,13 +130,14 @@ export function buildCompanyBriefing(
   // 3. Balance Sheet Pillar
   const netCashToMktCap =
     company.marketCap > 0 ? (netCash / company.marketCap) * 100 : 0;
+  const debtCapacityBase = Math.max(0, latest.trueFcf);
   const balancePillar: BriefingPillar = {
     id: "balance",
     question: "Is the balance sheet safe?",
     verdict:
       netCash > 0
         ? "Net Cash Fortress"
-        : Math.abs(netCash) < Math.max(latest.reportedFcf * 2.5, company.marketCap * 0.08)
+        : Math.abs(netCash) < Math.max(debtCapacityBase * 2.5, company.marketCap * 0.08)
           ? "Manageable Debt"
           : "Leveraged",
     headlineStat:
@@ -149,7 +150,7 @@ export function buildCompanyBriefing(
     tone:
       netCash > 0
         ? "positive"
-        : Math.abs(netCash) < Math.max(latest.reportedFcf * 3, company.marketCap * 0.1)
+        : Math.abs(netCash) < Math.max(debtCapacityBase * 3, company.marketCap * 0.1)
           ? "neutral"
           : "amber",
   };
@@ -202,7 +203,10 @@ export function buildCompanyBriefing(
     standouts.push({
       id: "sbc-drag",
       tag: "Hidden Cost",
-      title: `Employee stock comp absorbs ${formatPct(latest.sbcPctReportedFcf, false, 0)} of headline Free Cash Flow`,
+      title:
+        latest.reportedFcf > 0
+          ? `Employee stock comp absorbs ${formatPct(latest.sbcPctReportedFcf, false, 0)} of headline Free Cash Flow`
+          : `Stock-based comp (${formatCurrencyCompact(latest.sbc)}) compounds negative headline FCF`,
       detail: `Standard screeners highlight ${formatCurrencyCompact(latest.reportedFcf)} in FCF, but ${company.ticker} issued ${formatCurrencyCompact(latest.sbc)} in stock compensation (${formatPct(latest.sbcPctRevenue)} of revenue).`,
       tone: latest.trueFcf < 0 ? "negative" : "amber",
     });
@@ -292,6 +296,7 @@ export interface DiscoveryLens {
   id: string;
   title: string;
   subtitle: string;
+  criteriaSummary: string;
   whyItMatters: string;
   defaultSortKey: IndexSortKey;
   defaultSortDir: "desc" | "asc";
@@ -304,6 +309,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     id: "cash-machines",
     title: "Cash Machines",
     subtitle: "High real cash margins, low dilution",
+    criteriaSummary: "True FCF margin >= 22%, SBC <= 8% of revenue, revenue >= $500M",
     whyItMatters:
       "Businesses that convert >22% of revenue into real cash after stock comp tend to self-fund growth and weather downturns.",
     defaultSortKey: "trueFcfMargin",
@@ -319,6 +325,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     id: "buyback-cannibals",
     title: "Buyback Cannibals",
     subtitle: "Steadily shrinking their share count",
+    criteriaSummary: "Net dilution <= -1.5%/yr, positive True FCF, revenue >= $500M",
     whyItMatters:
       "Companies that retire 2%+ of their shares every year increase your ownership stake automatically, even when revenue grows modestly.",
     defaultSortKey: "netDilutionCagr",
@@ -333,6 +340,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     id: "priced-for-perfection",
     title: "Priced for Perfection",
     subtitle: "Steepest market-implied 10Y growth",
+    criteriaSummary: "Implied 10Y revenue CAGR 15% to 60%, revenue >= $300M",
     whyItMatters:
       "Great companies can still be risky stocks when the share price already bakes in 18%+ annual growth for the next decade.",
     defaultSortKey: "impliedCagr",
@@ -347,6 +355,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     id: "hidden-dilution",
     title: "Hidden Dilution",
     subtitle: "Headline FCF masked by heavy stock comp",
+    criteriaSummary: "SBC >= 12% of revenue, revenue >= $300M",
     whyItMatters:
       "Standard screeners ignore stock-based compensation. These companies look much more profitable before you count what employees are paid in equity.",
     defaultSortKey: "sbcPctRevenue",
@@ -361,6 +370,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     id: "reasonable-expectations",
     title: "Modest Expectations",
     subtitle: "Cash-generative stocks with a low bar",
+    criteriaSummary: "True FCF margin >= 12%, implied 10Y growth 0% to 9%, revenue >= $1B",
     whyItMatters:
       "Profitable businesses where the market is only pricing in single-digit long-term growth, leaving room for upside surprises.",
     defaultSortKey: "impliedCagr",

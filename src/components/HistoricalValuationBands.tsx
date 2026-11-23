@@ -13,12 +13,6 @@ interface BandPoint {
   multiple: number;
 }
 
-function yearNumberFromFiscalLabel(label: string, fallbackYear: number): number {
-  const m = label.match(/(\d{2})$/);
-  if (!m) return fallbackYear;
-  return 2000 + Number(m[1]);
-}
-
 function median(values: number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -43,7 +37,7 @@ export function HistoricalValuationBands({
       }
     }
 
-    const netDebt = company.totalDebt - company.cashAndEquiv;
+    const fallbackNetDebt = company.totalDebt - company.cashAndEquiv;
     const positiveFcfCount = series.filter((s) => s.trueFcf > 0).length;
     const useFcf = positiveFcfCount >= Math.max(3, Math.ceil(series.length * 0.6));
     const metricLabel = useFcf ? "EV / True FCF" : "EV / Revenue";
@@ -56,7 +50,11 @@ export function HistoricalValuationBands({
       const price = isTtm ? company.price : priceByFy.get(fyKey) ?? null;
       if (!price || price <= 0) continue;
 
-      const ev = Math.max(1, price * row.dilutedShares + netDebt);
+      const rowNetDebt =
+        typeof row.totalDebt === "number" && typeof row.cashAndEquiv === "number"
+          ? row.totalDebt - row.cashAndEquiv
+          : fallbackNetDebt;
+      const ev = Math.max(1, price * row.dilutedShares + rowNetDebt);
       const denom = useFcf ? row.trueFcf : row.revenue;
       if (denom <= 0) continue;
 

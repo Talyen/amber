@@ -102,13 +102,13 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
     ]
   );
 
-  // 5x5 Sensitivity Matrix centered around current sliders
+  // 5x5 Sensitivity Matrix centered around current sliders (clamping center so rows/cols never duplicate)
+  const waccCenter = Math.max(7.5, Math.min(14.5, wacc));
+  const multCenter = Math.max(16, Math.min(39, Math.round(terminalMultiple)));
   const waccSteps = [-1.5, -0.75, 0, 0.75, 1.5].map((d) =>
-    Number(Math.max(6, Math.min(16, wacc + d)).toFixed(2))
+    Number((waccCenter + d).toFixed(2))
   );
-  const multSteps = [-6, -3, 0, 3, 6].map((d) =>
-    Math.max(10, Math.min(45, Math.round(terminalMultiple + d)))
-  );
+  const multSteps = [-6, -3, 0, 3, 6].map((d) => multCenter + d);
 
   const matrix = useMemo(() => {
     return waccSteps.map((w) =>
@@ -424,11 +424,14 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
                       {formatPct(w, false, 2)}
                     </th>
                     {matrix[rIdx].map((cell, cIdx) => {
-                      const isCenter = rIdx === 2 && cIdx === 2;
+                      const isCenter =
+                        Math.abs(w - wacc) < 0.01 &&
+                        multSteps[cIdx] === Math.round(terminalMultiple);
                       return (
                         <td key={`c-${rIdx}-${cIdx}`} className="p-0">
                           <button
                             type="button"
+                            aria-label={`Set WACC to ${formatPct(w, false, 2)} and exit multiple to ${multSteps[cIdx]}x: implied growth ${formatPct(cell.impliedRevenueCagrPct)}`}
                             onClick={() => {
                               setWacc(w);
                               setTerminalMultiple(multSteps[cIdx]);

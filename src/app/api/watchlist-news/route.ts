@@ -534,10 +534,15 @@ export async function GET(request: Request) {
 
   let targetTickers: string[];
   if (rawTickers && rawTickers.trim().length > 0) {
-    targetTickers = rawTickers
-      .split(",")
-      .map((t) => t.trim().toUpperCase())
-      .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
+    targetTickers = [
+      ...new Set(
+        rawTickers
+          .split(",")
+          .map((t) => t.trim().toUpperCase())
+          .filter((t) => validSet.has(t))
+      ),
+    ]
+      .sort()
       .slice(0, 18);
   } else {
     const trendingSyms = trending.map((t) => t.ticker);

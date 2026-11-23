@@ -13,6 +13,9 @@ export interface AnnualFinancials {
   operatingIncome?: number | null;
   netIncome?: number | null;
   stockholdersEquity?: number | null;
+  periodEndDate?: string | null; // e.g. "2025-09-27"
+  cashAndEquiv?: number | null; // $M historical cash
+  totalDebt?: number | null; // $M historical debt
 }
 
 export interface AnnualPricePoint {
@@ -84,15 +87,21 @@ export function computeAnnualMetrics(
   return annuals.map((row, idx) => {
     const reportedFcf = row.operatingCashFlow - row.capex;
     const trueFcf = reportedFcf - row.sbc;
-    const reportedFcfMargin = (reportedFcf / row.revenue) * 100;
-    const trueFcfMargin = (trueFcf / row.revenue) * 100;
-    const sbcPctRevenue = (row.sbc / row.revenue) * 100;
+    const safeRev = row.revenue > 0 ? row.revenue : 0;
+    const reportedFcfMargin = safeRev > 0 ? (reportedFcf / safeRev) * 100 : 0;
+    const trueFcfMargin = safeRev > 0 ? (trueFcf / safeRev) * 100 : 0;
+    const sbcPctRevenue = safeRev > 0 ? (row.sbc / safeRev) * 100 : 0;
     const sbcPctReportedFcf =
-      reportedFcf > 0 ? (row.sbc / reportedFcf) * 100 : 100;
+      reportedFcf > 0
+        ? (row.sbc / reportedFcf) * 100
+        : row.sbc > 0
+          ? 100
+          : 0;
     const prev = idx > 0 ? annuals[idx - 1] : null;
-    const yoyShareChangePct = prev
-      ? ((row.dilutedShares - prev.dilutedShares) / prev.dilutedShares) * 100
-      : null;
+    const yoyShareChangePct =
+      prev && prev.dilutedShares > 0
+        ? ((row.dilutedShares - prev.dilutedShares) / prev.dilutedShares) * 100
+        : null;
 
     return {
       ...row,
@@ -112,10 +121,12 @@ export function computeEnterpriseValue(company: CompanySnapshot): number {
 }
 
 export function computeNetDilutionCagr(annuals: AnnualFinancials[]): number {
-  if (annuals.length < 2) return 0;
-  const first = annuals[0].dilutedShares;
-  const last = annuals[annuals.length - 1].dilutedShares;
-  const years = annuals.length - 1;
+  const fy = annuals.filter((a) => a.fiscalYear !== "TTM");
+  if (fy.length < 2) return 0;
+  const first = fy[0].dilutedShares;
+  const last = fy[fy.length - 1].dilutedShares;
+  if (first <= 0 || last <= 0) return 0;
+  const years = fy.length - 1;
   return (Math.pow(last / first, 1 / years) - 1) * 100;
 }
 
@@ -185,14 +196,12 @@ export function computeGroundedDefaultDcf(
     ).toFixed(1)
   );
 
-  // Ground terminal multiple in business quality & growth (don't give a 22x SaaS exit to low-growth cyclicals)
+  // Smoothly ground terminal multiple in business quality & growth (13x to 22x, no abrupt cliffs)
   const netTargetMargin = targetFcfMargin - sbcDragPct;
-  const terminalMultiple =
-    revCagr >= 12 && netTargetMargin >= 15
-      ? 22
-      : revCagr >= 6 || netTargetMargin >= 12
-        ? 18
-        : 13;
+  const growthScore = Math.max(0, Math.min(1, (revCagr - 3) / 14));
+  const marginScore = Math.max(0, Math.min(1, (netTargetMargin - 6) / 18));
+  const blendedScore = growthScore * 0.55 + marginScore * 0.45;
+  const terminalMultiple = Math.round(13 + blendedScore * 9);
 
   return {
     wacc: 9.5,
@@ -298,6 +307,7 @@ export interface ReverseDcfResult {
   terminalValuePv: number;
   explicitCashFlowPv: number;
   impliedEvToYear10Fcf: number;
+  clamped?: "low" | "high" | "negative-ev" | null;
 }
 
 /**
@@ -310,7 +320,7 @@ function presentValueForGrowth(
 ): { pv: number; yrNRev: number; yrNFcf: number; tvPv: number; cfPv: number } {
   const n = inputs.horizonYears ?? 10;
   const r = inputs.waccPct / 100;
-  const startMargin = Math.max(-0.1, Math.min(0.6, inputs.currentTrueFcfMarginPct / 100));
+  const startMargin = Math.max(-0.35, Math.min(0.6, inputs.currentTrueFcfMarginPct / 100));
   const endMargin = Math.max(0.02, Math.min(0.65, inputs.targetTrueFcfMarginPct / 100));
 
   let cfPv = 0;
@@ -343,6 +353,19 @@ function presentValueForGrowth(
  * that equates the discounted True FCF stream + Terminal Value to current Enterprise Value.
  */
 export function solveReverseDcf(inputs: ReverseDcfInputs): ReverseDcfResult {
+  if (inputs.enterpriseValue <= 0 || inputs.baseRevenue <= 0) {
+    const baseline = presentValueForGrowth(0, inputs);
+    return {
+      impliedRevenueCagrPct: 0,
+      year10Revenue: baseline.yrNRev,
+      year10TrueFcf: baseline.yrNFcf,
+      terminalValuePv: baseline.tvPv,
+      explicitCashFlowPv: baseline.cfPv,
+      impliedEvToYear10Fcf: 0,
+      clamped: "negative-ev",
+    };
+  }
+
   let lo = -0.25;
   let hi = 0.85;
 
@@ -358,6 +381,8 @@ export function solveReverseDcf(inputs: ReverseDcfInputs): ReverseDcfResult {
 
   const solvedCagr = (lo + hi) / 2;
   const final = presentValueForGrowth(solvedCagr, inputs);
+  const clamped: ReverseDcfResult["clamped"] =
+    solvedCagr <= -0.249 ? "low" : solvedCagr >= 0.849 ? "high" : null;
 
   return {
     impliedRevenueCagrPct: solvedCagr * 100,
@@ -367,6 +392,7 @@ export function solveReverseDcf(inputs: ReverseDcfInputs): ReverseDcfResult {
     explicitCashFlowPv: final.cfPv,
     impliedEvToYear10Fcf:
       final.yrNFcf > 0 ? inputs.enterpriseValue / final.yrNFcf : 0,
+    clamped,
   };
 }
 

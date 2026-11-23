@@ -31,12 +31,14 @@ function createAuthInstance() {
     throw new Error("DATABASE_URL is required for authentication.");
   }
 
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("BETTER_AUTH_SECRET must be set in production.");
+  }
+
   return betterAuth({
     baseURL,
-    secret:
-      process.env.BETTER_AUTH_SECRET ??
-      process.env.REVALIDATE_SECRET ??
-      "amber-local-dev-secret-change-in-production",
+    secret: secret ?? "amber-local-dev-secret-only",
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: {

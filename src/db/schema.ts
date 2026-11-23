@@ -34,7 +34,7 @@ export interface QuarterlyFinancialJson {
 
 export const companies = pgTable("companies", {
   ticker: text("ticker").primaryKey(),
-  cik: text("cik").notNull().unique(),
+  cik: text("cik").notNull(),
   name: text("name").notNull(),
   exchange: text("exchange").notNull(), // "NASDAQ" | "NYSE"
   sector: text("sector").notNull(),
@@ -50,6 +50,7 @@ export const companies = pgTable("companies", {
   defaultDcf: jsonb("default_dcf").$type<DefaultDcfJson>().notNull(),
   priceHistory: jsonb("price_history").$type<AnnualPricePointJson[]>(),
   quarterlyFinancials: jsonb("quarterly_financials").$type<QuarterlyFinancialJson[]>(),
+  isActive: boolean("is_active").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -76,6 +77,9 @@ export const annualFinancials = pgTable(
     operatingIncome: doublePrecision("operating_income"), // $M (optional)
     netIncome: doublePrecision("net_income"), // $M (optional)
     stockholdersEquity: doublePrecision("stockholders_equity"), // $M (optional, for ROIC)
+    periodEndDate: text("period_end_date"), // e.g. "2025-09-27"
+    cashAndEquiv: doublePrecision("cash_and_equiv"), // $M historical cash
+    totalDebt: doublePrecision("total_debt"), // $M historical debt
   },
   (table) => [
     uniqueIndex("annual_ticker_fy_idx").on(table.ticker, table.fiscalYear),
@@ -109,6 +113,7 @@ export const filingDiffs = pgTable(
   (table) => [
     index("diffs_ticker_idx").on(table.ticker),
     index("diffs_accession_idx").on(table.accessionNumber),
+    index("diffs_ticker_date_idx").on(table.ticker, table.filingDate),
   ]
 );
 
@@ -120,6 +125,7 @@ export const alertSubscriptions = pgTable(
     ticker: text("ticker")
       .notNull()
       .references(() => companies.ticker, { onDelete: "cascade" }),
+    lastNotifiedAccession: text("last_notified_accession"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -145,7 +151,11 @@ export const insiderTrades = pgTable(
     totalValue: doublePrecision("total_value").notNull(), // $M
     accessionNumber: text("accession_number").notNull(),
   },
-  (table) => [index("insider_ticker_idx").on(table.ticker)]
+  (table) => [
+    index("insider_ticker_idx").on(table.ticker),
+    index("insider_ticker_date_idx").on(table.ticker, table.filingDate),
+    index("insider_type_date_idx").on(table.transactionType, table.filingDate),
+  ]
 );
 
 /* Better Auth core tables (stored directly in Neon Postgres — $0/mo) */
@@ -201,25 +211,32 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const arenaPortfolios = pgTable("arena_portfolios", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
-  handle: text("handle").notNull(),
-  title: text("title").notNull(),
-  thesis: text("thesis").notNull(),
-  isBot: integer("is_bot").notNull().default(0), // 1 = Strategy Bot, 0 = Community
-  botTheme: text("bot_theme"),
-  avatarIcon: text("avatar_icon").notNull().default("compass"),
-  periodKey: text("period_key"), // e.g. "2026-11" (monthly) or "2025" (yearly)
-  nav: doublePrecision("nav").notNull().default(100), // Time-Weighted NAV (starts at 100.0)
-  finalReturnPct: doublePrecision("final_return_pct"), // Set when a past period closes; null = live
-  lockedAt: timestamp("locked_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  lastRebalancedAt: timestamp("last_rebalanced_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const arenaPortfolios = pgTable(
+  "arena_portfolios",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    handle: text("handle").notNull(),
+    title: text("title").notNull(),
+    thesis: text("thesis").notNull(),
+    isBot: integer("is_bot").notNull().default(0), // 1 = Strategy Bot, 0 = Community
+    botTheme: text("bot_theme"),
+    avatarIcon: text("avatar_icon").notNull().default("compass"),
+    periodKey: text("period_key"), // e.g. "2026-11" (monthly) or "2025" (yearly)
+    nav: doublePrecision("nav").notNull().default(100), // Time-Weighted NAV (starts at 100.0)
+    finalReturnPct: doublePrecision("final_return_pct"), // Set when a past period closes; null = live
+    lockedAt: timestamp("locked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastRebalancedAt: timestamp("last_rebalanced_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("arena_user_idx").on(table.userId),
+    index("arena_period_idx").on(table.periodKey),
+  ]
+);
 
 export const arenaPositions = pgTable(
   "arena_positions",

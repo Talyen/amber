@@ -130,7 +130,7 @@ export function MethodologyModal() {
             <h3 className="font-semibold text-[var(--text-primary)]">
               4. Official US-GAAP XBRL Tags
             </h3>
-            <ul className="font-mono-num mt-1.5 space-y-1 text-[11px] text-[var(--text-muted)]">
+            <ul className="font-mono-num mt-1.5 space-y-1 break-all text-[11px] text-[var(--text-muted)]">
               <li>• OCF: NetCashProvidedByUsedInOperatingActivities</li>
               <li>• CapEx: PaymentsToAcquirePropertyPlantAndEquipment</li>
               <li>• SBC: ShareBasedCompensation / AllocatedShareBasedCompensationExpense</li>

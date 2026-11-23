@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <TopNav />
+      <TopNav activeRoute="legal" />
       <main className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:px-6">
         <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
           LEGAL

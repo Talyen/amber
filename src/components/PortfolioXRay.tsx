@@ -238,23 +238,19 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   }, [addQuery, entries, activeTickers]);
 
   function addToPortfolio(ticker: string) {
-    if (sharedTickers) {
-      setSharedTickers((prev) => (prev ? [...prev, ticker] : [ticker]));
-    } else {
-      if (usingStarter) {
-        for (const s of STARTER_TICKERS) watchlist.toggle(s);
-      }
-      watchlist.toggle(ticker);
-    }
+    // Keep portfolio draft decoupled from the user's global Watchlist
+    setSharedTickers((prev) => {
+      const base = prev ?? activeTickers;
+      return base.includes(ticker) ? base : [...base, ticker];
+    });
     setAddQuery("");
   }
 
   function removeFromPortfolio(ticker: string) {
-    if (sharedTickers) {
-      setSharedTickers((prev) => (prev ? prev.filter((t) => t !== ticker) : null));
-    } else {
-      watchlist.toggle(ticker);
-    }
+    setSharedTickers((prev) => {
+      const base = prev ?? activeTickers;
+      return base.filter((t) => t !== ticker);
+    });
   }
 
   function applyQuickPaste(e: React.FormEvent) {

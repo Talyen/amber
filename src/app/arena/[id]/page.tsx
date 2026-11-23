@@ -144,6 +144,57 @@ export default async function ArenaDetailPage({
           />
         )}
 
+        {typeof portfolio.weightedTrueFcfMargin === "number" && (
+          <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="text-[11px] text-[var(--text-muted)]">
+                Weighted True FCF Margin
+              </div>
+              <div className="font-mono-num mt-1 text-xl font-semibold text-[var(--text-primary)]">
+                {formatPct(portfolio.weightedTrueFcfMargin)}
+              </div>
+            </div>
+            {typeof portfolio.weightedSbcPct === "number" && (
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-[11px] text-[var(--text-muted)]">
+                  Weighted SBC Burden
+                </div>
+                <div className="font-mono-num mt-1 text-xl font-semibold text-[var(--sbc)]">
+                  {formatPct(portfolio.weightedSbcPct)}
+                </div>
+              </div>
+            )}
+            {typeof portfolio.weightedDilutionCagr === "number" && (
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-[11px] text-[var(--text-muted)]">
+                  Weighted Dilution (4Y)
+                </div>
+                <div
+                  className={`font-mono-num mt-1 text-xl font-semibold ${
+                    portfolio.weightedDilutionCagr > 1.5
+                      ? "text-[var(--negative)]"
+                      : portfolio.weightedDilutionCagr < -0.5
+                        ? "text-[var(--positive)]"
+                        : "text-[var(--text-primary)]"
+                  }`}
+                >
+                  {formatPct(portfolio.weightedDilutionCagr, true)}
+                </div>
+              </div>
+            )}
+            {typeof portfolio.weightedImpliedCagr === "number" && (
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="text-[11px] text-[var(--text-muted)]">
+                  Weighted Implied 10Y
+                </div>
+                <div className="font-mono-num mt-1 text-xl font-semibold text-[var(--amber)]">
+                  {formatPct(portfolio.weightedImpliedCagr)}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="mt-6">
           <div
             tabIndex={0}

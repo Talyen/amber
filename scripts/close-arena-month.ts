@@ -23,44 +23,59 @@ async function run() {
   }
 
   const db = drizzle(neon(url));
-  const currentYm = new Date().toISOString().slice(0, 7); // e.g. "2026-12"
+  const nowIso = new Date().toISOString();
+  const currentYm = nowIso.slice(0, 7); // e.g. "2026-12"
+  const currentYear = nowIso.slice(0, 4); // e.g. "2026"
 
   const openPortfolios = await db
     .select()
     .from(arenaPortfolios)
     .where(isNull(arenaPortfolios.finalReturnPct));
 
-  const toClose = openPortfolios.filter(
-    (p) =>
-      p.periodKey &&
-      /^\d{4}-\d{2}$/.test(p.periodKey) &&
-      p.periodKey < currentYm
-  );
+  const toClose = openPortfolios.filter((p) => {
+    if (!p.periodKey) return false;
+    if (/^\d{4}-\d{2}$/.test(p.periodKey)) return p.periodKey < currentYm;
+    if (/^\d{4}$/.test(p.periodKey)) return p.periodKey < currentYear;
+    return false;
+  });
 
   if (toClose.length === 0) {
     console.log(
-      `[amber-arena-close] All prior monthly Arena periods are already finalized (current: ${currentYm}).`
+      `[amber-arena-close] All prior Arena periods are already finalized (current: ${currentYm}).`
     );
     return;
   }
 
-  const compRows = await db
-    .select({ ticker: companies.ticker, price: companies.price })
-    .from(companies);
+  const [compRows, allPositions] = await Promise.all([
+    db
+      .select({ ticker: companies.ticker, price: companies.price })
+      .from(companies),
+    db.select().from(arenaPositions),
+  ]);
   const priceMap = new Map(compRows.map((c) => [c.ticker, c.price]));
+  const posByPort = new Map<string, typeof allPositions>();
+  for (const pos of allPositions) {
+    const list = posByPort.get(pos.portfolioId) ?? [];
+    list.push(pos);
+    posByPort.set(pos.portfolioId, list);
+  }
 
   let closed = 0;
   for (const port of toClose) {
-    const positions = await db
-      .select()
-      .from(arenaPositions)
-      .where(eq(arenaPositions.portfolioId, port.id));
-
+    const positions = posByPort.get(port.id) ?? [];
     if (positions.length === 0) continue;
+
+    // Skip closing if any position is missing a valid live price rather than logging 0%
+    if (positions.some((p) => !(priceMap.get(p.ticker) && priceMap.get(p.ticker)! > 0))) {
+      console.warn(
+        `[amber-arena-close] Skipping ${port.id}: missing live price for one or more positions.`
+      );
+      continue;
+    }
 
     let weightedRet = 0;
     for (const pos of positions) {
-      const livePrice = priceMap.get(pos.ticker) ?? pos.entryPrice;
+      const livePrice = priceMap.get(pos.ticker)!;
       const ret =
         pos.entryPrice > 0
           ? ((livePrice - pos.entryPrice) / pos.entryPrice) * 100

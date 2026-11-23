@@ -237,7 +237,7 @@ export function AuthButton() {
         </div>
 
         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-          Sign in with Google or GitHub to publish and rebalance your Arena portfolio. Amber never stores passwords.
+          Sign in with Google or GitHub to sync your watchlist across devices, manage filing alerts, and publish your Arena portfolio. Amber never stores passwords.
         </p>
 
         <div className="mt-5 space-y-2.5">

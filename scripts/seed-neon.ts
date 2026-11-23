@@ -53,8 +53,17 @@ async function run() {
     `[amber-seed] Batch-upserting ${snapshots.length} companies into Neon Postgres...`
   );
 
+  const validSnapshots = snapshots.filter(
+    (c) => Number.isFinite(c.price) && c.price > 0 && c.marketCap > 0
+  );
+  if (validSnapshots.length < snapshots.length) {
+    console.warn(
+      `[amber-seed] Skipping ${snapshots.length - validSnapshots.length} ticker(s) with missing EOD price (run sync:prices first).`
+    );
+  }
+
   // 1. Batch upsert companies (50 per HTTP roundtrip)
-  const companyRows = snapshots.map((c) => ({
+  const companyRows = validSnapshots.map((c) => ({
     ticker: c.ticker,
     cik: c.cik,
     name: c.name,
@@ -75,6 +84,7 @@ async function run() {
       c.quarterlyFinancials && c.quarterlyFinancials.length >= 4
         ? c.quarterlyFinancials
         : null,
+    isActive: true,
     updatedAt: new Date(),
   }));
 
@@ -100,13 +110,14 @@ async function run() {
           defaultDcf: sql`excluded.default_dcf`,
           priceHistory: sql`excluded.price_history`,
           quarterlyFinancials: sql`excluded.quarterly_financials`,
+          isActive: true,
           updatedAt: sql`excluded.updated_at`,
         },
       });
   }
 
   // 2. Batch upsert annual financials (200 per HTTP roundtrip)
-  const annualRows = snapshots.flatMap((c) =>
+  const annualRows = validSnapshots.flatMap((c) =>
     c.annuals.map((a, i) => ({
       id: `${c.ticker}:${a.fiscalYear}`,
       ticker: c.ticker,
@@ -124,6 +135,9 @@ async function run() {
       operatingIncome: a.operatingIncome ?? null,
       netIncome: a.netIncome ?? null,
       stockholdersEquity: a.stockholdersEquity ?? null,
+      periodEndDate: a.periodEndDate ?? null,
+      cashAndEquiv: a.cashAndEquiv ?? null,
+      totalDebt: a.totalDebt ?? null,
     }))
   );
 
@@ -147,12 +161,16 @@ async function run() {
           operatingIncome: sql`excluded.operating_income`,
           netIncome: sql`excluded.net_income`,
           stockholdersEquity: sql`excluded.stockholders_equity`,
+          periodEndDate: sql`excluded.period_end_date`,
+          cashAndEquiv: sql`excluded.cash_and_equiv`,
+          totalDebt: sql`excluded.total_debt`,
         },
       });
   }
 
   // 3. Batch upsert filing diffs (100 per HTTP roundtrip)
-  const diffRows = snapshots.flatMap((c) =>
+  // Note: Never deletes existing prose diffs ('llm' / 'text-diff') stored in Neon!
+  const diffRows = validSnapshots.flatMap((c) =>
     c.filingDiffs.map((d) => ({
       id: d.id,
       ticker: c.ticker,
@@ -194,11 +212,13 @@ async function run() {
       });
   }
 
-  // 4. Prune stale/excluded tickers (e.g. banks, REITs, XBRL outliers removed from universe)
-  const validTickers = snapshots.map((c) => c.ticker);
-  if (validTickers.length > 0) {
+  // 4. Soft-deactivate tickers absent from a full universe ingest (never hard-delete,
+  //    so user watchlists, filing alerts, and active Arena positions are never cascade-wiped)
+  const validTickers = validSnapshots.map((c) => c.ticker);
+  if (validTickers.length >= 50) {
     await db
-      .delete(companies)
+      .update(companies)
+      .set({ isActive: false, updatedAt: new Date() })
       .where(notInArray(companies.ticker, validTickers));
   }
 

@@ -1,30 +1,32 @@
 /**
- * Amber Automated Batch SEC 10-K Text-Diff Extractor (Phase 2)
+ * Amber Scalable 2-Stage SEC 10-K Prose Diff Extractor
  *
- * Fetches the latest two 10-K primary HTML filings from SEC EDGAR for each ticker,
- * extracts Item 1A (Risk Factors) & high-signal disclosures, and produces structured
- * FilingDiffItems incrementally (skips any ticker whose latest accession number is
- * already cached).
- *
- * Modes:
- *   - With GEMINI_API_KEY: Runs a single batch Gemini 2.5 Flash structured JSON pass
- *     per newly filed 10-K (zero live per-user LLM calls).
- *   - Without GEMINI_API_KEY: Runs a deterministic novelty detector on Risk Factor
- *     and concentration disclosures ($0 cost).
- *
- * Usage:
- *   pnpm ingest:diffs                  # Processes up to MAX_TICKERS (default 5) uncached tickers
- *   TICKERS=NVDA,CRWD,ORCL pnpm ingest:diffs
+ * Architecture for scaling across 750+ companies at near-$0 cost:
+ *   1. Neon-backed incremental state: Queries `filing_diffs` (source IN 'llm','text-diff')
+ *      so CI runs never re-process already-extracted 10-K accessions, and prioritizes
+ *      unprocessed companies by Market Cap DESC.
+ *   2. Stage 1 (Deterministic Paragraph Novelty Pre-Filter, $0):
+ *      Extracts Item 1A (Risk Factors) and Item 7 (MD&A) from consecutive 10-Ks and
+ *      isolates ONLY genuinely new/changed paragraphs via token-Jaccard similarity,
+ *      shrinking input size by ~80% before any LLM call.
+ *   3. Stage 2 (Optional Batch Gemini 2.5 Flash Pass):
+ *      Feeds only the changed paragraphs to Gemini 2.5 Flash (~$0.25/yr for 750 companies)
+ *      with deterministic fallback when GEMINI_API_KEY is unset.
+ *   4. Upserts directly to Neon `filing_diffs` + updates local JSON snapshots.
  */
 
 import fs from "node:fs";
 import path from "node:path";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import { desc, inArray, sql } from "drizzle-orm";
+import { companies as companiesTable, filingDiffs } from "../src/db/schema.ts";
 import type { CompanySnapshot, FilingDiffItem } from "../src/lib/finance.ts";
 
 const SEC_USER_AGENT =
   process.env.SEC_USER_AGENT ?? "AmberFinance research@amber.example";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MAX_TICKERS = Number(process.env.MAX_TICKERS ?? "5");
+const MAX_TICKERS = Number(process.env.MAX_TICKERS ?? "25");
 
 interface SubmissionsResponse {
   filings: {
@@ -54,17 +56,40 @@ interface DiffCache {
   };
 }
 
-async function fetchSecText(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": SEC_USER_AGENT,
-      Accept: "text/html,application/json,*/*",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} fetching ${url}`);
+interface TargetCompany {
+  ticker: string;
+  cik: string;
+  name: string;
+  marketCap: number;
+}
+
+async function fetchSecText(url: string, retries = 2): Promise<string> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": SEC_USER_AGENT,
+          Accept: "text/html,application/json,*/*",
+        },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 800 * Math.pow(2, attempt)));
+        continue;
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} fetching ${url}`);
+      }
+      return await res.text();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 800 * Math.pow(2, attempt)));
+      }
+    }
   }
-  return await res.text();
+  throw lastErr instanceof Error ? lastErr : new Error(`Failed fetching ${url}`);
 }
 
 async function getLatestTwo10Ks(cik: string): Promise<[FilingRef, FilingRef] | null> {
@@ -100,7 +125,8 @@ function htmlToCleanText(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, "\n")
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n\n")
+    .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&rsquo;|&#8217;/gi, "'")
@@ -108,21 +134,25 @@ function htmlToCleanText(html: string): string {
     .replace(/&mdash;|&#8212;/gi, " - ")
     .replace(/&#\d+;/g, " ")
     .replace(/[ \t]+/g, " ")
-    .replace(/\n{2,}/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-function extractItem1ASlice(cleanText: string): string {
-  // Find the second occurrence of "Item 1A" (first is usually Table of Contents)
-  const matches = [...cleanText.matchAll(/item\s+1a\.?\s*risk\s+factors/gi)];
+function extractSectionSlice(
+  cleanText: string,
+  pattern: RegExp,
+  maxChars: number
+): string {
+  const matches = [...cleanText.matchAll(pattern)];
+  // Skip Table of Contents hit (usually first match) when a body match exists
   const startIdx =
     matches.length >= 2
       ? matches[1].index!
       : matches.length === 1
         ? matches[0].index!
-        : 0;
-  // Take up to 45,000 chars of Item 1A for comparison
-  return cleanText.slice(startIdx, startIdx + 45_000);
+        : -1;
+  if (startIdx < 0) return "";
+  return cleanText.slice(startIdx, startIdx + maxChars);
 }
 
 const SIGNAL_KEYWORDS = [
@@ -139,47 +169,122 @@ const SIGNAL_KEYWORDS = [
   "antitrust",
   "china",
   "supply chain",
+  "litigation",
+  "cybersecurity",
+  "margin pressure",
+  "restructuring",
+  "capital expenditure",
+  "debt",
+  "liquidity",
 ];
 
-function extractHighSignalSentences(text: string): string[] {
-  const sentences = text
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 75 && s.length <= 320);
-
-  return sentences.filter((s) => {
-    const lower = s.toLowerCase();
-    return SIGNAL_KEYWORDS.some((kw) => lower.includes(kw));
-  });
+function tokenize(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s%]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 4)
+  );
 }
 
-function deterministicRiskDiff(
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const w of a) {
+    if (b.has(w)) inter++;
+  }
+  return inter / (a.size + b.size - inter);
+}
+
+interface NovelParagraphPair {
+  section: "Item 1A: Risk Factors" | "Item 7: MD&A";
+  current: string;
+  closestPrior: string | null;
+  similarity: number;
+  matchedKeyword: string | null;
+}
+
+/**
+ * Stage 1: Deterministic paragraph-level novelty detector.
+ * Isolates only genuinely added or materially rewritten paragraphs so downstream
+ * LLM calls receive ~2-6 KB of pure signal instead of 45+ KB of unchanged boilerplate.
+ */
+function findNovelParagraphs(
+  currentText: string,
+  priorText: string,
+  section: "Item 1A: Risk Factors" | "Item 7: MD&A"
+): NovelParagraphPair[] {
+  const splitParas = (t: string) =>
+    t
+      .split(/\n{2,}/)
+      .map((p) => p.replace(/\s+/g, " ").trim())
+      .filter((p) => p.length >= 110 && p.length <= 1600);
+
+  const curParas = splitParas(currentText);
+  const priorParas = splitParas(priorText).map((text) => ({
+    text,
+    tokens: tokenize(text),
+  }));
+
+  const scored: NovelParagraphPair[] = [];
+
+  for (const p of curParas) {
+    const tokens = tokenize(p);
+    if (tokens.size < 12) continue;
+
+    let bestSim = 0;
+    let bestPrior: string | null = null;
+    for (const pr of priorParas) {
+      const sim = jaccardSimilarity(tokens, pr.tokens);
+      if (sim > bestSim) {
+        bestSim = sim;
+        bestPrior = pr.text;
+      }
+      if (bestSim >= 0.78) break; // Essentially unchanged boilerplate
+    }
+
+    // Keep paragraphs that are either brand new (<0.25) or materially revised (0.25..0.68)
+    if (bestSim < 0.68) {
+      const lower = p.toLowerCase();
+      const matchedKeyword =
+        SIGNAL_KEYWORDS.find((kw) => lower.includes(kw)) ?? null;
+      scored.push({
+        section,
+        current: p,
+        closestPrior: bestSim >= 0.25 ? bestPrior : null,
+        similarity: bestSim,
+        matchedKeyword,
+      });
+    }
+  }
+
+  // Prioritize keyword-bearing novel paragraphs, then lowest similarity (most novel)
+  return scored
+    .sort((a, b) => {
+      const aKw = a.matchedKeyword ? 1 : 0;
+      const bKw = b.matchedKeyword ? 1 : 0;
+      if (bKw !== aKw) return bKw - aKw;
+      return a.similarity - b.similarity;
+    })
+    .slice(0, 6);
+}
+
+function deterministicProseDiff(
   ticker: string,
   currentFiling: FilingRef,
   priorFiling: FilingRef,
-  currentItem1A: string,
-  priorItem1A: string
+  novelPairs: NovelParagraphPair[]
 ): FilingDiffItem[] {
-  const priorLower = priorItem1A.toLowerCase();
-  const currentSignals = extractHighSignalSentences(currentItem1A);
-  const priorSignals = extractHighSignalSentences(priorItem1A);
+  const highSignal = novelPairs.filter((p) => p.matchedKeyword !== null);
+  const chosen = highSignal[0] ?? novelPairs[0];
+  if (!chosen) return [];
 
-  // Find sentences in latest 10-K whose core 45-char fingerprint didn't exist in prior 10-K
-  const novel = currentSignals.filter((sent) => {
-    const probe = sent.toLowerCase().slice(15, 65).trim();
-    return probe.length > 25 && !priorLower.includes(probe);
-  });
-
-  if (novel.length === 0) return [];
-
-  const chosen = novel[0];
-  const matchedKw =
-    SIGNAL_KEYWORDS.find((kw) => chosen.toLowerCase().includes(kw)) ??
-    "risk disclosure";
-
-  const relatedPrior =
-    priorSignals.find((s) => s.toLowerCase().includes(matchedKw)) ??
-    `Prior 10-K (${priorFiling.filingDate}) did not contain equivalent disclosure language in Item 1A.`;
+  const kw = chosen.matchedKeyword ?? "material risk disclosure";
+  const isConcentration =
+    kw.includes("customer") || kw.includes("10%");
+  const isCapital =
+    kw.includes("capital") || kw.includes("debt") || kw.includes("liquidity");
 
   return [
     {
@@ -187,50 +292,59 @@ function deterministicRiskDiff(
       filingType: "10-K",
       filingDate: currentFiling.filingDate,
       accessionNumber: currentFiling.accessionNumber,
-      section: "Item 1A: Risk Factors (10-K Text Diff)",
-      category:
-        matchedKw.includes("customer") || matchedKw.includes("10%")
-          ? "Customer Concentration"
+      section: `${chosen.section} (10-K Text Diff)`,
+      category: isConcentration
+        ? "Customer Concentration"
+        : isCapital
+          ? "Capital Allocation"
           : "Risk Factors",
-      materiality: "High",
-      headline: `New ${matchedKw} language added in latest 10-K (${currentFiling.filingDate})`,
-      summary: `Automated 10-K comparison between ${priorFiling.filingDate} and ${currentFiling.filingDate} flagged newly introduced Risk Factor language referencing ${matchedKw}.`,
-      priorExcerpt: relatedPrior.slice(0, 260),
-      currentExcerpt: chosen.slice(0, 260),
+      materiality: chosen.matchedKeyword ? "High" : "Medium",
+      headline: `New ${kw} disclosure in latest 10-K (${currentFiling.filingDate})`,
+      summary: `Consecutive 10-K comparison (${priorFiling.filingDate} vs. ${currentFiling.filingDate}) detected newly added or materially revised ${chosen.section} language referencing ${kw}.`,
+      priorExcerpt: (
+        chosen.closestPrior ??
+        `Prior 10-K (${priorFiling.filingDate}) did not contain equivalent disclosure language in ${chosen.section}.`
+      ).slice(0, 260),
+      currentExcerpt: chosen.current.slice(0, 260),
       signalNote:
-        "Extracted deterministically by comparing consecutive SEC EDGAR 10-K Item 1A filings.",
+        "Extracted deterministically by comparing paragraph-level novelty across consecutive SEC EDGAR 10-K filings.",
     },
   ];
 }
 
-async function llmRiskDiff(
-  company: CompanySnapshot,
+async function llmProseDiff(
+  company: TargetCompany,
   currentFiling: FilingRef,
   priorFiling: FilingRef,
-  currentItem1A: string,
-  priorItem1A: string
+  novelPairs: NovelParagraphPair[]
 ): Promise<FilingDiffItem[]> {
-  if (!GEMINI_API_KEY) return [];
+  if (!GEMINI_API_KEY || novelPairs.length === 0) return [];
+
+  const digest = novelPairs
+    .map(
+      (p, idx) =>
+        `[CHANGE ${idx + 1} | ${p.section}]\nPRIOR (${priorFiling.filingDate}): ${
+          p.closestPrior ? p.closestPrior.slice(0, 500) : "(No equivalent paragraph in prior 10-K)"
+        }\nLATEST (${currentFiling.filingDate}): ${p.current.slice(0, 650)}`
+    )
+    .join("\n\n");
 
   const prompt = `You are an institutional equity research analyst for Amber.
-Compare the PRIOR 10-K (${priorFiling.filingDate}) and LATEST 10-K (${currentFiling.filingDate}) Item 1A Risk Factors excerpts for ${company.name} (${company.ticker}).
-Return ONLY a valid JSON array of 1 to 2 genuinely material changes (ignore boilerplate legal rewording). Each item must match:
+Below are the top pre-filtered paragraph-level changes between the PRIOR 10-K (${priorFiling.filingDate}) and LATEST 10-K (${currentFiling.filingDate}) for ${company.name} (${company.ticker}).
+Return ONLY a valid JSON array of 1 to 2 genuinely material changes for long-term investors (skip routine date updates or generic boilerplate). Each item must match:
 {
-  "section": "Item 1A: Risk Factors",
+  "section": "Item 1A: Risk Factors" | "Item 7: MD&A",
   "category": "Risk Factors" | "Customer Concentration" | "Executive Comp" | "Capital Allocation",
   "materiality": "High" | "Medium" | "Watch",
-  "headline": "Short punchy headline (<= 90 chars)",
+  "headline": "Short punchy headline (<= 90 chars, no em-dashes)",
   "summary": "1-2 concise sentences explaining what changed and why it matters.",
   "priorExcerpt": "Short verbatim excerpt from prior 10-K (<= 220 chars)",
   "currentExcerpt": "Short verbatim excerpt from latest 10-K (<= 220 chars)",
   "signalNote": "One-sentence investor takeaway."
 }
 
-PRIOR 10-K EXCERPT:
-${priorItem1A.slice(0, 14_000)}
-
-LATEST 10-K EXCERPT:
-${currentItem1A.slice(0, 14_000)}`;
+PRE-FILTERED 10-K CHANGES:
+${digest}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -244,6 +358,7 @@ ${currentItem1A.slice(0, 14_000)}`;
           temperature: 0.1,
         },
       }),
+      signal: AbortSignal.timeout(25_000),
     }
   );
 
@@ -255,7 +370,9 @@ ${currentItem1A.slice(0, 14_000)}`;
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
   const text = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
-  const parsed = JSON.parse(text) as Array<Omit<FilingDiffItem, "id" | "filingType" | "filingDate" | "accessionNumber">>;
+  const parsed = JSON.parse(text) as Array<
+    Omit<FilingDiffItem, "id" | "filingType" | "filingDate" | "accessionNumber">
+  >;
 
   return parsed.slice(0, 2).map((item, idx) => ({
     ...item,
@@ -276,17 +393,58 @@ async function run() {
     "src/data/generated/filing-diffs-cache.json"
   );
 
-  if (!fs.existsSync(companiesPath)) {
-    throw new Error("Run `pnpm ingest:edgar` first to generate companies.json.");
-  }
+  const dbUrl = process.env.DATABASE_URL;
+  const db = dbUrl ? drizzle(neon(dbUrl)) : null;
 
-  const companies = JSON.parse(
-    fs.readFileSync(companiesPath, "utf8")
-  ) as CompanySnapshot[];
+  const localCompanies: CompanySnapshot[] = fs.existsSync(companiesPath)
+    ? (JSON.parse(fs.readFileSync(companiesPath, "utf8")) as CompanySnapshot[])
+    : [];
+  const localByTicker = new Map(localCompanies.map((c) => [c.ticker, c]));
 
   const cache: DiffCache = fs.existsSync(cachePath)
     ? (JSON.parse(fs.readFileSync(cachePath, "utf8")) as DiffCache)
     : {};
+
+  // Build target list ordered by Market Cap DESC (preferring Neon universe when available)
+  let targets: TargetCompany[] = [];
+  const dbProcessedAccessions = new Map<string, Set<string>>();
+
+  if (db) {
+    const [compRows, existingProseRows] = await Promise.all([
+      db
+        .select({
+          ticker: companiesTable.ticker,
+          cik: companiesTable.cik,
+          name: companiesTable.name,
+          marketCap: companiesTable.marketCap,
+        })
+        .from(companiesTable)
+        .orderBy(desc(companiesTable.marketCap)),
+      db
+        .select({
+          ticker: filingDiffs.ticker,
+          accessionNumber: filingDiffs.accessionNumber,
+        })
+        .from(filingDiffs)
+        .where(inArray(filingDiffs.source, ["llm", "text-diff"])),
+    ]);
+
+    targets = compRows;
+    for (const row of existingProseRows) {
+      const set = dbProcessedAccessions.get(row.ticker) ?? new Set<string>();
+      set.add(row.accessionNumber);
+      dbProcessedAccessions.set(row.ticker, set);
+    }
+  } else {
+    targets = [...localCompanies]
+      .sort((a, b) => b.marketCap - a.marketCap)
+      .map((c) => ({
+        ticker: c.ticker,
+        cik: c.cik,
+        name: c.name,
+        marketCap: c.marketCap,
+      }));
+  }
 
   const requestedTickers = process.env.TICKERS
     ? new Set(
@@ -295,22 +453,27 @@ async function run() {
     : null;
 
   let processed = 0;
+  let skippedCached = 0;
 
-  for (const company of companies) {
+  for (const company of targets) {
     if (requestedTickers && !requestedTickers.has(company.ticker)) continue;
     if (!requestedTickers && processed >= MAX_TICKERS) break;
-
-    const cached = cache[company.ticker];
-    if (cached && cached.accessionNumber === company.lastFiling.accessionNumber) {
-      continue;
-    }
 
     try {
       const pair = await getLatestTwo10Ks(company.cik);
       if (!pair) continue;
 
       const [latest, prior] = pair;
-      if (cached && cached.accessionNumber === latest.accessionNumber) {
+      const cached = cache[company.ticker];
+      const alreadyInDb = dbProcessedAccessions
+        .get(company.ticker)
+        ?.has(latest.accessionNumber);
+
+      if (
+        alreadyInDb ||
+        (cached && cached.accessionNumber === latest.accessionNumber)
+      ) {
+        skippedCached++;
         continue;
       }
 
@@ -323,30 +486,51 @@ async function run() {
         fetchSecText(prior.url),
       ]);
 
-      const latestItem1A = extractItem1ASlice(htmlToCleanText(latestHtml));
-      const priorItem1A = extractItem1ASlice(htmlToCleanText(priorHtml));
+      const latestClean = htmlToCleanText(latestHtml);
+      const priorClean = htmlToCleanText(priorHtml);
+
+      const novelItem1A = findNovelParagraphs(
+        extractSectionSlice(latestClean, /item\s+1a\.?\s*risk\s+factors/gi, 75_000),
+        extractSectionSlice(priorClean, /item\s+1a\.?\s*risk\s+factors/gi, 75_000),
+        "Item 1A: Risk Factors"
+      );
+      const novelItem7 = findNovelParagraphs(
+        extractSectionSlice(
+          latestClean,
+          /item\s+7\.?\s*management['’]?s\s+discussion/gi,
+          60_000
+        ),
+        extractSectionSlice(
+          priorClean,
+          /item\s+7\.?\s*management['’]?s\s+discussion/gi,
+          60_000
+        ),
+        "Item 7: MD&A"
+      );
+
+      const combinedNovel = [...novelItem1A.slice(0, 4), ...novelItem7.slice(0, 2)];
 
       let extracted: FilingDiffItem[] = [];
       let source: "llm" | "text-diff" = "text-diff";
 
-      if (GEMINI_API_KEY) {
-        extracted = await llmRiskDiff(
-          company,
-          latest,
-          prior,
-          latestItem1A,
-          priorItem1A
-        );
-        source = "llm";
+      if (GEMINI_API_KEY && combinedNovel.length > 0) {
+        try {
+          extracted = await llmProseDiff(company, latest, prior, combinedNovel);
+          source = "llm";
+        } catch (err) {
+          console.warn(
+            `[amber-diffs] Gemini fallback for ${company.ticker}:`,
+            err instanceof Error ? err.message : err
+          );
+        }
       }
 
-      if (extracted.length === 0) {
-        extracted = deterministicRiskDiff(
+      if (extracted.length === 0 && combinedNovel.length > 0) {
+        extracted = deterministicProseDiff(
           company.ticker,
           latest,
           prior,
-          latestItem1A,
-          priorItem1A
+          combinedNovel
         );
         source = "text-diff";
       }
@@ -360,23 +544,60 @@ async function run() {
           diffs: extracted,
         };
 
-        // Prepend new 10-K text diffs ahead of existing XBRL diffs (deduplicating by id)
-        const existingIds = new Set(extracted.map((d) => d.id));
-        company.filingDiffs = [
-          ...extracted,
-          ...company.filingDiffs.filter((d) => !existingIds.has(d.id)),
-        ];
+        // Upsert directly into Neon Postgres so CI runs persist across builds
+        if (db) {
+          const rows = extracted.map((d) => ({
+            id: d.id,
+            ticker: company.ticker,
+            filingType: d.filingType,
+            filingDate: d.filingDate,
+            accessionNumber: d.accessionNumber,
+            section: d.section,
+            category: d.category,
+            materiality: d.materiality,
+            headline: d.headline,
+            summary: d.summary,
+            priorExcerpt: d.priorExcerpt,
+            currentExcerpt: d.currentExcerpt,
+            signalNote: d.signalNote,
+            source,
+          }));
+          await db
+            .insert(filingDiffs)
+            .values(rows)
+            .onConflictDoUpdate({
+              target: filingDiffs.id,
+              set: {
+                headline: sql`excluded.headline`,
+                summary: sql`excluded.summary`,
+                priorExcerpt: sql`excluded.prior_excerpt`,
+                currentExcerpt: sql`excluded.current_excerpt`,
+                signalNote: sql`excluded.signal_note`,
+                source: sql`excluded.source`,
+              },
+            });
+        }
+
+        const local = localByTicker.get(company.ticker);
+        if (local) {
+          const existingIds = new Set(extracted.map((d) => d.id));
+          local.filingDiffs = [
+            ...extracted,
+            ...local.filingDiffs.filter((d) => !existingIds.has(d.id)),
+          ];
+        }
 
         console.log(
-          `[amber-diffs] ✓ ${company.ticker}: extracted ${extracted.length} diff(s) via ${source}`
+          `[amber-diffs] ✓ ${company.ticker}: extracted ${extracted.length} diff(s) via ${source} (from ${combinedNovel.length} novel paragraphs)`
         );
       } else {
-        console.log(`[amber-diffs] – ${company.ticker}: no material Item 1A diff detected`);
+        console.log(
+          `[amber-diffs] – ${company.ticker}: no material 10-K prose diff detected`
+        );
       }
 
       processed++;
-      // Respect SEC EDGAR rate limits
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 350));
     } catch (err) {
       console.warn(
         `[amber-diffs] ! ${company.ticker}:`,
@@ -386,8 +607,12 @@ async function run() {
   }
 
   fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2) + "\n");
-  fs.writeFileSync(companiesPath, JSON.stringify(companies, null, 2) + "\n");
-  console.log(`[amber-diffs] Complete. Processed ${processed} ticker(s).`);
+  if (localCompanies.length > 0) {
+    fs.writeFileSync(companiesPath, JSON.stringify(localCompanies, null, 2) + "\n");
+  }
+  console.log(
+    `[amber-diffs] Complete. Processed ${processed} ticker(s), skipped ${skippedCached} already-cached.`
+  );
 }
 
 run();

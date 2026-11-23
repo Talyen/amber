@@ -34,7 +34,11 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
       typeof s.operatingIncome === "number" &&
       typeof s.stockholdersEquity === "number"
     ) {
-      const investedCapital = s.stockholdersEquity + netDebt;
+      const rowNetDebt =
+        typeof s.totalDebt === "number" && typeof s.cashAndEquiv === "number"
+          ? s.totalDebt - s.cashAndEquiv
+          : netDebt;
+      const investedCapital = s.stockholdersEquity + rowNetDebt;
       if (investedCapital > 50) {
         const calc = ((s.operatingIncome * 0.79) / investedCapital) * 100;
         if (calc <= 150 && calc >= -60) roic = calc;

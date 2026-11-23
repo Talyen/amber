@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <TopNav />
+      <TopNav activeRoute="legal" />
       <main className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:px-6">
         <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
           LEGAL
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
               1. Information We Collect
             </h2>
             <p className="mt-2">
-              Amber uses third-party OAuth sign-in (Google or GitHub) and never collects or stores passwords. When you sign in, we store your display name, email address, and provider account identifier so we can maintain your session, cloud-synced watchlist, and Portfolio Arena entry.
+              Amber uses third-party OAuth sign-in (Google or GitHub) and never collects or stores passwords. When you sign in, we store your display name, email address, and provider account identifier so we can maintain your session, cloud-synced watchlist, and Portfolio Arena entry. If you subscribe to SEC filing alerts, we store your email address and selected tickers and use Resend solely to deliver those filing notifications.
             </p>
           </section>
 
@@ -55,7 +55,11 @@ export default function PrivacyPage() {
               4. Data Deletion
             </h2>
             <p className="mt-2">
-              You may revoke Amber&apos;s access at any time from your Google or GitHub account settings. To request deletion of your stored account or Arena entry, contact the project maintainer via the public GitHub repository.
+              You may permanently delete your Amber account, watchlist, filing alert subscriptions, and Arena portfolio at any time from{" "}
+              <Link href="/settings" className="text-[var(--amber)] hover:underline">
+                Settings
+              </Link>
+              , and revoke OAuth access in your Google or GitHub account settings.
             </p>
           </section>
         </div>

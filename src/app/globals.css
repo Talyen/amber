@@ -30,8 +30,8 @@
   --text-secondary-light: #52525b;
   --text-secondary-dark: #9ca0ab;
 
-  --text-muted-light: #787882;
-  --text-muted-dark: #6b707d;
+  --text-muted-light: #63636e;
+  --text-muted-dark: #8b909e;
 
   /* Warm, tasteful Amber accent (>= 4.5:1 contrast on surfaces, exact 36° gold hue) */
   --amber-light: #a86810;
@@ -449,6 +449,7 @@ input[type="range"].amber-range {
     inset-block-start: 0;
     z-index: 2;
     background: var(--surface-subtle);
+    border-inline-end: none;
     border-bottom: 1px solid var(--border);
     padding: 0.625rem 1rem;
   }

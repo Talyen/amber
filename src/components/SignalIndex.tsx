@@ -55,14 +55,25 @@ const LENS_STYLES: Record<
 
 export function SignalIndex({
   entries = SEARCH_INDEX,
+  initialLensId = null,
 }: {
   entries?: SearchIndexEntry[];
+  initialLensId?: string | null;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey>("marketCap");
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const initialLens = initialLensId
+    ? DISCOVERY_LENSES.find((l) => l.id === initialLensId) ?? null
+    : null;
+  const [sortKey, setSortKey] = useState<SortKey>(
+    initialLens?.defaultSortKey ?? "marketCap"
+  );
+  const [sortDir, setSortDir] = useState<"desc" | "asc">(
+    initialLens?.defaultSortDir ?? "desc"
+  );
   const [filter, setFilter] = useState("");
   const [selectedSector, setSelectedSector] = useState<string>("All");
-  const [activeLensId, setActiveLensId] = useState<string | null>(null);
+  const [activeLensId, setActiveLensId] = useState<string | null>(
+    initialLens?.id ?? null
+  );
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [groupBySector, setGroupBySector] = useState(false);
   const [screenerOpen, setScreenerOpen] = useState(false);
@@ -124,13 +135,27 @@ export function SignalIndex({
     setOrDel("sbc", maxSbcPct);
     setOrDel("imp", maxImplied);
     setOrDel("dil", maxDilution);
+    if (selectedSector !== "All") url.searchParams.set("sector", selectedSector);
+    else url.searchParams.delete("sector");
+    if (sortKey !== "marketCap") url.searchParams.set("sort", sortKey);
+    else url.searchParams.delete("sort");
+    if (sortDir !== "desc") url.searchParams.set("dir", sortDir);
+    else url.searchParams.delete("dir");
     window.history.replaceState(null, "", url.pathname + url.search);
-  }, [activeLensId, minFcfMargin, maxSbcPct, maxImplied, maxDilution]);
+  }, [activeLensId, minFcfMargin, maxSbcPct, maxImplied, maxDilution, selectedSector, sortKey, sortDir]);
 
   const activeLens = useMemo(
     () => DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null,
     [activeLensId]
   );
+
+  const lensCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const lens of DISCOVERY_LENSES) {
+      map.set(lens.id, entries.filter(lens.filter).length);
+    }
+    return map;
+  }, [entries]);
 
   function selectLens(lensId: string | null) {
     if (!lensId || lensId === activeLensId) {
@@ -296,7 +321,7 @@ export function SignalIndex({
               href="/t/NVDA"
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
             >
-              Open NVDA Demo
+              Explore NVDA
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -349,10 +374,28 @@ export function SignalIndex({
                   setFilter(e.target.value);
                   setVisibleLimit(30);
                 }}
-                placeholder="Filter by ticker or name…"
+                placeholder="Filter table…"
                 aria-label="Filter companies table"
-                className="h-8 w-48 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                className="h-8 w-44 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)]"
               />
+
+              <select
+                aria-label="Sort companies"
+                value={`${sortKey}:${sortDir}`}
+                onChange={(e) => {
+                  const [k, d] = e.target.value.split(":") as [IndexSortKey, "asc" | "desc"];
+                  setSortKey(k);
+                  setSortDir(d);
+                }}
+                className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-xs text-[var(--text-secondary)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)] sm:hidden"
+              >
+                <option value="marketCap:desc">Sort: Market Cap</option>
+                <option value="trueFcf:desc">Sort: True FCF</option>
+                <option value="trueFcfMargin:desc">Sort: True Margin</option>
+                <option value="sbcPctRevenue:desc">Sort: SBC % (High)</option>
+                <option value="netDilutionCagr:asc">Sort: Buybacks</option>
+                <option value="impliedCagr:desc">Sort: Implied 10Y</option>
+              </select>
 
               <button
                 type="button"
@@ -366,7 +409,7 @@ export function SignalIndex({
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className="font-mono-num rounded-full bg-[var(--cta-bg)] px-1.5 py-0.2 text-[10px] font-semibold text-[var(--cta-fg)]">
+                  <span className="font-mono-num rounded-full bg-[var(--cta-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--cta-fg)]">
                     {activeFilterCount}
                   </span>
                 )}
@@ -375,10 +418,10 @@ export function SignalIndex({
           </div>
 
           {/* Integrated Discovery Lens Strip */}
-          <div className="mb-3.5 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             {DISCOVERY_LENSES.map((lens) => {
               const isSelected = activeLensId === lens.id;
-              const matchCount = entries.filter(lens.filter).length;
+              const matchCount = lensCounts.get(lens.id) ?? 0;
               const style = LENS_STYLES[lens.id] ?? {
                 icon: Compass,
                 badge: "bg-amber-500/12 text-amber-600 ring-amber-500/25 dark:text-amber-400",
@@ -415,6 +458,14 @@ export function SignalIndex({
               );
             })}
           </div>
+          {activeLens && (
+            <p className="mb-3 text-xs text-[var(--text-muted)]">
+              <span className="font-medium text-[var(--text-secondary)]">
+                {activeLens.title}:
+              </span>{" "}
+              {activeLens.criteriaSummary}
+            </p>
+          )}
 
           {/* Consolidated Filters Drawer (Sector, Fundamentals, Grouping) */}
           {screenerOpen && (
@@ -593,7 +644,37 @@ export function SignalIndex({
                 </tr>
               </thead>
               <tbody>
-                {groupBySector
+                {rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="!py-12 !text-center text-sm text-[var(--text-secondary)]"
+                    >
+                      <p>
+                        {watchlistOnly && watchlist.tickers.length === 0
+                          ? "Your watchlist is empty. Star any company to track it here."
+                          : "No companies match the active filters."}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilter("");
+                          setWatchlistOnly(false);
+                          setActiveLensId(null);
+                          setSelectedSector("All");
+                          setGroupBySector(false);
+                          setMinFcfMargin("");
+                          setMaxSbcPct("");
+                          setMaxImplied("");
+                          setMaxDilution("");
+                        }}
+                        className="mt-3 inline-flex h-8 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--amber)] hover:border-[var(--amber-border)] cursor-pointer"
+                      >
+                        Reset filters
+                      </button>
+                    </td>
+                  </tr>
+                ) : groupBySector
                   ? groupedBySector.map(([sector, sectorRows]) => (
                       <Fragment key={sector}>
                         <tr>

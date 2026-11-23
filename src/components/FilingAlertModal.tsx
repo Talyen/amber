@@ -2,6 +2,30 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bell, Check, X } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+
+const ALERTS_STORAGE_KEY = "amber-filing-alerts-v1";
+
+function readTrackedAlerts(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ALERTS_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTrackedAlert(ticker: string) {
+  try {
+    const existing = readTrackedAlerts();
+    if (!existing.includes(ticker)) {
+      window.localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify([...existing, ticker]));
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+}
 
 interface FilingAlertModalProps {
   ticker: string;
@@ -12,11 +36,24 @@ export function FilingAlertModal({
   ticker,
   companyName,
 }: FilingAlertModalProps) {
+  const { data: session } = authClient.useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const [feedback, setFeedback] = useState("");
+
+  useEffect(() => {
+    if (readTrackedAlerts().includes(ticker)) {
+      setStatus("done");
+    }
+  }, [ticker]);
+
+  useEffect(() => {
+    if (session?.user?.email && !email) {
+      setEmail(session.user.email);
+    }
+  }, [session?.user?.email, email]);
 
   function openModal() {
     const dialog = dialogRef.current;
@@ -84,6 +121,7 @@ export function FilingAlertModal({
         return;
       }
       setStatus("done");
+      saveTrackedAlert(ticker);
       setFeedback(data.message ?? `Subscribed to ${ticker} filing alerts.`);
     } catch {
       setStatus("error");
@@ -180,12 +218,14 @@ export function FilingAlertModal({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)]"
               />
             </div>
 
             {status === "error" && feedback && (
-              <p className="text-xs text-[var(--negative)]">{feedback}</p>
+              <p role="alert" className="text-xs text-[var(--negative)]">
+                {feedback}
+              </p>
             )}
 
             <div className="flex items-center justify-end gap-2 pt-1">

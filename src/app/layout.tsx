@@ -26,6 +26,20 @@ export const metadata: Metadata = {
   },
   description:
     "SBC-adjusted True Free Cash Flow, interactive Reverse DCF stress-testing, and structured SEC filing diffs.",
+  openGraph: {
+    type: "website",
+    siteName: "Amber",
+    title: "Amber | Fundamental Equity Analysis",
+    description:
+      "Real cash flow, dilution, and priced-in growth from SEC EDGAR filings.",
+    url: siteUrl,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Amber | Fundamental Equity Analysis",
+    description:
+      "Real cash flow, dilution, and priced-in growth from SEC EDGAR filings.",
+  },
 };
 
 export const viewport: Viewport = {
@@ -43,9 +57,6 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
-      <head>
-        <meta name="color-scheme" content="light dark" />
-      </head>
       <body className="min-h-screen antialiased selection:bg-[var(--amber-soft)] selection:text-[var(--amber)]">
         {children}
       </body>

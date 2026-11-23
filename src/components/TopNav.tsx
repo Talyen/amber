@@ -19,7 +19,15 @@ import { CommandSearch } from "@/components/CommandSearch";
 
 interface TopNavProps {
   activeTicker?: string;
-  activeRoute?: "index" | "compare" | "portfolio" | "arena" | "feed" | "ticker";
+  activeRoute?:
+    | "index"
+    | "compare"
+    | "portfolio"
+    | "arena"
+    | "feed"
+    | "ticker"
+    | "settings"
+    | "legal";
 }
 
 const NAV_LINKS: Array<{
@@ -125,7 +133,8 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           <button
             type="button"
             onClick={handleCopyLink}
-            className="hidden h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer md:inline-flex"
+            aria-label={copied ? "Link copied" : "Share current page link"}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 sm:px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             {copied ? (
               <>
@@ -143,7 +152,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
           <button
             type="button"
             onClick={toggleTheme}
-            aria-label="Toggle color theme"
+            aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             {isDark ? (

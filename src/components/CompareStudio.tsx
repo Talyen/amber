@@ -53,13 +53,20 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
     hydratedRef.current = true;
   }, [byTicker]);
 
-  // Keep ?t= synced cleanly for 1-click Share
+  // Keep ?t= synced cleanly for 1-click Share without cluttering clean /compare/[slug] URLs on initial load
   useEffect(() => {
     if (!hydratedRef.current || selectedTickers.length === 0) return;
+    if (
+      initialTickers &&
+      initialTickers.length === selectedTickers.length &&
+      initialTickers.every((t, i) => t === selectedTickers[i])
+    ) {
+      return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.set("t", selectedTickers.join(","));
     window.history.replaceState(null, "", url.pathname + url.search);
-  }, [selectedTickers]);
+  }, [selectedTickers, initialTickers]);
 
   const selectedItems = useMemo(
     () =>
