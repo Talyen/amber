@@ -29,7 +29,7 @@ jobs:
       - name: Sync SEC EDGAR XBRL Financials
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
-          UNIVERSE_LIMIT: "500"
+          UNIVERSE_LIMIT: "750"
         run: pnpm ingest:edgar
 
       - name: Sync Latest EOD Share Prices & Market Caps
@@ -47,6 +47,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm db:seed
+
+      - name: Close Prior Month Arena Leaderboards (Idempotent)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node --experimental-strip-types scripts/close-arena-month.ts
 
       - name: Sync SEC Form 4 Open-Market Insider Activity
         env:

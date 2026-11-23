@@ -329,6 +329,12 @@ export function ArenaLeaderboard({
                           Period Winner
                         </span>
                       )}
+                      {typeof spyBenchmark === "number" &&
+                        p.totalReturnPct > spyBenchmark && (
+                          <span className="inline-flex rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--positive)] ring-1 ring-inset ring-[var(--border)]">
+                            Beat SPY
+                          </span>
+                        )}
                       {p.isBot ? (
                         <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
                           <Bot className="h-3 w-3 text-[var(--amber)]" />

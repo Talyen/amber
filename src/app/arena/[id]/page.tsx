@@ -2,9 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, PieChart, RefreshCw } from "lucide-react";
-import { getArenaPortfolioById } from "@/data/repository";
+import { getArenaPortfolioById, getSpyBenchmarks } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import {
+  ArenaBenchmarkCard,
+  ArenaScorecardExport,
+} from "@/components/ArenaScorecardActions";
 import { formatPct } from "@/lib/finance";
 
 export const revalidate = 3600;
@@ -30,8 +34,13 @@ export default async function ArenaDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const portfolio = await getArenaPortfolioById(id);
+  const [portfolio, benchmarks] = await Promise.all([
+    getArenaPortfolioById(id),
+    getSpyBenchmarks(),
+  ]);
   if (!portfolio) notFound();
+
+  const spyReturn = benchmarks[portfolio.periodKey];
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -95,19 +104,33 @@ export default async function ArenaDetailPage({
                 {formatPct(portfolio.totalReturnPct, true)}
               </div>
             </div>
-            <Link
-              href={`/portfolio?h=${encodeURIComponent(
-                portfolio.positions
-                  .map((p) => `${p.ticker}:${Math.round(p.weightPct)}`)
-                  .join(",")
-              )}`}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white"
-            >
-              <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
-              Analyze in Portfolio
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <ArenaScorecardExport
+                portfolio={portfolio}
+                spyReturnPct={spyReturn}
+              />
+              <Link
+                href={`/portfolio?h=${encodeURIComponent(
+                  portfolio.positions
+                    .map((p) => `${p.ticker}:${Math.round(p.weightPct)}`)
+                    .join(",")
+                )}`}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--amber)] hover:text-white"
+              >
+                <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
+                Analyze in Portfolio
+              </Link>
+            </div>
           </div>
         </section>
+
+        {typeof spyReturn === "number" && (
+          <ArenaBenchmarkCard
+            portfolioReturnPct={portfolio.totalReturnPct}
+            spyReturnPct={spyReturn}
+            periodLabel={portfolio.periodKey}
+          />
+        )}
 
         <section className="mt-6">
           <div

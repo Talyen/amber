@@ -89,6 +89,7 @@ async function queryCompanyFromDb(
         stockholdersEquity: a.stockholdersEquity,
       })),
       priceHistory: row.priceHistory ?? undefined,
+      quarterlyFinancials: row.quarterlyFinancials ?? undefined,
       defaultDcf: row.defaultDcf,
       filingDiffs: diffRows.map((d) => ({
         id: d.id,

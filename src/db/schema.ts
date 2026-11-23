@@ -22,6 +22,16 @@ export interface AnnualPricePointJson {
   price: number;
 }
 
+export interface QuarterlyFinancialJson {
+  fiscalYear: string; // e.g. "25Q4"
+  revenue: number;
+  operatingCashFlow: number;
+  capex: number;
+  sbc: number;
+  buybacks: number;
+  dilutedShares: number;
+}
+
 export const companies = pgTable("companies", {
   ticker: text("ticker").primaryKey(),
   cik: text("cik").notNull().unique(),
@@ -39,6 +49,7 @@ export const companies = pgTable("companies", {
   lastFilingAccession: text("last_filing_accession").notNull(),
   defaultDcf: jsonb("default_dcf").$type<DefaultDcfJson>().notNull(),
   priceHistory: jsonb("price_history").$type<AnnualPricePointJson[]>(),
+  quarterlyFinancials: jsonb("quarterly_financials").$type<QuarterlyFinancialJson[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

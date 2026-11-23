@@ -38,8 +38,40 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
       ? company.filingDiffs
       : company.filingDiffs.filter((d) => d.category === selectedCategory);
 
+  // Deterministic 3-bullet executive summary (High materiality prioritized)
+  const topTakeaways = [...company.filingDiffs]
+    .sort((a, b) => {
+      const rank = { High: 0, Medium: 1, Watch: 2 };
+      return rank[a.materiality] - rank[b.materiality];
+    })
+    .slice(0, 3);
+
   return (
     <div className="space-y-5">
+      {topTakeaways.length > 0 && (
+        <section className="rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--amber)]">
+              Key Filing Takeaways ({company.lastFiling.type})
+            </h2>
+            <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+              Filed {company.lastFiling.date}
+            </span>
+          </div>
+          <ul className="mt-2.5 space-y-1.5 text-xs text-[var(--text-primary)]">
+            {topTakeaways.map((d) => (
+              <li key={d.id} className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--amber)]" />
+                <span>
+                  <strong className="font-semibold">{d.category}:</strong>{" "}
+                  {d.headline}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Filter & Push Alert Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">

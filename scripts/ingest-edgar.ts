@@ -84,6 +84,10 @@ const PRIORITY_TICKERS = [
   "DUOL", "DASH", "RBLX", "SPOT", "OKTA", "DOCU", "TWLO", "GTLB", "CFLT", "IOT",
   "MELI", "NU", "AXP", "BLK", "BX", "KKR", "JPM", "GS", "MS", "BRK.B",
   "ORLY", "AZO", "ADSK", "PAYX", "ADP",
+  "ARM", "RDDT", "SOFI", "TOST", "AFRM", "DKNG", "CAVA", "ELF", "HIMS", "ONON",
+  "AXON", "VST", "CEG", "GEV", "MSTR", "SMCI", "MRVL", "U", "ROKU", "PINS",
+  "SNAP", "ESTC", "BILL", "MNDY", "CELH", "LULU", "DECK", "PODD", "DXCM", "REGN",
+  "VRTX", "CRSP", "FI", "FIS", "GPN", "XYZ", "ROST", "TGT", "DG", "DLTR",
 ];
 
 interface SecDirectoryResponse {

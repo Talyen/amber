@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowRight, FileText, Star, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, ArrowUpRight, FileText, Star, TrendingUp } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
 import type { MarketInsiderFeedItem } from "@/data/repository";
 import { useWatchlist } from "@/lib/watchlist";
@@ -36,7 +36,30 @@ function cleanEntity(str: string): string {
 export function SignalFeed({ entries, insiders }: SignalFeedProps) {
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [headlines, setHeadlines] = useState<
+    Array<{ title: string; link: string; pubDate: string }>
+  >([]);
   const watchlist = useWatchlist();
+
+  const newsKey =
+    watchlist.tickers.length > 0
+      ? watchlist.tickers.slice(0, 8).join(",")
+      : "NVDA,MSFT,AAPL,META,COST";
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/watchlist-news?tickers=${encodeURIComponent(newsKey)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { items?: Array<{ title: string; link: string; pubDate: string }> } | null) => {
+        if (active && Array.isArray(data?.items)) {
+          setHeadlines(data.items.slice(0, 6));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [newsKey]);
 
   const recentFilings = useMemo(
     () =>
@@ -127,6 +150,44 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
             })}
           </div>
         </section>
+
+        {headlines.length > 0 && (
+          <section className="mt-6">
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                {watchlist.tickers.length > 0
+                  ? "Watchlist Headlines"
+                  : "Market Headlines"}
+              </h2>
+              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                {watchlist.tickers.length > 0
+                  ? watchlist.tickers.slice(0, 5).join(" · ")
+                  : "NVDA · MSFT · AAPL · META · COST"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {headlines.map((item) => (
+                <a
+                  key={item.link}
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex flex-col justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 transition-colors hover:border-[var(--amber-border)]"
+                >
+                  <div className="line-clamp-2 text-xs font-medium leading-snug text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                    {item.title}
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+                    <span className="font-mono-num">
+                      {item.pubDate ? item.pubDate.slice(0, 16) : "Recent"}
+                    </span>
+                    <ArrowUpRight className="h-3.5 w-3.5 opacity-70 group-hover:text-[var(--amber)]" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Latest 10-K / 10-Q Filings */}

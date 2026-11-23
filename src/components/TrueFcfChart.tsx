@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
+  computeAnnualMetrics,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -16,8 +17,24 @@ interface TrueFcfChartProps {
 }
 
 export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
-  const [hoveredIdx, setHoveredIdx] = useState<number>(series.length - 1);
-  const active = series[hoveredIdx] ?? series[series.length - 1];
+  const quarterlySeries = useMemo(
+    () =>
+      company.quarterlyFinancials && company.quarterlyFinancials.length >= 4
+        ? computeAnnualMetrics(company.quarterlyFinancials)
+        : [],
+    [company.quarterlyFinancials]
+  );
+
+  const [cadence, setCadence] = useState<"annual" | "quarterly">("annual");
+  const activeSeries =
+    cadence === "quarterly" && quarterlySeries.length >= 4
+      ? quarterlySeries
+      : series;
+
+  const [hoveredIdx, setHoveredIdx] = useState<number>(activeSeries.length - 1);
+  const active =
+    activeSeries[Math.min(hoveredIdx, activeSeries.length - 1)] ??
+    activeSeries[activeSeries.length - 1];
 
   // Precision SVG coordinate space (fixed aspect ratio, zero layout shift)
   const W = 760;
@@ -29,7 +46,7 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
-  const allCashValues = series.flatMap((d) => [
+  const allCashValues = activeSeries.flatMap((d) => [
     d.reportedFcf,
     d.sbc,
     d.trueFcf,
@@ -44,18 +61,18 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
   const zeroY = yCash(0);
 
   // Secondary axis for Diluted Shares (line overlay)
-  const shareValues = series.map((d) => d.dilutedShares);
+  const shareValues = activeSeries.map((d) => d.dilutedShares);
   const minShares = Math.min(...shareValues) * 0.92;
   const maxShares = Math.max(...shareValues) * 1.06;
   const shareRange = Math.max(1, maxShares - minShares);
   const yShare = (shares: number) =>
     padT + ((maxShares - shares) / shareRange) * plotH;
 
-  const groupW = plotW / series.length;
+  const groupW = plotW / activeSeries.length;
   const barW = Math.min(24, (groupW - 36) / 3);
   const barGap = 4;
 
-  const sharePath = series
+  const sharePath = activeSeries
     .map((d, i) => {
       const cx = padL + i * groupW + groupW / 2;
       const cy = yShare(d.dilutedShares);
@@ -73,18 +90,53 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
             Reported FCF vs. Stock-Based Compensation &amp; True FCF
           </h2>
           <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Hover any fiscal year to inspect the economic cash flow bridge and diluted share trend.
+            Hover any period to inspect the economic cash flow bridge and diluted share trend.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => exportTrueFcfCard(company, series)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export PNG
-        </button>
+        <div className="flex items-center gap-2">
+          {quarterlySeries.length >= 4 && (
+            <div className="inline-flex rounded-md border border-[var(--border)] bg-[var(--bg)] p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setCadence("annual");
+                  setHoveredIdx(series.length - 1);
+                }}
+                className={`rounded px-2.5 py-1 font-medium transition-colors cursor-pointer ${
+                  cadence === "annual"
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                Annual
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCadence("quarterly");
+                  setHoveredIdx(quarterlySeries.length - 1);
+                }}
+                className={`rounded px-2.5 py-1 font-medium transition-colors cursor-pointer ${
+                  cadence === "quarterly"
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                Quarterly (8Q)
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => exportTrueFcfCard(company, activeSeries)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export PNG
+          </button>
+        </div>
       </div>
 
       {/* Zero-CLS live readout bar synced to hovered fiscal year */}
@@ -208,7 +260,7 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
           )}
 
           {/* Column hover highlight + grouped bars */}
-          {series.map((d, idx) => {
+          {activeSeries.map((d, idx) => {
             const colX = padL + idx * groupW;
             const centerX = colX + groupW / 2;
             const totalW = barW * 3 + barGap * 2;
@@ -292,7 +344,7 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
             pointerEvents="none"
           />
 
-          {series.map((d, idx) => {
+          {activeSeries.map((d, idx) => {
             const cx = padL + idx * groupW + groupW / 2;
             const cy = yShare(d.dilutedShares);
             const isHovered = idx === hoveredIdx;

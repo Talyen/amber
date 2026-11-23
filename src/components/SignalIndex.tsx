@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -13,6 +13,7 @@ import {
   Gauge,
   Landmark,
   Layers,
+  SlidersHorizontal,
   Star,
 } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
@@ -45,8 +46,47 @@ export function SignalIndex({
   const [activeLensId, setActiveLensId] = useState<string | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [groupBySector, setGroupBySector] = useState(false);
+  const [screenerOpen, setScreenerOpen] = useState(false);
+  const [minFcfMargin, setMinFcfMargin] = useState("");
+  const [maxSbcPct, setMaxSbcPct] = useState("");
+  const [maxImplied, setMaxImplied] = useState("");
+  const [maxDilution, setMaxDilution] = useState("");
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
+
+  // Hydrate shareable screener query params (?fcf=20&sbc=5&imp=12&dil=0)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fcf = params.get("fcf");
+    const sbc = params.get("sbc");
+    const imp = params.get("imp");
+    const dil = params.get("dil");
+    if (fcf || sbc || imp || dil) {
+      if (fcf) setMinFcfMargin(fcf);
+      if (sbc) setMaxSbcPct(sbc);
+      if (imp) setMaxImplied(imp);
+      if (dil) setMaxDilution(dil);
+      setScreenerOpen(true);
+    }
+  }, []);
+
+  const hasCustomScreen = Boolean(
+    minFcfMargin.trim() || maxSbcPct.trim() || maxImplied.trim() || maxDilution.trim()
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const setOrDel = (k: string, v: string) => {
+      if (v.trim() !== "" && Number.isFinite(Number(v))) url.searchParams.set(k, v.trim());
+      else url.searchParams.delete(k);
+    };
+    setOrDel("fcf", minFcfMargin);
+    setOrDel("sbc", maxSbcPct);
+    setOrDel("imp", maxImplied);
+    setOrDel("dil", maxDilution);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [minFcfMargin, maxSbcPct, maxImplied, maxDilution]);
 
   const activeLens = useMemo(
     () => DISCOVERY_LENSES.find((l) => l.id === activeLensId) ?? null,
@@ -134,10 +174,19 @@ export function SignalIndex({
 
   const rows = useMemo<SearchIndexEntry[]>(() => {
     const q = filter.trim().toLowerCase();
+    const minFcfVal = minFcfMargin.trim() !== "" ? Number(minFcfMargin) : null;
+    const maxSbcVal = maxSbcPct.trim() !== "" ? Number(maxSbcPct) : null;
+    const maxImpVal = maxImplied.trim() !== "" ? Number(maxImplied) : null;
+    const maxDilVal = maxDilution.trim() !== "" ? Number(maxDilution) : null;
+
     const filtered = entries.filter((c) => {
       if (watchlistOnly && !watchlist.has(c.ticker)) return false;
       if (activeLens && !activeLens.filter(c)) return false;
       if (selectedSector !== "All" && c.sector !== selectedSector) return false;
+      if (minFcfVal !== null && Number.isFinite(minFcfVal) && c.trueFcfMargin < minFcfVal) return false;
+      if (maxSbcVal !== null && Number.isFinite(maxSbcVal) && c.sbcPctRevenue > maxSbcVal) return false;
+      if (maxImpVal !== null && Number.isFinite(maxImpVal) && c.impliedCagr > maxImpVal) return false;
+      if (maxDilVal !== null && Number.isFinite(maxDilVal) && c.netDilutionCagr > maxDilVal) return false;
       if (!q) return true;
       return (
         c.ticker.toLowerCase().includes(q) ||
@@ -150,7 +199,20 @@ export function SignalIndex({
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [entries, filter, selectedSector, activeLens, watchlistOnly, watchlist, sortKey, sortDir]);
+  }, [
+    entries,
+    filter,
+    selectedSector,
+    activeLens,
+    watchlistOnly,
+    watchlist,
+    minFcfMargin,
+    maxSbcPct,
+    maxImplied,
+    maxDilution,
+    sortKey,
+    sortDir,
+  ]);
 
   const visibleRows = rows.slice(0, visibleLimit);
 
@@ -306,6 +368,22 @@ export function SignalIndex({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={() => setScreenerOpen((prev) => !prev)}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                  screenerOpen || hasCustomScreen
+                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Screener
+                {hasCustomScreen && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--amber)]" />
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setGroupBySector((prev) => !prev)}
                 className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
                   groupBySector
@@ -332,6 +410,95 @@ export function SignalIndex({
           </div>
 
           {/* Watchlist + Sector Filter Pills */}
+          {screenerOpen && (
+            <div className="mb-3.5 grid grid-cols-2 gap-2.5 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-3.5 sm:grid-cols-5 sm:items-end">
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                  Min True FCF %
+                </span>
+                <input
+                  type="number"
+                  step="1"
+                  value={minFcfMargin}
+                  onChange={(e) => {
+                    setMinFcfMargin(e.target.value);
+                    setVisibleLimit(30);
+                  }}
+                  placeholder="e.g. 20"
+                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                  Max SBC / Rev %
+                </span>
+                <input
+                  type="number"
+                  step="1"
+                  value={maxSbcPct}
+                  onChange={(e) => {
+                    setMaxSbcPct(e.target.value);
+                    setVisibleLimit(30);
+                  }}
+                  placeholder="e.g. 5"
+                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                  Max Implied 10Y %
+                </span>
+                <input
+                  type="number"
+                  step="1"
+                  value={maxImplied}
+                  onChange={(e) => {
+                    setMaxImplied(e.target.value);
+                    setVisibleLimit(30);
+                  }}
+                  placeholder="e.g. 10"
+                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                  Max Dilution %
+                </span>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={maxDilution}
+                  onChange={(e) => {
+                    setMaxDilution(e.target.value);
+                    setVisibleLimit(30);
+                  }}
+                  placeholder="e.g. 0"
+                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                />
+              </label>
+
+              <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
+                {hasCustomScreen && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMinFcfMargin("");
+                      setMaxSbcPct("");
+                      setMaxImplied("");
+                      setMaxDilution("");
+                    }}
+                    className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
             <button
               type="button"

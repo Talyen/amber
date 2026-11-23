@@ -38,6 +38,7 @@ import { FinancialLedgerTable } from "@/components/FinancialLedgerTable";
 import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
 import { ScenarioBuilder } from "@/components/ScenarioBuilder";
 import { PriceVsFundamentalsChart } from "@/components/PriceVsFundamentalsChart";
+import { HistoricalValuationBands } from "@/components/HistoricalValuationBands";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
@@ -610,6 +611,7 @@ export function CompanyWorkspace({
                   )}
 
                   <PriceVsFundamentalsChart company={company} series={series} />
+                  <HistoricalValuationBands company={company} series={series} />
                 </div>
               )}
             </div>

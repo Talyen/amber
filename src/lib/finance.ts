@@ -57,6 +57,7 @@ export interface CompanySnapshot {
     accessionNumber: string;
   };
   annuals: AnnualFinancials[];
+  quarterlyFinancials?: AnnualFinancials[];
   priceHistory?: AnnualPricePoint[];
   defaultDcf: {
     wacc: number; // % e.g. 10.0
