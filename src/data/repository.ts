@@ -928,3 +928,114 @@ export async function getArenaPortfoliosByHandle(
   const all = await getArenaLeaderboard();
   return all.filter((p) => p.handle.toLowerCase() === normalized);
 }
+
+export interface MarketFilingDiffItem {
+  id: string;
+  ticker: string;
+  companyName: string;
+  sector: string;
+  filingType: string;
+  filingDate: string;
+  accessionNumber: string;
+  section: string;
+  category: string;
+  materiality: "High" | "Medium" | "Watch";
+  headline: string;
+  summary: string;
+  priorExcerpt: string;
+  currentExcerpt: string;
+  signalNote: string;
+  source: string;
+}
+
+function getStaticRecentFilingDiffs(limit: number): MarketFilingDiffItem[] {
+  const items: MarketFilingDiffItem[] = [];
+  for (const c of ALL_COMPANIES) {
+    for (const d of c.filingDiffs) {
+      items.push({
+        id: d.id,
+        ticker: c.ticker,
+        companyName: c.name,
+        sector: c.sector,
+        filingType: d.filingType,
+        filingDate: d.filingDate,
+        accessionNumber: d.accessionNumber,
+        section: d.section,
+        category: d.category,
+        materiality: d.materiality,
+        headline: d.headline,
+        summary: d.summary,
+        priorExcerpt: d.priorExcerpt,
+        currentExcerpt: d.currentExcerpt,
+        signalNote: d.signalNote,
+        source: d.section.toLowerCase().includes("item") ? "text-diff" : "xbrl",
+      });
+    }
+  }
+  const rank = { High: 0, Medium: 1, Watch: 2 };
+  return items
+    .sort(
+      (a, b) =>
+        b.filingDate.localeCompare(a.filingDate) ||
+        rank[a.materiality] - rank[b.materiality]
+    )
+    .slice(0, limit);
+}
+
+export async function getRecentFilingDiffs(
+  limit = 160
+): Promise<MarketFilingDiffItem[]> {
+  if (!process.env.DATABASE_URL) {
+    return getStaticRecentFilingDiffs(limit);
+  }
+
+  const cachedFetch = unstable_cache(
+    async () => {
+      const db = getDb();
+      if (!db) throw new Error("DB unavailable");
+
+      const rows = await db
+        .select({
+          id: filingDiffs.id,
+          ticker: filingDiffs.ticker,
+          companyName: companies.name,
+          sector: companies.sector,
+          filingType: filingDiffs.filingType,
+          filingDate: filingDiffs.filingDate,
+          accessionNumber: filingDiffs.accessionNumber,
+          section: filingDiffs.section,
+          category: filingDiffs.category,
+          materiality: filingDiffs.materiality,
+          headline: filingDiffs.headline,
+          summary: filingDiffs.summary,
+          priorExcerpt: filingDiffs.priorExcerpt,
+          currentExcerpt: filingDiffs.currentExcerpt,
+          signalNote: filingDiffs.signalNote,
+          source: filingDiffs.source,
+        })
+        .from(filingDiffs)
+        .innerJoin(companies, eq(filingDiffs.ticker, companies.ticker))
+        .orderBy(desc(filingDiffs.filingDate))
+        .limit(limit);
+
+      if (rows.length === 0) {
+        throw new Error("No filing diffs returned from DB");
+      }
+
+      return rows.map((r) => ({
+        ...r,
+        materiality: (r.materiality === "High" || r.materiality === "Medium"
+          ? r.materiality
+          : "Watch") as MarketFilingDiffItem["materiality"],
+      }));
+    },
+    ["amber-recent-filing-diffs-v1", String(limit)],
+    { revalidate: 3600, tags: ["filings", "companies"] }
+  );
+
+  try {
+    return await cachedFetch();
+  } catch {
+    return getStaticRecentFilingDiffs(limit);
+  }
+}

@@ -55,6 +55,12 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node --experimental-strip-types scripts/close-arena-month.ts
 
+      - name: Sync High-Signal SEC Form 8-K Material Events
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm ingest:8k
+
       - name: Sync SEC Form 4 Open-Market Insider Activity
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}

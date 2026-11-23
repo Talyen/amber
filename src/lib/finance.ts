@@ -25,7 +25,7 @@ export interface AnnualPricePoint {
 
 export interface FilingDiffItem {
   id: string;
-  filingType: "10-K" | "10-Q" | "DEF 14A" | "Form 4";
+  filingType: "10-K" | "10-Q" | "8-K" | "DEF 14A" | "Form 4";
   filingDate: string;
   accessionNumber: string;
   section: string;

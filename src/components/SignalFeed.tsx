@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUpRight, Flame, Star, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, FileDiff, Flame, Radar, Star, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/universe";
-import type { MarketInsiderFeedItem } from "@/data/repository";
+import type {
+  MarketFilingDiffItem,
+  MarketInsiderFeedItem,
+} from "@/data/repository";
 import type {
   HeadlineItem,
   TrendingTickerItem,
@@ -16,17 +19,63 @@ import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 interface SignalFeedProps {
   entries: SearchIndexEntry[];
   insiders: MarketInsiderFeedItem[];
+  diffs?: MarketFilingDiffItem[];
 }
 
 type FeedScope = "watchlist" | "market";
 type FeedFilter =
   | "all"
+  | "diffs"
   | "headlines"
   | "filings"
   | "insider-buys"
   | "insider-sells";
 
 const QUICK_STAR_TICKERS = ["NVDA", "MSFT", "AAPL", "AMZN", "META", "COST"];
+
+const STARTER_PACKS: Array<{ id: string; label: string; tickers: string[] }> = [
+  { id: "mag7", label: "Mag 7", tickers: ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"] },
+  { id: "ai-semis", label: "AI & Semis", tickers: ["NVDA", "AMD", "AVGO", "TSM", "ASML", "ANET"] },
+  { id: "cloud", label: "Cloud & Cyber", tickers: ["CRWD", "PANW", "DDOG", "SNOW", "NET", "NOW"] },
+  { id: "compounders", label: "Quality Compounders", tickers: ["COST", "V", "MA", "SPGI", "FICO", "CTAS"] },
+];
+
+const CROSS_FILING_THEMES: Array<{
+  id: string;
+  label: string;
+  pattern: RegExp;
+}> = [
+  {
+    id: "tariffs",
+    label: "Tariffs & Trade",
+    pattern: /\b(tariff|trade war|duties|customs|import|geopolitical|china)\b/i,
+  },
+  {
+    id: "ai-capex",
+    label: "AI & CapEx Surge",
+    pattern: /\b(artificial intelligence|\bai\b|capex|capital expenditure|data center|infrastructure|gpu|compute)\b/i,
+  },
+  {
+    id: "customer-conc",
+    label: "Customer Concentration",
+    pattern: /\b(customer concentration|single customer|largest customer|top customer|revenue concentration|accounted for \d+%)\b/i,
+  },
+  {
+    id: "regulatory",
+    label: "Export & Regulatory",
+    pattern: /\b(export control|antitrust|litigation|regulatory|investigation|doj|ftc|sec inquiry|restatement)\b/i,
+  },
+  {
+    id: "margins",
+    label: "Margins & Demand",
+    pattern: /\b(margin pressure|pricing pressure|slowdown|decelerat|demand|inventory|impairment|restructuring)\b/i,
+  },
+  {
+    id: "leadership",
+    label: "Leadership & Comp",
+    pattern: /\b(ceo|cfo|executive|departure|resign|board|compensation|stock-based|sbc|dilution)\b/i,
+  },
+];
 
 function cleanEntity(str: string): string {
   const decoded = str
@@ -68,11 +117,13 @@ function formatRelativeTime(pubDate: string): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-export function SignalFeed({ entries, insiders }: SignalFeedProps) {
+export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
   const watchlist = useWatchlist();
   const [scope, setScope] = useState<FeedScope>("market");
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
+  const [showAllDiffs, setShowAllDiffs] = useState(false);
   const [headlines, setHeadlines] = useState<HeadlineItem[]>([]);
   const [trending, setTrending] = useState<TrendingTickerItem[]>([]);
   const [loadingNews, setLoadingNews] = useState(true);
@@ -247,6 +298,42 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
   const wireLeft = wireStories.slice(0, midPoint);
   const wireRight = wireStories.slice(midPoint);
 
+  const scopedDiffs = useMemo(() => {
+    return diffs.filter(
+      (d) =>
+        (!selectedTicker || d.ticker === selectedTicker) &&
+        (!watchlistOnly || watchlist.has(d.ticker))
+    );
+  }, [diffs, watchlistOnly, watchlist, selectedTicker]);
+
+  const themeCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const theme of CROSS_FILING_THEMES) {
+      const uniqueTickers = new Set<string>();
+      for (const d of scopedDiffs) {
+        const hay = `${d.headline} ${d.summary} ${d.currentExcerpt} ${d.category}`;
+        if (theme.pattern.test(hay)) uniqueTickers.add(d.ticker);
+      }
+      map.set(theme.id, uniqueTickers.size);
+    }
+    return map;
+  }, [scopedDiffs]);
+
+  const visibleDiffs = useMemo(() => {
+    const activeTheme = selectedTheme
+      ? CROSS_FILING_THEMES.find((t) => t.id === selectedTheme) ?? null
+      : null;
+    const filtered = activeTheme
+      ? scopedDiffs.filter((d) =>
+          activeTheme.pattern.test(
+            `${d.headline} ${d.summary} ${d.currentExcerpt} ${d.category}`
+          )
+        )
+      : scopedDiffs;
+    return showAllDiffs ? filtered.slice(0, 30) : filtered.slice(0, 6);
+  }, [scopedDiffs, selectedTheme, showAllDiffs]);
+
+  const showDiffs = filter === "all" || filter === "diffs";
   const showHeadlines = filter === "all" || filter === "headlines";
   const showFilings = filter === "all" || filter === "filings";
   const showInsiders =
@@ -262,11 +349,14 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
         {/* Header + Primary Watchlist vs Market Toggle */}
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
-            <h1 className="text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              {watchlistOnly ? "Your Feed" : "Market Feed"}
+            <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
+              SEC SIGNAL WIRE
+            </div>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
+              {watchlistOnly ? "Your Signal Briefing" : "Market Signal Wire"}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Live headlines, trending tickers, SEC filings, and open-market Form 4 insider trades.
+              Material SEC 10-K/10-Q fine-print changes, Form 8-K events, cross-filing risk themes, and open-market insider moves.
             </p>
           </div>
 
@@ -357,20 +447,37 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
         {isEmptyWatchlist ? (
           <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-7 text-center">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Your watchlist is empty
+              Follow a starter pack or pick 1 stock in a single click
             </h2>
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
-              Star a few companies below to tailor headlines, filings, and insider alerts to what you follow.
+              No manual portfolio setup required — follow a group below to filter SEC filing diffs, 8-Ks, and insider buys instantly.
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {STARTER_PACKS.map((pack) => (
+                <button
+                  key={pack.id}
+                  type="button"
+                  onClick={() => {
+                    for (const t of pack.tickers) {
+                      if (!watchlist.has(t)) watchlist.toggle(t);
+                    }
+                  }}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+                >
+                  <Star className="h-3.5 w-3.5" />
+                  Follow {pack.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap justify-center gap-1.5">
               {QUICK_STAR_TICKERS.map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => watchlist.toggle(t)}
-                  className="font-mono-num inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
+                  className="font-mono-num inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
                 >
-                  <Star className="h-3.5 w-3.5 text-[var(--amber)]" />
+                  <Star className="h-3 w-3 text-[var(--amber)]" />
                   {t}
                 </button>
               ))}
@@ -381,25 +488,62 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                 onClick={() => setScope("market")}
                 className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
               >
-                Or browse All Market activity
+                Or browse All Market signals with zero setup
               </button>
             </div>
           </section>
         ) : (
           <>
+            {/* Cross-Filing Theme Radar ("What Management Is Warning About") */}
+            {scopedDiffs.length > 0 && (
+              <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)] mr-1">
+                    <Radar className="h-3.5 w-3.5 text-[var(--amber)]" />
+                    Cross-Filing Theme Radar:
+                  </span>
+                  {CROSS_FILING_THEMES.map((theme) => {
+                    const count = themeCounts.get(theme.id) ?? 0;
+                    if (count === 0) return null;
+                    const active = selectedTheme === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTheme(active ? null : theme.id);
+                          setFilter(active ? "all" : "diffs");
+                        }}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                          active
+                            ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                            : "border border-[var(--border)] bg-[var(--bg)] text-[var(--text-secondary)] hover:border-[var(--amber-border)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <span>{theme.label}</span>
+                        <span className="font-mono-num text-[11px] opacity-75">
+                          {count}
+                        </span>
+                        {active && <X className="h-3 w-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Content Type Filter Pills */}
             <div className="mt-4 flex flex-wrap items-center gap-1.5">
               {(
                 [
-                  { id: "all", label: "All" },
+                  { id: "all", label: "All Signals" },
                   {
-                    id: "headlines",
+                    id: "diffs",
                     label:
-                      headlines.length > 0
-                        ? `Headlines (${headlines.length})`
-                        : "Headlines",
+                      scopedDiffs.length > 0
+                        ? `SEC Fine-Print & 8-Ks (${scopedDiffs.length})`
+                        : "SEC Fine-Print & 8-Ks",
                   },
-                  { id: "filings", label: "Filings" },
                   {
                     id: "insider-buys",
                     label:
@@ -414,6 +558,14 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                         ? `Insider Sales (${sellCount})`
                         : "Insider Sales",
                   },
+                  {
+                    id: "headlines",
+                    label:
+                      headlines.length > 0
+                        ? `Headlines (${headlines.length})`
+                        : "Headlines",
+                  },
+                  { id: "filings", label: "Filing Dates" },
                 ] as const
               ).map((tab) => {
                 const active = filter === tab.id;
@@ -444,6 +596,114 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                 </button>
               )}
             </div>
+
+            {/* Primary Signal Section: SEC Fine-Print Diffs & Form 8-K Events */}
+            {showDiffs && visibleDiffs.length > 0 && (
+              <section className="mt-6">
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileDiff className="h-4 w-4 text-[var(--amber)]" />
+                    <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                      {selectedTheme
+                        ? `SEC Filings Mentioning "${CROSS_FILING_THEMES.find((t) => t.id === selectedTheme)?.label}"`
+                        : selectedTicker
+                          ? `${selectedTicker} Material SEC Changes`
+                          : watchlistOnly
+                            ? "Watchlist SEC Fine-Print & 8-K Events"
+                            : "Latest Material SEC Fine-Print & 8-K Events"}
+                    </h2>
+                  </div>
+                  <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                    Direct from SEC EDGAR
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {visibleDiffs.map((d) => {
+                    const isFollowing = watchlist.has(d.ticker);
+                    return (
+                      <article
+                        key={d.id}
+                        className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Link
+                                href={`/t/${d.ticker}?tab=diffs`}
+                                className="font-mono-num text-xs font-bold text-[var(--amber)] hover:underline"
+                              >
+                                {d.ticker}
+                              </Link>
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  d.materiality === "High"
+                                    ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                                    : "bg-[var(--surface-subtle)] text-[var(--text-secondary)]"
+                                }`}
+                              >
+                                {d.filingType} · {d.materiality}
+                              </span>
+                              <span className="text-[11px] text-[var(--text-muted)]">
+                                {d.category}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => watchlist.toggle(d.ticker)}
+                              aria-label={isFollowing ? `Unfollow ${d.ticker}` : `Follow ${d.ticker}`}
+                              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                                isFollowing
+                                  ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                              }`}
+                            >
+                              <Star
+                                className="h-3 w-3"
+                                fill={isFollowing ? "currentColor" : "none"}
+                              />
+                              {isFollowing ? "Following" : "Follow"}
+                            </button>
+                          </div>
+
+                          <Link
+                            href={`/t/${d.ticker}?tab=diffs`}
+                            className="mt-2 block group"
+                          >
+                            <h3 className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                              {d.headline}
+                            </h3>
+                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                              {d.summary}
+                            </p>
+                          </Link>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2 text-[11px] text-[var(--text-muted)]">
+                          <span className="truncate">{d.companyName}</span>
+                          <span className="font-mono-num shrink-0">{d.filingDate}</span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {scopedDiffs.length > 6 && (
+                  <div className="mt-3 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllDiffs((prev) => !prev)}
+                      className="inline-flex h-8 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
+                    >
+                      {showAllDiffs
+                        ? "Show fewer SEC changes"
+                        : `Show more SEC changes (${Math.min(30, scopedDiffs.length) - 6} more)`}
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
 
             {/* Headlines Strip */}
             {showHeadlines && (

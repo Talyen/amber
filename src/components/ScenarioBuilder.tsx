@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Link2 } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
@@ -96,6 +97,59 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
+  const [fromSharedLink, setFromSharedLink] = useState(false);
+  const [copiedThesis, setCopiedThesis] = useState(false);
+
+  // Hydrate shared thesis query params (?tab=dcf&lens=fcf&rev=15&m=28&exit=22)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const lensParam = params.get("lens");
+    const revParam = params.get("rev");
+    const mParam = params.get("m");
+    const exitParam = params.get("exit");
+    let loaded = false;
+
+    if (
+      (lensParam === "fcf" ||
+        (lensParam === "ebit" && hasEbit) ||
+        (lensParam === "pe" && hasPe))
+    ) {
+      setLens(lensParam);
+      loaded = true;
+    }
+    if (revParam !== null && Number.isFinite(Number(revParam))) {
+      setRevGrowth(Math.max(0, Math.min(45, Number(revParam))));
+      loaded = true;
+    }
+    if (mParam !== null && Number.isFinite(Number(mParam))) {
+      setTargetMargin(Math.max(1, Math.min(60, Number(mParam))));
+      loaded = true;
+    }
+    if (exitParam !== null && Number.isFinite(Number(exitParam))) {
+      setExitMultiple(Math.max(5, Math.min(60, Number(exitParam))));
+      loaded = true;
+    }
+    if (loaded) {
+      setActivePreset("custom");
+      setFromSharedLink(true);
+    }
+  }, [hasEbit, hasPe]);
+
+  async function handleCopyThesisLink() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "dcf");
+    url.searchParams.set("lens", lens);
+    url.searchParams.set("rev", String(revGrowth));
+    url.searchParams.set("m", String(targetMargin));
+    url.searchParams.set("exit", String(exitMultiple));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setCopiedThesis(true);
+      window.setTimeout(() => setCopiedThesis(false), 1800);
+    } catch {
+      // Ignore clipboard errors
+    }
+  }
 
   function switchLens(nextLens: ValuationLens) {
     setLens(nextLens);
@@ -213,10 +267,31 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const fairPosPct = Math.min(100, (projection.fairValueToday / barMax) * 100);
 
   return (
+    <div className="space-y-4">
+      {fromSharedLink && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2 text-xs text-[var(--text-primary)]">
+          <span>
+            <strong className="font-semibold text-[var(--amber)]">
+              Shared 5-Year Thesis:
+            </strong>{" "}
+            Loaded custom assumptions ({revGrowth}% rev growth, {targetMargin}% margin, {exitMultiple}x exit). Drag any slider to stress-test your own view.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              applyPreset("base");
+              setFromSharedLink(false);
+            }}
+            className="font-medium text-[var(--amber)] hover:underline cursor-pointer"
+          >
+            Reset to Base
+          </button>
+        </div>
+      )}
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
       {/* Left: Simple 3-Slider Controls */}
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 lg:col-span-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
               Your 5-Year Thesis
@@ -225,6 +300,23 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               Pick a preset or drag 3 simple sliders to see your expected annual return.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={handleCopyThesisLink}
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+          >
+            {copiedThesis ? (
+              <>
+                <Check className="h-3 w-3 text-[var(--positive)]" />
+                Copied Link
+              </>
+            ) : (
+              <>
+                <Link2 className="h-3 w-3" />
+                Share Thesis
+              </>
+            )}
+          </button>
         </div>
 
         {/* Valuation Methodology Selector */}
@@ -560,6 +652,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           </div>
         </div>
       </section>
+    </div>
     </div>
   );
 }

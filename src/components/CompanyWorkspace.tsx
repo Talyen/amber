@@ -40,9 +40,29 @@ import { ScenarioBuilder } from "@/components/ScenarioBuilder";
 import { PriceVsFundamentalsChart } from "@/components/PriceVsFundamentalsChart";
 import { HistoricalValuationBands } from "@/components/HistoricalValuationBands";
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
+import { FilingAlertModal } from "@/components/FilingAlertModal";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { buildCompanyBriefing } from "@/lib/insights";
+
+const FINANCIAL_INSTITUTION_TICKERS = new Set([
+  "JPM",
+  "GS",
+  "MS",
+  "BAC",
+  "WFC",
+  "C",
+  "AXP",
+  "BX",
+  "KKR",
+  "BLK",
+  "SCHW",
+  "COF",
+  "USB",
+  "PNC",
+  "TFC",
+  "AMP",
+]);
 
 type ActiveTab = "overview" | "fcf" | "dcf" | "diffs" | "insiders";
 
@@ -77,6 +97,13 @@ export function CompanyWorkspace({
       tabParam === "insiders"
     ) {
       setActiveTab(tabParam);
+    } else if (
+      params.has("rev") ||
+      params.has("m") ||
+      params.has("exit")
+    ) {
+      setActiveTab("dcf");
+      setValuationMode("scenario");
     } else if (
       params.has("wacc") ||
       params.has("mult") ||
@@ -140,9 +167,30 @@ export function CompanyWorkspace({
     [company.annuals]
   );
   const latest = series[series.length - 1];
+  const latestFy = useMemo(() => {
+    const fy = series.filter((s) => s.fiscalYear !== "TTM");
+    return fy[fy.length - 1] ?? latest;
+  }, [series, latest]);
+  const isFinancialInstitution = FINANCIAL_INSTITUTION_TICKERS.has(company.ticker);
   const enterpriseValue = useMemo(
     () => computeEnterpriseValue(company),
     [company]
+  );
+  const evToTrueFcf =
+    latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
+  const evToRepFcf =
+    latest.reportedFcf > 0 ? enterpriseValue / latest.reportedFcf : null;
+  const openMarketBuys = useMemo(
+    () => insiderTrades.filter((t) => t.transactionType === "Buy"),
+    [insiderTrades]
+  );
+  const openMarketBuyTotal = useMemo(
+    () => openMarketBuys.reduce((s, t) => s + t.totalValue, 0),
+    [openMarketBuys]
+  );
+  const highSignalDiffCount = useMemo(
+    () => company.filingDiffs.filter((d) => d.materiality === "High").length,
+    [company.filingDiffs]
   );
   const netDilutionCagr = useMemo(
     () => computeNetDilutionCagr(company.annuals),
@@ -220,8 +268,11 @@ export function CompanyWorkspace({
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
               {company.name}
             </h1>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {company.tagline}
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--text-primary)]">
+              <span className="mr-1.5 inline-flex rounded bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)] align-middle">
+                Reality Check
+              </span>
+              {briefing.realityCheckSummary}
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -238,8 +289,10 @@ export function CompanyWorkspace({
                   className="h-3.5 w-3.5"
                   fill={isStarred ? "currentColor" : "none"}
                 />
-                {isStarred ? "Watchlisted" : "Watchlist"}
+                {isStarred ? "Following" : "Follow"}
               </button>
+
+              <FilingAlertModal ticker={company.ticker} companyName={company.name} />
 
               <Link
                 href={`/portfolio?add=${company.ticker}`}
@@ -328,12 +381,58 @@ export function CompanyWorkspace({
           </div>
         </section>
 
+        {/* Financial Institution Guardrail */}
+        {isFinancialInstitution && (
+          <div className="mt-5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+            <strong className="font-semibold text-[var(--amber)]">
+              Financial Institution Note:
+            </strong>{" "}
+            For banks and asset managers, standard Free Cash Flow and Enterprise Value are distorted by customer deposits and loan books. Use the{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("dcf");
+                setValuationMode("scenario");
+              }}
+              className="font-semibold text-[var(--amber)] underline cursor-pointer"
+            >
+              Earnings (P/E) Scenario Model
+            </button>{" "}
+            and Filing Diffs for cleaner analysis.
+          </div>
+        )}
+
         {/* 4-Card High-Signal KPI Strip */}
         <section
           aria-label="Key fundamental signals"
           className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
         >
-          {/* Card 1: True FCF */}
+          {/* Card 1: What's Priced In (Implied 10Y Growth) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("dcf")}
+            className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+              <span>Priced-In 10Y Growth</span>
+              <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
+                Stress-test →
+              </span>
+            </div>
+            <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+              {formatPct(baselineDcf.impliedRevenueCagrPct)}
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+              <span className="font-mono-num">
+                Hist: {formatPct(briefing.revenueCagr)}/yr
+              </span>
+              <span className="font-mono-num">
+                {company.defaultDcf.terminalMultiple}x exit
+              </span>
+            </div>
+          </button>
+
+          {/* Card 2: Real Cash Flow & Multiple */}
           <button
             type="button"
             onClick={() => setActiveTab("fcf")}
@@ -342,7 +441,9 @@ export function CompanyWorkspace({
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
               <span>True FCF ({latest.fiscalYear})</span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                FCF − SBC
+                {evToTrueFcf !== null && evToTrueFcf < 250
+                  ? `${evToTrueFcf.toFixed(1)}x EV`
+                  : "FCF − SBC"}
               </span>
             </div>
             <div
@@ -360,6 +461,11 @@ export function CompanyWorkspace({
                 <strong className="font-mono-num font-medium text-[var(--text-secondary)]">
                   {formatCurrencyCompact(latest.reportedFcf)}
                 </strong>
+                {evToRepFcf !== null && evToRepFcf < 250 && (
+                  <span className="font-mono-num ml-1 opacity-75">
+                    ({evToRepFcf.toFixed(0)}x)
+                  </span>
+                )}
               </span>
               <span className="font-mono-num whitespace-nowrap">
                 {formatPct(latest.trueFcfMargin)}
@@ -372,46 +478,16 @@ export function CompanyWorkspace({
             </div>
           </button>
 
-          {/* Card 2: SBC Intensity */}
+          {/* Card 3: Net Share Dilution & SBC Context */}
           <button
             type="button"
             onClick={() => setActiveTab("fcf")}
             className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
           >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>SBC Burden</span>
+              <span>Share Count (4Y CAGR)</span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                % of Rev
-              </span>
-            </div>
-            <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              {formatPct(latest.sbcPctRevenue)}
-            </div>
-            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span className="font-mono-num text-[var(--sbc)]">
-                {formatCurrencyCompact(latest.sbc)}
-              </span>
-              <span className="font-mono-num">
-                {formatPct(latest.sbcPctReportedFcf, false, 0)} of FCF
-                {sectorBenchmark && (
-                  <span className="ml-1 opacity-75">
-                    (med {formatPct(sectorBenchmark.medianSbcPctRevenue)})
-                  </span>
-                )}
-              </span>
-            </div>
-          </button>
-
-          {/* Card 3: Net Share Dilution */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("fcf")}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
-          >
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>Net Share Dilution</span>
-              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                4Y CAGR
+                SBC {formatPct(latest.sbcPctRevenue)}
               </span>
             </div>
             <div
@@ -433,27 +509,39 @@ export function CompanyWorkspace({
             </div>
           </button>
 
-          {/* Card 4: Implied Growth */}
+          {/* Card 4: Latest SEC Filing & Insider Signal */}
           <button
             type="button"
-            onClick={() => setActiveTab("dcf")}
+            onClick={() =>
+              setActiveTab(openMarketBuys.length > 0 ? "insiders" : "diffs")
+            }
             className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
           >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>Implied 10Y Rev CAGR</span>
+              <span>SEC Fine-Print &amp; Insiders</span>
               <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
-                Stress-test →
+                Inspect →
               </span>
             </div>
             <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              {formatPct(baselineDcf.impliedRevenueCagrPct)}
+              {openMarketBuys.length > 0 ? (
+                <span className="text-[var(--positive)]">
+                  +{formatCurrencyCompact(openMarketBuyTotal)} Buy
+                </span>
+              ) : (
+                <span>
+                  {company.filingDiffs.length} Diff{company.filingDiffs.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
             <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span className="font-mono-num">
-                {formatPct(company.defaultDcf.wacc)} WACC
+              <span>
+                {highSignalDiffCount > 0
+                  ? `${highSignalDiffCount} High-signal change${highSignalDiffCount > 1 ? "s" : ""}`
+                  : `${company.lastFiling.type} (${company.lastFiling.date})`}
               </span>
               <span className="font-mono-num">
-                {company.defaultDcf.terminalMultiple}x exit
+                {insiderTrades.length} Form 4
               </span>
             </div>
           </button>
@@ -514,6 +602,7 @@ export function CompanyWorkspace({
                     ticker={company.ticker}
                     companyName={company.name}
                     period={latest}
+                    fyPeriod={latestFy}
                   />
                   <MoatQualityCard company={company} series={series} />
 

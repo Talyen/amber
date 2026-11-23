@@ -654,3 +654,170 @@ export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
 
   triggerDownload(canvas, "amber-portfolio.png");
 }
+
+function wrapCanvasLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string[] {
+  const words = text.replace(/\s+/g, " ").trim().split(" ");
+  const lines: string[] = [];
+  let current = "";
+  for (const w of words) {
+    const test = current ? `${current} ${w}` : w;
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = w;
+      if (lines.length >= maxLines) break;
+    } else {
+      current = test;
+    }
+  }
+  if (current && lines.length < maxLines) {
+    lines.push(current);
+  }
+  if (lines.length === maxLines && words.length > 0) {
+    const last = lines[maxLines - 1];
+    if (last.length > 3 && text.length > lines.join(" ").length + 4) {
+      lines[maxLines - 1] = `${last.slice(0, -1)}…`;
+    }
+  }
+  return lines;
+}
+
+export function exportFilingDiffCard(payload: {
+  ticker: string;
+  companyName: string;
+  filingType: string;
+  filingDate: string;
+  category: string;
+  section: string;
+  materiality: string;
+  headline: string;
+  priorExcerpt: string;
+  currentExcerpt: string;
+  signalNote: string;
+  accessionNumber: string;
+}) {
+  const width = 1200;
+  const height = 740;
+  const scale = 2;
+  const theme = getExportTheme();
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = theme.surface;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = theme.border;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+  // Header
+  ctx.fillStyle = theme.amber;
+  ctx.font = '700 14px "JetBrains Mono", ui-monospace, monospace';
+  ctx.fillText(
+    `${payload.ticker}  /  SEC ${payload.filingType} (${payload.filingDate})  /  ${payload.category.toUpperCase()}`,
+    56,
+    60
+  );
+
+  ctx.fillStyle = theme.textPrimary;
+  ctx.font = '600 28px "Inter", system-ui, sans-serif';
+  const headlineLines = wrapCanvasLines(ctx, payload.headline, width - 112, 2);
+  headlineLines.forEach((line, i) => {
+    ctx.fillText(line, 56, 104 + i * 36);
+  });
+
+  const boxesTop = 104 + headlineLines.length * 36 + 20;
+  const boxW = 528;
+  const boxH = 310;
+
+  // Left Box: Prior Filing Language
+  drawRoundedRect(ctx, 56, boxesTop, boxW, boxH, 10);
+  ctx.fillStyle = theme.bg;
+  ctx.fill();
+  ctx.strokeStyle = theme.border;
+  ctx.stroke();
+
+  ctx.fillStyle = theme.textMuted;
+  ctx.font = '700 12px "Inter", system-ui, sans-serif';
+  ctx.fillText("PRIOR FILING LANGUAGE", 78, boxesTop + 34);
+
+  ctx.fillStyle = theme.textSecondary;
+  ctx.font = '400 16px "Inter", system-ui, sans-serif';
+  const priorLines = wrapCanvasLines(
+    ctx,
+    `"${payload.priorExcerpt}"`,
+    boxW - 44,
+    10
+  );
+  priorLines.forEach((line, i) => {
+    ctx.fillText(line, 78, boxesTop + 68 + i * 24);
+  });
+
+  // Right Box: Latest Filing Language
+  const rightX = 56 + boxW + 32;
+  drawRoundedRect(ctx, rightX, boxesTop, boxW, boxH, 10);
+  ctx.fillStyle =
+    theme.bg === "#0B0C0E"
+      ? "rgba(229, 160, 60, 0.08)"
+      : "rgba(180, 83, 9, 0.06)";
+  ctx.fill();
+  ctx.strokeStyle = theme.amber;
+  ctx.stroke();
+
+  ctx.fillStyle = theme.amber;
+  ctx.font = '700 12px "Inter", system-ui, sans-serif';
+  ctx.fillText("→  LATEST FILING LANGUAGE", rightX + 22, boxesTop + 34);
+
+  ctx.fillStyle = theme.textPrimary;
+  ctx.font = '500 16px "Inter", system-ui, sans-serif';
+  const currLines = wrapCanvasLines(
+    ctx,
+    `"${payload.currentExcerpt}"`,
+    boxW - 44,
+    10
+  );
+  currLines.forEach((line, i) => {
+    ctx.fillText(line, rightX + 22, boxesTop + 68 + i * 24);
+  });
+
+  // Amber Take Footer Box
+  const takeY = boxesTop + boxH + 24;
+  drawRoundedRect(ctx, 56, takeY, width - 112, 86, 10);
+  ctx.fillStyle = theme.bg;
+  ctx.fill();
+  ctx.strokeStyle = theme.border;
+  ctx.stroke();
+
+  ctx.fillStyle = theme.amber;
+  ctx.font = '700 12px "Inter", system-ui, sans-serif';
+  ctx.fillText("WHY IT MATTERS", 78, takeY + 28);
+
+  ctx.fillStyle = theme.textPrimary;
+  ctx.font = '400 15px "Inter", system-ui, sans-serif';
+  const takeLines = wrapCanvasLines(ctx, payload.signalNote, width - 156, 2);
+  takeLines.forEach((line, i) => {
+    ctx.fillText(line, 78, takeY + 52 + i * 22);
+  });
+
+  drawAmberWatermark(
+    ctx,
+    width,
+    height,
+    theme,
+    `SEC EDGAR ${payload.accessionNumber}  |  ${payload.companyName}`
+  );
+
+  triggerDownload(
+    canvas,
+    `amber-${payload.ticker.toLowerCase()}-filing-diff.png`
+  );
+}

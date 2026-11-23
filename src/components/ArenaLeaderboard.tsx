@@ -137,13 +137,13 @@ export function ArenaLeaderboard({
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
             <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-              PORTFOLIO ARENA
+              LIVE STRATEGY BENCHMARKS
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              Portfolio Leaderboards
+              Fundamental Benchmarks vs. S&amp;P 500
             </h1>
             <p className="mt-1 max-w-xl text-sm text-[var(--text-secondary)]">
-              Live rankings and archived winners across strategy bots and community portfolios.
+              Transparent, rules-based fundamental strategies and public community track records verified against the S&amp;P 500.
             </p>
           </div>
 
@@ -151,7 +151,7 @@ export function ArenaLeaderboard({
             href="/portfolio"
             className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
           >
-            Enter Portfolio
+            Benchmark Your Portfolio
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </section>

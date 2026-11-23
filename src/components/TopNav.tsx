@@ -36,11 +36,11 @@ const NAV_LINKS: Array<{
   route: NonNullable<TopNavProps["activeRoute"]>;
   icon: typeof LayoutGrid;
 }> = [
-  { href: "/", label: "Index", route: "index", icon: LayoutGrid },
+  { href: "/", label: "Explore", route: "index", icon: LayoutGrid },
+  { href: "/feed", label: "Signals", route: "feed", icon: Rss },
   { href: "/compare", label: "Compare", route: "compare", icon: GitCompareArrows },
   { href: "/portfolio", label: "Portfolio", route: "portfolio", icon: PieChart },
-  { href: "/arena", label: "Arena", route: "arena", icon: Trophy },
-  { href: "/feed", label: "Feed", route: "feed", icon: Rss },
+  { href: "/arena", label: "Benchmarks", route: "arena", icon: Trophy },
 ];
 
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {

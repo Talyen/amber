@@ -7,12 +7,13 @@ import {
   formatPct,
 } from "@/lib/finance";
 import type { SearchIndexEntry } from "@/data/universe";
+import { SITE_URL } from "@/lib/site";
 
 export function buildTickerMarkdown(
   company: CompanySnapshot,
   series: ComputedAnnual[],
   impliedCagr: number,
-  siteOrigin = "https://amber-theta-three.vercel.app"
+  siteOrigin = SITE_URL
 ): string {
   const latest = series[series.length - 1];
   const ev = computeEnterpriseValue(company);
@@ -42,7 +43,7 @@ export function buildTickerMarkdown(
 
 export function buildComparisonMarkdown(
   items: SearchIndexEntry[],
-  siteOrigin = "https://amber-theta-three.vercel.app"
+  siteOrigin = SITE_URL
 ): string {
   if (items.length === 0) return "";
   const title = items.map((i) => i.ticker).join(" vs. ");

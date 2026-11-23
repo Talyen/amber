@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,31 +15,39 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : "https://amber-theta-three.vercel.app";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Amber | Fundamental Equity Analysis",
-    template: "%s | Amber",
+    default: `${SITE_NAME} | The Reality Check Before You Buy`,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    "SBC-adjusted True Free Cash Flow, interactive Reverse DCF stress-testing, and structured SEC filing diffs.",
+  description: SITE_TAGLINE,
   openGraph: {
     type: "website",
-    siteName: "Amber",
-    title: "Amber | Fundamental Equity Analysis",
-    description:
-      "Real cash flow, dilution, and priced-in growth from SEC EDGAR filings.",
-    url: siteUrl,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} | The Reality Check Before You Buy`,
+    description: SITE_TAGLINE,
+    url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Amber | Fundamental Equity Analysis",
-    description:
-      "Real cash flow, dilution, and priced-in growth from SEC EDGAR filings.",
+    title: `${SITE_NAME} | The Reality Check Before You Buy`,
+    description: SITE_TAGLINE,
+  },
+};
+
+const softwareAppJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: SITE_NAME,
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "Web",
+  url: SITE_URL,
+  description: SITE_TAGLINE,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
   },
 };
 
@@ -58,6 +67,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen antialiased selection:bg-[var(--amber-soft)] selection:text-[var(--amber)]">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
+        />
         {children}
       </body>
     </html>

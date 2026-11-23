@@ -34,6 +34,7 @@ export interface CompanyBriefingData {
   latestRevGrowth: number | null;
   netCash: number;
   capexPctRev: number;
+  realityCheckSummary: string;
   pillars: BriefingPillar[];
   standouts: StandoutInsight[];
 }
@@ -274,11 +275,41 @@ export function buildCompanyBriefing(
     });
   }
 
+  // Build a single blunt, plain-English Pre-Buy Reality Check sentence
+  const expectationsClause =
+    impliedCagr >= 22
+      ? `Priced for ${formatPct(impliedCagr)}/yr revenue growth for a decade (vs. ${formatPct(revenueCagr)}/yr historically)`
+      : growthGap > 4
+        ? `Today's price requires growth to accelerate from ${formatPct(revenueCagr)}/yr to ${formatPct(impliedCagr)}/yr for 10 years`
+        : growthGap < -4
+          ? `Pricing in a slowdown to ${formatPct(impliedCagr)}/yr (vs. ${formatPct(revenueCagr)}/yr historically)`
+          : `Pricing in ${formatPct(impliedCagr)}/yr revenue growth over 10 years (in line with ${formatPct(revenueCagr)}/yr history)`;
+
+  const highDiff = company.filingDiffs.find((d) => d.materiality === "High");
+  let secondaryClause = "";
+  if (buyTrades.length > 0) {
+    const buyTotal = buyTrades.reduce((s, t) => s + t.totalValue, 0);
+    secondaryClause = `, while insiders bought ${formatCurrencyCompact(buyTotal)} on the open market.`;
+  } else if (highDiff) {
+    secondaryClause = `, with a high-signal ${highDiff.filingType} change in ${highDiff.category}.`;
+  } else if (dilutionCagr <= -1.5) {
+    secondaryClause = `, backed by buybacks shrinking share count ${Math.abs(dilutionCagr).toFixed(1)}%/yr.`;
+  } else if (latest.sbcPctRevenue >= 12) {
+    secondaryClause = `, while stock comp absorbs ${formatPct(latest.sbcPctReportedFcf, false, 0)} of headline FCF.`;
+  } else if (dilutionCagr >= 2.2) {
+    secondaryClause = `, while diluted shares expanded +${dilutionCagr.toFixed(1)}%/yr.`;
+  } else {
+    secondaryClause = `, converting ${formatPct(latest.trueFcfMargin)} of revenue into real cash.`;
+  }
+
+  const realityCheckSummary = `${expectationsClause}${secondaryClause}`;
+
   return {
     revenueCagr,
     latestRevGrowth,
     netCash,
     capexPctRev,
+    realityCheckSummary,
     pillars: [growthPillar, cashPillar, balancePillar, expectationsPillar],
     standouts: standouts.slice(0, 4),
   };
@@ -382,5 +413,47 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
       c.impliedCagr > 0 &&
       c.impliedCagr <= 9,
     sort: (a, b) => a.impliedCagr - b.impliedCagr,
+  },
+  {
+    id: "mega-cap-compounders",
+    title: "Mega-Cap Compounders",
+    subtitle: "$100B+ leaders generating durable real cash",
+    criteriaSummary: "Market cap >= $100B, True FCF margin >= 15%",
+    whyItMatters:
+      "Large-cap category leaders with strong real cash conversion combine durability with global scale.",
+    defaultSortKey: "marketCap",
+    defaultSortDir: "desc",
+    filter: (c) =>
+      c.marketCap >= 100_000 &&
+      c.trueFcfMargin >= 15 &&
+      c.trueFcfMargin <= 75,
+    sort: (a, b) => b.marketCap - a.marketCap,
+  },
+  {
+    id: "clean-software",
+    title: "Clean Cloud & Software",
+    subtitle: "Software businesses that stay profitable after SBC",
+    criteriaSummary: "Cloud & Software sector, True FCF margin >= 12%",
+    whyItMatters:
+      "Many software stocks look cash-generative only before stock compensation; these remain strongly profitable even after paying employees in equity.",
+    defaultSortKey: "trueFcfMargin",
+    defaultSortDir: "desc",
+    filter: (c) =>
+      c.sector === "Cloud & Software" &&
+      c.trueFcfMargin >= 12 &&
+      c.trueFcfMargin <= 75,
+    sort: (a, b) => b.trueFcfMargin - a.trueFcfMargin,
+  },
+  {
+    id: "semiconductor-leaders",
+    title: "Semiconductor Leaders",
+    subtitle: "Chip & hardware leaders ranked by real cash and expectations",
+    criteriaSummary: "Semiconductors sector, revenue >= $500M",
+    whyItMatters:
+      "Compare AI and semiconductor expectations side-by-side on real cash generation and implied 10-year growth.",
+    defaultSortKey: "marketCap",
+    defaultSortDir: "desc",
+    filter: (c) => c.sector === "Semiconductors" && c.revenue >= 500,
+    sort: (a, b) => b.marketCap - a.marketCap,
   },
 ];

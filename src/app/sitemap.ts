@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
-import { getAllTickers } from "@/data/repository";
+import { getAllTickers, getSearchIndex } from "@/data/repository";
 import { DISCOVERY_LENSES } from "@/lib/insights";
+import { SITE_URL } from "@/lib/site";
 
 export const revalidate = 86400;
 
@@ -23,34 +24,53 @@ export const POPULAR_COMPARE_SLUGS = [
   "KO-vs-PEP",
 ];
 
-const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : "https://amber-theta-three.vercel.app";
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const tickers = await getAllTickers();
+  const [tickers, entries] = await Promise.all([
+    getAllTickers(),
+    getSearchIndex(),
+  ]);
   const now = new Date();
 
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: siteUrl, lastModified: now, changeFrequency: "daily", priority: 1.0 },
-    { url: `${siteUrl}/feed`, lastModified: now, changeFrequency: "daily", priority: 0.95 },
-    { url: `${siteUrl}/compare`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${siteUrl}/portfolio`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${siteUrl}/arena`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${siteUrl}/privacy`, lastModified: now, changeFrequency: "monthly", priority: 0.3 },
-    { url: `${siteUrl}/terms`, lastModified: now, changeFrequency: "monthly", priority: 0.3 },
+    { url: SITE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0 },
+    { url: `${SITE_URL}/feed`, lastModified: now, changeFrequency: "daily", priority: 0.95 },
+    { url: `${SITE_URL}/compare`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE_URL}/portfolio`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE_URL}/arena`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/privacy`, lastModified: now, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${SITE_URL}/terms`, lastModified: now, changeFrequency: "monthly", priority: 0.3 },
   ];
 
   const lensRoutes: MetadataRoute.Sitemap = DISCOVERY_LENSES.map((lens) => ({
-    url: `${siteUrl}/lenses/${lens.id}`,
+    url: `${SITE_URL}/lenses/${lens.id}`,
     lastModified: now,
     changeFrequency: "daily",
     priority: 0.85,
   }));
 
-  const compareRoutes: MetadataRoute.Sitemap = POPULAR_COMPARE_SLUGS.map(
+  // Programmatically generate 250+ high-intent same-sector peer comparison URLs
+  const compareSlugSet = new Set<string>(POPULAR_COMPARE_SLUGS);
+  const bySector = new Map<string, typeof entries>();
+  for (const e of entries) {
+    const list = bySector.get(e.sector) ?? [];
+    list.push(e);
+    bySector.set(e.sector, list);
+  }
+  for (const [, sectorList] of bySector) {
+    const top = [...sectorList]
+      .sort((a, b) => b.marketCap - a.marketCap)
+      .slice(0, 12);
+    for (let i = 0; i < top.length; i++) {
+      for (let j = i + 1; j < Math.min(top.length, i + 4); j++) {
+        const slug = `${top[i].ticker}-vs-${top[j].ticker}`;
+        compareSlugSet.add(slug);
+      }
+    }
+  }
+
+  const compareRoutes: MetadataRoute.Sitemap = [...compareSlugSet].map(
     (slug) => ({
-      url: `${siteUrl}/compare/${slug}`,
+      url: `${SITE_URL}/compare/${slug}`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
@@ -58,7 +78,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   );
 
   const tickerRoutes: MetadataRoute.Sitemap = tickers.map((t) => ({
-    url: `${siteUrl}/t/${t}`,
+    url: `${SITE_URL}/t/${t}`,
     lastModified: now,
     changeFrequency: "daily",
     priority: 0.75,

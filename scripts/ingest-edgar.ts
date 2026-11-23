@@ -514,13 +514,13 @@ export function inferSector(name: string, ticker = ""): string {
   const meta = CURATED_META[ticker];
   if (meta?.sector) return meta.sector;
   const n = `${ticker} ${name}`.toLowerCase();
-  if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel|sandisk|western digital|micron|marvell|monolithic|nxp|on semi|texas instruments|arista|arm holdings|asml|taiwan semi|united micro|ase technology|skyworks|qorvo|entegris|ambarella|credo|astera|sitime|nova ltd|tower semi|lattice|silicon lab|cirrus|macom|coherent|ontu|teradyne|amkor|axcelis|ONTO/.test(n)) return "Semiconductors";
-  if (/software|cloud|data|cyber|security|crowdstrike|palo alto|zscaler|okta|workday|servicenow|salesforce|adobe|intuit|autodesk|atlassian|hubspot|mongodb|confluent|gitlab|snowflake|palantir|datadog|cloudflare|fortinet|applovin|trade desk|veeva|docusign|twilio|samsara|duolingo|roblox|spotify|oracle|microsoft|shopify|cisco|ibm|international business machines|check point|elastic|monday\.com|jfrog|rubrik|nutanix|bill holdings|guidewire|manhattan assoc|ansys|bentley|dynatrace|ui path|procore|AppFolio|sentinelone|cyberark|qualys|tenable|rapid7|box|dropbox|zoom|ringcentral|five9|smartsheet|freshworks|klaviyo|braze|git|hashicorp|c3\.ai|tempus ai|accenture|cognizant|gartner|epamsystems|globant|infosys|wipro|genpact/.test(n)) return "Cloud & Software";
-  if (/pharma|therapeutics|biotech|lilly|health|medical|surgical|abbott|amgen|gilead|merck|abbvie|johnson & johnson|danaher|thermo|pfizer|bristol|vertex|regeneron|stryker|medtronic|boston scientific|edwards|hca|unitedhealth|elevance|cigna|cvs|mckesson|cencora|cardinal|humana|agilent|iqvia|dexcom|intuitive|idxx|zoetis|astrazeneca|sanofi|novartis|novo nordisk|gsk|teva|genmab|beone|moderna|biontech|alcon|resmed|illumina|waters|mettler|steris|hologic|align|insulet|coopercos|teleflex|zimmer|baxter|bd |becton|labcorp|quest diag|icon plc|charles river|exact sciences|natera|guardant|insmed|halozyme|neurocrine|alnylam|biomarin|incyte|royalty pharma|jazz pharma|Roivant|crispr|tg therapeutics|glaukos|encompass|tenet|universal health|davita|molina|centene|hims/.test(n)) return "Healthcare";
-  if (/visa|mastercard|paypal|sp global|s&p global|moody|msci|fico|fair isaac|coinbase|robinhood|verisk|fiserv|fidelity national|paychex|automatic data|global payments|block, inc|mercado|jpmorgan|goldman sachs|morgan stanley|bank of america|wells fargo|american express|blackstone|kkr|blackrock|apollo|ares |blue owl|carlyle|tpg |invesco|franklin res|t\. rowe|sei invest|interactive brokers|charles schwab|lpl financial|cboe|nasdaq|intercontinental exchange|cme group|tradeweb|marketaxess|factset|morningstar|broadridge|jack henry|shift4|toast|affirm|sofi|nu holdings|erie indemnity|ryan specialty|everest group/.test(n)) return "Fintech & Data";
-  if (/retail|costco|walmart|home depot|lowe|tjx|autozone|o'reilly|starbucks|mcdonald|chipotle|nike|procter|coca-cola|coca cola|pepsi|altria|philip morris|mondelez|colgate|kimberly|general mills|hershey|monster bev|target|ross stores|dollar|kroger|amazon|booking|airbnb|uber|doordash|marriott|hilton|hyatt|intercontinental hotels|H world|trip\.com|expedia|royal caribbean|carnival|norwegian cruise|yum!|domino|restaurant brands|darden|texas roadhouse|wingstop|cava|shake shack|dutch bros|lululemon|deckers|on holding|skechers|crocs|tapestry|ralph lauren|pvh|vf corp|levi|burlington|aberCrombie|gap|bath & body|ulta|e\.l\.f\.|estee lauder|coty|constellation brands|diageo|anheuser|molson|brown-forman|boston beer|keurig|kraft heinz|campbell|conagra|jm smucker|mccormick|hormel|tyson|jbs|sysco|us foods|performance food|sprouts|albertsons|casey's|tractor supply|best buy|dick's|williams-sonoma|RH |wayfair|etsy|ebay|chewy|carvana|carmax|autonation|penske|lithia|tesla|rivian|lucid|ferrari|general motors|ford motor|toyota|honda|stellantis|harley|polaris|draftkings|flutter|wynn|las vegas sands|mgm resorts|caesars|churchill downs|mattel|hasbro|peloton|garmin|apple|dell tech|hp inc|logitech|sonos/.test(n)) return "Consumer & Retail";
-  if (/energy|petroleum|oil|gas|pipeline|midstream|exxon|chevron|conocophillips|eog |eqt |schlumberger|slb|halliburton|baker hughes|technipfmc|phillips 66|marathon|valero|pbf energy|hf sinclair|occidental|devon|diamondback|coterra|ovintiv|APA |permian|chord|matador|range res|antero|chesapeake|expand energy|texas pacific land|williams cos|kinder morgan|oneok|targa|cheniere|mplx|plains all|western midstream|enterprise prod|energy transfer|enbridge|tc energy|hess|shell|bp plc|totalenergies|equinor|petrobras|suncor|canadian natural|cenovus|imperial oil|cameco|nextera|duke energy|southern co|dominion|constellation energy|vistra|ge vernova|nrg energy|talen|pg&e|edison|exelon|sempra|american electric|xcel|consolidated edison|public service|wec energy|dte energy|entergy|firstenergy|ppl corp|ameren|cms energy|centerpoint|atmos|nisource|evergy|allient|pinnacle west|aes corp|brookfield renewable|clearway|ormad|first solar|enphase|american water|essential utilities/.test(n)) return "Energy & Utilities";
-  if (/media|telecom|communications|netflix|disney|comcast|t-mobile|verizon|at&t|charter|liberty|warner|fox |paramount|new york times|news corp|omnigroup|interpublic|wpp|live nation|tko group|electronic arts|take-two|unity|alphabet|meta platforms|pinterest|snap|reddit|roku|zillow|coStar|iac|match group|bumble|yandex|baidu|netease|tencent|chunghwa|america movil|vodafone|telefonica|BCE|rogers|telus|fubo|sirius/.test(n)) return "Media & Telecom";
+  if (/semiconductor|micro|nvidia|broadcom|qualcomm|analog|applied mat|lam research|kla|synopsys|cadence|intel|sandisk|western digital|micron|marvell|monolithic|nxp|on semi|texas instruments|arista|arm holdings|asml|taiwan semi|united micro|ase technology|skyworks|qorvo|entegris|ambarella|credo|astera|sitime|nova ltd|tower semi|lattice|silicon lab|cirrus|macom|coherent|ontu|teradyne|amkor|axcelis|lumentum|keysight|amphenol|te connectivity|seagate|super micro|smci|flex ltd|jabil/.test(n)) return "Semiconductors";
+  if (/software|cloud|data|cyber|security|crowdstrike|palo alto|zscaler|okta|workday|servicenow|salesforce|adobe|intuit|autodesk|atlassian|hubspot|mongodb|confluent|gitlab|snowflake|palantir|datadog|cloudflare|fortinet|applovin|trade desk|veeva|docusign|twilio|samsara|duolingo|roblox|spotify|oracle|microsoft|shopify|cisco|ibm|international business machines|check point|elastic|monday\.com|jfrog|rubrik|nutanix|bill holdings|guidewire|manhattan assoc|ansys|bentley|dynatrace|ui path|procore|appfolio|sentinelone|cyberark|qualys|tenable|rapid7|box|dropbox|zoom|ringcentral|five9|smartsheet|freshworks|klaviyo|braze|git|hashicorp|c3\.ai|tempus ai|accenture|cognizant|gartner|epamsystems|globant|infosys|wipro|genpact|hewlett packard|motorola solutions|roper tech|axon enterprise|verisign|akamai|f5 inc|netapp|pure storage|zebra tech|trimble|tyler tech|ptc inc|fair isaac|go daddy|godaddy|wix\.com/.test(n)) return "Cloud & Software";
+  if (/pharma|therapeutics|biotech|lilly|health|medical|surgical|abbott|amgen|gilead|merck|abbvie|johnson & johnson|danaher|thermo|pfizer|bristol|vertex|regeneron|stryker|medtronic|boston scientific|edwards|hca|unitedhealth|elevance|cigna|cvs|mckesson|cencora|cardinal|humana|agilent|iqvia|dexcom|intuitive|idxx|zoetis|astrazeneca|sanofi|novartis|novo nordisk|gsk|teva|genmab|beone|moderna|biontech|alcon|resmed|illumina|waters|mettler|steris|hologic|align|insulet|coopercos|teleflex|zimmer|baxter|bd |becton|labcorp|quest diag|icon plc|charles river|exact sciences|natera|guardant|insmed|halozyme|neurocrine|alnylam|biomarin|incyte|royalty pharma|jazz pharma|roivant|crispr|tg therapeutics|glaukos|encompass|tenet|universal health|davita|molina|centene|hims|medline|west pharma|revvity|bio-rad|bio-techne|henry schein|chemed|acadia health|penumbra|shockwave|masimo|globus medical|liva nova/.test(n)) return "Healthcare";
+  if (/visa|mastercard|paypal|sp global|s&p global|moody|msci|fico|fair isaac|coinbase|robinhood|verisk|fiserv|fidelity national|paychex|automatic data|global payments|block, inc|mercado|jpmorgan|goldman sachs|morgan stanley|bank of america|wells fargo|american express|blackstone|kkr|blackrock|apollo|ares |blue owl|carlyle|tpg |invesco|franklin res|t\. rowe|sei invest|interactive brokers|charles schwab|lpl financial|cboe|nasdaq|intercontinental exchange|cme group|tradeweb|marketaxess|factset|morningstar|broadridge|jack henry|shift4|toast|affirm|sofi|nu holdings|erie indemnity|ryan specialty|everest group|ameriprise|thomson reuters|equifax|transunion|dun & bradstreet|wex inc|corpay|fleetcor|remitly|pagseguro|stoneco|dlocal|xp inc|stifel|raymond james|jefferies|evercore|lazard|houlihan|moelis|perella/.test(n)) return "Fintech & Data";
+  if (/retail|costco|walmart|home depot|lowe|tjx|autozone|o'reilly|o reilly|starbucks|mcdonald|chipotle|nike|procter|coca-cola|coca cola|pepsi|altria|philip morris|mondelez|colgate|kimberly|general mills|hershey|monster bev|celsius|target|ross stores|dollar|kroger|amazon|alibaba|pdd holdings|jd\.com|coupang|booking|airbnb|uber|doordash|marriott|hilton|hyatt|intercontinental hotels|h world|trip\.com|expedia|royal caribbean|carnival|norwegian cruise|yum!|domino|restaurant brands|darden|texas roadhouse|wingstop|cava|shake shack|dutch bros|lululemon|deckers|on holding|skechers|crocs|tapestry|ralph lauren|pvh|vf corp|levi|burlington|abercrombie|gap|bath & body|ulta|e\.l\.f\.|estee lauder|coty|constellation brands|diageo|anheuser|molson|brown-forman|boston beer|keurig|kraft heinz|campbell|conagra|jm smucker|mccormick|hormel|tyson|jbs|sysco|us foods|performance food|sprouts|albertsons|casey's|tractor supply|best buy|dick's|williams-sonoma|rh |wayfair|etsy|ebay|chewy|carvana|carmax|autonation|penske|lithia|tesla|rivian|lucid|ferrari|general motors|ford motor|toyota|honda|stellantis|harley|polaris|draftkings|flutter|wynn|las vegas sands|mgm resorts|caesars|churchill downs|mattel|hasbro|peloton|garmin|apple|dell tech|hp inc|logitech|sonos|clorox|church & dwight|lamb weston|post holdings|bellring|simply good|freshpet|five below|ollie's|floor & decor|boot barn|academy sports|signet|pool corp|brunswick|thor ind|winnebago/.test(n)) return "Consumer & Retail";
+  if (/energy|petroleum|oil|gas|pipeline|midstream|exxon|chevron|conocophillips|eog |eqt |schlumberger|slb|halliburton|baker hughes|technipfmc|phillips 66|marathon|valero|pbf energy|hf sinclair|occidental|devon|diamondback|coterra|ovintiv|apa |permian|chord|matador|range res|antero|chesapeake|expand energy|texas pacific land|williams cos|williams companies|kinder morgan|oneok|targa|cheniere|mplx|plains all|western midstream|enterprise prod|energy transfer|enbridge|tc energy|hess|shell|bp plc|totalenergies|equinor|petrobras|suncor|canadian natural|cenovus|imperial oil|cameco|nextera|duke energy|southern co|dominion|constellation energy|vistra|ge vernova|nrg energy|talen|pg&e|edison|exelon|sempra|american electric|xcel|consolidated edison|public service|wec energy|dte energy|entergy|firstenergy|ppl corp|ameren|cms energy|centerpoint|atmos|nisource|evergy|allient|alliant|pinnacle west|aes corp|brookfield renewable|clearway|ormad|ormat|first solar|enphase|american water|essential utilities|dt midstream|hess midstream|anteromidstream/.test(n)) return "Energy & Utilities";
+  if (/media|telecom|communications|netflix|disney|comcast|t-mobile|verizon|at&t|charter|liberty|warner|fox |paramount|new york times|news corp|omnigroup|omnicom|interpublic|wpp|live nation|tko group|electronic arts|take-two|unity|alphabet|meta platforms|pinterest|snap|reddit|roku|zillow|costar|iac|match group|bumble|yandex|baidu|netease|tencent|chunghwa|america movil|vodafone|telefonica|bce|rogers|telus|fubo|sirius|nexstar|tegna|sinclair|gray television|sba comm|iridium|viasat|echo star|echostar/.test(n)) return "Media & Telecom";
   return "Industrials & Materials";
 }
 
@@ -529,19 +529,22 @@ function buildAutoTagline(
   sbcPctRevenue: number,
   dilutionCagr: number
 ): string {
-  if (trueFcfMargin < 0 && sbcPctRevenue > 15) {
-    return `High SBC load (${sbcPctRevenue.toFixed(1)}% of rev) turns headline FCF into negative True FCF`;
+  if (dilutionCagr < -1.5 && trueFcfMargin >= 15) {
+    return `High-margin cash generator (${trueFcfMargin.toFixed(1)}% FCF margin) shrinking share count ${dilutionCagr.toFixed(1)}%/yr`;
   }
-  if (trueFcfMargin >= 25 && sbcPctRevenue < 5) {
-    return `Elite ${trueFcfMargin.toFixed(1)}% True FCF margin with minimal SBC drag (${sbcPctRevenue.toFixed(1)}%)`;
+  if (trueFcfMargin >= 25) {
+    return `Elite ${trueFcfMargin.toFixed(1)}% real cash margin backed by SEC EDGAR filings`;
+  }
+  if (trueFcfMargin < 0 && sbcPctRevenue > 15) {
+    return `Headline cash flow turns negative after ${sbcPctRevenue.toFixed(1)}% stock-based compensation`;
+  }
+  if (dilutionCagr > 2.5) {
+    return `Diluted share count expanding +${dilutionCagr.toFixed(1)}%/yr — growth must outrun dilution`;
   }
   if (dilutionCagr < -1.5) {
-    return `Consistent share count reduction (${dilutionCagr.toFixed(1)}%/yr) amplifying per-share FCF`;
+    return `Consistent buybacks shrinking diluted shares ${dilutionCagr.toFixed(1)}%/yr`;
   }
-  if (sbcPctRevenue >= 12) {
-    return `Elevated SBC (${sbcPctRevenue.toFixed(1)}% of rev) creates a wide gap vs. reported FCF`;
-  }
-  return `SEC-verified ${trueFcfMargin.toFixed(1)}% True FCF margin and ${sbcPctRevenue.toFixed(1)}% SBC intensity`;
+  return `SEC-verified ${trueFcfMargin.toFixed(1)}% real FCF margin and ${dilutionCagr >= 0 ? "+" : ""}${dilutionCagr.toFixed(1)}%/yr share count trend`;
 }
 
 function generateDeterministicDiffs(
@@ -768,6 +771,16 @@ export async function ingestCandidate(
       ["GrossProfit"],
       "USD"
     );
+    const costOfRevMap = extractAnnualSeries(
+      facts,
+      [
+        "CostOfGoodsAndServicesSold",
+        "CostOfRevenue",
+        "CostOfGoodsSold",
+        "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+      ],
+      "USD"
+    );
     const rdMap = extractAnnualSeries(
       facts,
       [
@@ -870,7 +883,14 @@ export async function ingestCandidate(
         instantSharesAnnualMap.get(yr)?.val ??
         (latestSharesInstant > 0 ? latestSharesInstant : 0);
 
-      const gpVal = grossProfitMap.get(yr)?.val;
+      const rawGpVal = grossProfitMap.get(yr)?.val;
+      const corVal = costOfRevMap.get(yr)?.val;
+      const gpVal =
+        rawGpVal !== undefined
+          ? rawGpVal
+          : corVal !== undefined && revMap.get(yr)?.val !== undefined
+            ? revMap.get(yr)!.val - Math.abs(corVal)
+            : undefined;
       const rdVal = rdMap.get(yr)?.val;
       const sgaVal = sgaMap.get(yr)?.val;
       const opVal = opIncMap.get(yr)?.val;
@@ -1002,6 +1022,63 @@ export async function ingestCandidate(
       );
 
       if (ttmRev > 0 && !isBankEarningsOcf) {
+        const gpQ = extractLatest10QYtdPair(facts, ["GrossProfit"], "USD", latestMeta.end);
+        const corQ = extractLatest10QYtdPair(
+          facts,
+          [
+            "CostOfGoodsAndServicesSold",
+            "CostOfRevenue",
+            "CostOfGoodsSold",
+            "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+          ],
+          "USD",
+          latestMeta.end
+        );
+        const opIncQ = extractLatest10QYtdPair(facts, ["OperatingIncomeLoss"], "USD", latestMeta.end);
+        const netIncQ = extractLatest10QYtdPair(facts, ["NetIncomeLoss"], "USD", latestMeta.end);
+        const rdQ = extractLatest10QYtdPair(
+          facts,
+          ["ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"],
+          "USD",
+          latestMeta.end
+        );
+        const sgaQ = extractLatest10QYtdPair(
+          facts,
+          ["SellingGeneralAndAdministrativeExpense", "GeneralAndAdministrativeExpense"],
+          "USD",
+          latestMeta.end
+        );
+
+        const ttmGp =
+          latestAnnual.grossProfit != null
+            ? gpQ
+              ? Math.round(latestAnnual.grossProfit + (gpQ.currentVal - gpQ.priorVal) / 1e6)
+              : corQ
+                ? Math.round(
+                    ttmRev -
+                      (latestAnnual.revenue -
+                        latestAnnual.grossProfit +
+                        (Math.abs(corQ.currentVal) - Math.abs(corQ.priorVal)) / 1e6)
+                  )
+                : null
+            : null;
+        const ttmOpInc =
+          latestAnnual.operatingIncome != null && opIncQ
+            ? Math.round(latestAnnual.operatingIncome + (opIncQ.currentVal - opIncQ.priorVal) / 1e6)
+            : null;
+        const ttmNetInc =
+          latestAnnual.netIncome != null && netIncQ
+            ? Math.round(latestAnnual.netIncome + (netIncQ.currentVal - netIncQ.priorVal) / 1e6)
+            : null;
+        const ttmRd =
+          latestAnnual.rdExpense != null && rdQ
+            ? Math.max(0, Math.round(latestAnnual.rdExpense + (Math.abs(rdQ.currentVal) - Math.abs(rdQ.priorVal)) / 1e6))
+            : null;
+        const ttmSga =
+          latestAnnual.sgaExpense != null && sgaQ
+            ? Math.max(0, Math.round(latestAnnual.sgaExpense + (Math.abs(sgaQ.currentVal) - Math.abs(sgaQ.priorVal)) / 1e6))
+            : null;
+
         annuals.push({
           fiscalYear: "TTM",
           revenue: ttmRev,
@@ -1013,6 +1090,11 @@ export async function ingestCandidate(
             latestSharesInstant > 0
               ? normalizeShareCountToMillions(latestSharesInstant, candidate.ticker)
               : latestAnnual.dilutedShares,
+          grossProfit: ttmGp,
+          rdExpense: ttmRd,
+          sgaExpense: ttmSga,
+          operatingIncome: ttmOpInc,
+          netIncome: ttmNetInc,
         });
         lastFilingType = "10-Q";
         lastFilingDate = revQ.filed;

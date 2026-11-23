@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Download } from "lucide-react";
 import {
   type ComputedAnnual,
@@ -12,6 +12,18 @@ interface RevenueSankeyProps {
   ticker: string;
   companyName: string;
   period: ComputedAnnual;
+  fyPeriod?: ComputedAnnual | null;
+}
+
+function hasFullIncomeBreakdown(p: ComputedAnnual | null | undefined): boolean {
+  if (!p) return false;
+  const rev = Math.max(1, p.revenue);
+  return (
+    typeof p.grossProfit === "number" &&
+    p.grossProfit > 0 &&
+    p.grossProfit <= rev * 1.05 &&
+    typeof p.operatingIncome === "number"
+  );
 }
 
 function ribbonPath(
@@ -35,16 +47,27 @@ function ribbonPath(
 export function RevenueSankey({
   ticker,
   companyName,
-  period,
+  period: latestPeriod,
+  fyPeriod = null,
 }: RevenueSankeyProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
+  const canToggleFy =
+    Boolean(fyPeriod) && fyPeriod!.fiscalYear !== latestPeriod.fiscalYear;
+  const defaultToFy =
+    canToggleFy &&
+    !hasFullIncomeBreakdown(latestPeriod) &&
+    hasFullIncomeBreakdown(fyPeriod);
+
+  const [viewMode, setViewMode] = useState<"latest" | "fy">(
+    defaultToFy ? "fy" : "latest"
+  );
+
+  const period =
+    viewMode === "fy" && fyPeriod ? fyPeriod : latestPeriod;
+
   const rev = Math.max(1, period.revenue);
-  const hasIncomeBreakdown =
-    typeof period.grossProfit === "number" &&
-    period.grossProfit > 0 &&
-    period.grossProfit <= rev * 1.05 &&
-    typeof period.operatingIncome === "number";
+  const hasIncomeBreakdown = hasFullIncomeBreakdown(period);
 
   const grossProfit = hasIncomeBreakdown
     ? Math.min(rev, Math.max(0, period.grossProfit!))
@@ -254,14 +277,42 @@ export function RevenueSankey({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={exportSvgAsPng}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export PNG
-        </button>
+        <div className="flex items-center gap-2">
+          {canToggleFy && fyPeriod && (
+            <div className="inline-flex rounded-md border border-[var(--border)] bg-[var(--bg)] p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setViewMode("fy")}
+                className={`font-mono-num rounded px-2 py-1 font-medium transition-colors cursor-pointer ${
+                  viewMode === "fy"
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {fyPeriod.fiscalYear}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("latest")}
+                className={`font-mono-num rounded px-2 py-1 font-medium transition-colors cursor-pointer ${
+                  viewMode === "latest"
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {latestPeriod.fiscalYear}
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={exportSvgAsPng}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export PNG
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 w-full overflow-x-auto">

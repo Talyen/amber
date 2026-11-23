@@ -9,15 +9,21 @@ import {
   ArrowUpDown,
   ArrowRight,
   Compass,
+  FileDiff,
   Flame,
   Gauge,
   Landmark,
   Layers,
   SlidersHorizontal,
   Star,
+  UserCheck,
   X,
 } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
+import type {
+  MarketFilingDiffItem,
+  MarketInsiderFeedItem,
+} from "@/data/repository";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
@@ -56,9 +62,13 @@ const LENS_STYLES: Record<
 export function SignalIndex({
   entries = SEARCH_INDEX,
   initialLensId = null,
+  recentDiffs = [],
+  recentInsiders = [],
 }: {
   entries?: SearchIndexEntry[];
   initialLensId?: string | null;
+  recentDiffs?: MarketFilingDiffItem[];
+  recentInsiders?: MarketInsiderFeedItem[];
 }) {
   const initialLens = initialLensId
     ? DISCOVERY_LENSES.find((l) => l.id === initialLensId) ?? null
@@ -292,14 +302,57 @@ export function SignalIndex({
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [groupBySector, visibleRows]);
 
-  const sortColumns: Array<{ key: SortKey; label: string }> = [
-    { key: "marketCap", label: "Mkt Cap" },
-    { key: "trueFcf", label: "True FCF" },
-    { key: "trueFcfMargin", label: "True Margin" },
-    { key: "sbcPctRevenue", label: "SBC / Rev" },
-    { key: "netDilutionCagr", label: "Dilution (4Y)" },
-    { key: "impliedCagr", label: "Implied 10Y" },
+  const sortColumns: Array<{ key: SortKey; label: string; tip?: string }> = [
+    { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+    {
+      key: "trueFcf",
+      label: "True FCF",
+      tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
+    },
+    {
+      key: "trueFcfMargin",
+      label: "True Margin",
+      tip: "True Free Cash Flow as a percentage of Revenue",
+    },
+    {
+      key: "sbcPctRevenue",
+      label: "SBC / Rev",
+      tip: "Employee stock-based compensation as a % of Revenue",
+    },
+    {
+      key: "netDilutionCagr",
+      label: "Dilution (4Y)",
+      tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
+    },
+    {
+      key: "impliedCagr",
+      label: "Implied 10Y",
+      tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
+    },
   ];
+
+  const featuredDiff = useMemo(() => {
+    return (
+      recentDiffs.find((d) => d.materiality === "High") ?? recentDiffs[0] ?? null
+    );
+  }, [recentDiffs]);
+
+  const featuredInsiderBuy = useMemo(() => {
+    const buys = recentInsiders.filter((i) => i.transactionType === "Buy");
+    return (
+      [...buys].sort((a, b) => b.totalValue - a.totalValue)[0] ?? null
+    );
+  }, [recentInsiders]);
+
+  const featuredExpectation = useMemo(() => {
+    return (
+      [...leaderboardEligible]
+        .filter((c) => c.marketCap >= 50_000 && c.impliedCagr > 0 && c.impliedCagr < 60)
+        .sort((a, b) => b.impliedCagr - a.impliedCagr)[0] ?? null
+    );
+  }, [leaderboardEligible]);
+
+  const QUICK_CHECK_TICKERS = ["NVDA", "AAPL", "MSFT", "PLTR", "META", "COST"];
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -308,24 +361,216 @@ export function SignalIndex({
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
         {/* Crisp Editorial Hero */}
         <section className="border-b border-[var(--border)] pb-8">
-          <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
-            Understand any business in 60 seconds.
+          <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
+            INDEPENDENT SEC INTELLIGENCE
+          </div>
+          <h1 className="mt-1.5 max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
+            The reality check before you buy.
           </h1>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            Real cash flow, dilution, and priced-in growth from SEC filings.
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
+            See what&apos;s actually priced in, what quietly changed in SEC filings, and where insiders are putting their own cash across {entries.length} public companies. Zero ads, zero login required.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <CommandSearch variant="hero" initialEntries={entries} />
-            <Link
-              href="/t/NVDA"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
-            >
-              Explore NVDA
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-[var(--text-muted)] mr-0.5">
+                Quick check:
+              </span>
+              {QUICK_CHECK_TICKERS.map((t) => (
+                <Link
+                  key={t}
+                  href={`/t/${t}`}
+                  className="font-mono-num inline-flex h-8 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
+                >
+                  {t}
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
+
+        {/* Zero-Input Standout Signals Strip ("What Your Broker Didn't Tell You") */}
+        {!initialLensId && (featuredDiff || featuredInsiderBuy || featuredExpectation) && (
+          <section aria-label="Standout market signals" className="mt-7">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  What Your Broker Didn&apos;t Tell You
+                </h2>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Live SEC fine-print changes, open-market insider buys, and priced-in growth checks — no setup required.
+                </p>
+              </div>
+              <Link
+                href="/feed"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--amber)] hover:underline"
+              >
+                Open full Signal Wire
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-3">
+              {featuredDiff && (
+                <div className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
+                        <FileDiff className="h-3.5 w-3.5" />
+                        SEC {featuredDiff.filingType} Fine Print
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => watchlist.toggle(featuredDiff.ticker)}
+                        aria-label={`Follow ${featuredDiff.ticker}`}
+                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                          watchlist.has(featuredDiff.ticker)
+                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <Star
+                          className="h-3 w-3"
+                          fill={watchlist.has(featuredDiff.ticker) ? "currentColor" : "none"}
+                        />
+                        {watchlist.has(featuredDiff.ticker) ? "Following" : "Follow"}
+                      </button>
+                    </div>
+                    <Link
+                      href={`/t/${featuredDiff.ticker}?tab=diffs`}
+                      className="mt-2 block group"
+                    >
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono-num font-bold text-[var(--amber)]">
+                          {featuredDiff.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-muted)]">
+                          {featuredDiff.companyName}
+                        </span>
+                      </div>
+                      <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                        {featuredDiff.headline}
+                      </h3>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                        {featuredDiff.summary}
+                      </p>
+                    </Link>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px] text-[var(--text-muted)]">
+                    <span>{featuredDiff.category}</span>
+                    <span className="font-mono-num">{featuredDiff.filingDate}</span>
+                  </div>
+                </div>
+              )}
+
+              {featuredInsiderBuy && (
+                <div className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--positive)]">
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Open-Market Insider Buy
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => watchlist.toggle(featuredInsiderBuy.ticker)}
+                        aria-label={`Follow ${featuredInsiderBuy.ticker}`}
+                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                          watchlist.has(featuredInsiderBuy.ticker)
+                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <Star
+                          className="h-3 w-3"
+                          fill={watchlist.has(featuredInsiderBuy.ticker) ? "currentColor" : "none"}
+                        />
+                        {watchlist.has(featuredInsiderBuy.ticker) ? "Following" : "Follow"}
+                      </button>
+                    </div>
+                    <Link
+                      href={`/t/${featuredInsiderBuy.ticker}?tab=insiders`}
+                      className="mt-2 block group"
+                    >
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono-num font-bold text-[var(--amber)]">
+                          {featuredInsiderBuy.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-muted)]">
+                          {entries.find((e) => e.ticker === featuredInsiderBuy.ticker)?.name ??
+                            featuredInsiderBuy.ticker}
+                        </span>
+                      </div>
+                      <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                        {formatCurrencyCompact(featuredInsiderBuy.totalValue)} open-market purchase
+                      </h3>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                        {featuredInsiderBuy.insiderName} ({featuredInsiderBuy.insiderTitle}) bought {Math.round(featuredInsiderBuy.shares).toLocaleString()} shares at ${featuredInsiderBuy.pricePerShare.toFixed(2)}.
+                      </p>
+                    </Link>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px] text-[var(--text-muted)]">
+                    <span>SEC Form 4 (Code P)</span>
+                    <span className="font-mono-num">{featuredInsiderBuy.filingDate}</span>
+                  </div>
+                </div>
+              )}
+
+              {featuredExpectation && (
+                <div className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
+                        <Gauge className="h-3.5 w-3.5" />
+                        Priced-In Growth Check
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => watchlist.toggle(featuredExpectation.ticker)}
+                        aria-label={`Follow ${featuredExpectation.ticker}`}
+                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                          watchlist.has(featuredExpectation.ticker)
+                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <Star
+                          className="h-3 w-3"
+                          fill={watchlist.has(featuredExpectation.ticker) ? "currentColor" : "none"}
+                        />
+                        {watchlist.has(featuredExpectation.ticker) ? "Following" : "Follow"}
+                      </button>
+                    </div>
+                    <Link
+                      href={`/t/${featuredExpectation.ticker}?tab=dcf`}
+                      className="mt-2 block group"
+                    >
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono-num font-bold text-[var(--amber)]">
+                          {featuredExpectation.ticker}
+                        </span>
+                        <span className="truncate text-[var(--text-muted)]">
+                          {featuredExpectation.name}
+                        </span>
+                      </div>
+                      <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
+                        Pricing in {formatPct(featuredExpectation.impliedCagr)}/yr growth for 10 years
+                      </h3>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                        At {formatCurrencyCompact(featuredExpectation.marketCap)} market cap, today&apos;s valuation demands sustained decade-long compounding. Stress-test the sliders yourself.
+                      </p>
+                    </Link>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px] text-[var(--text-muted)]">
+                    <span>Interactive Reverse DCF</span>
+                    <span className="font-mono-num text-[var(--amber)]">Stress-test →</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Companies Table + Integrated Lens Filters */}
         <section className="mt-8">
@@ -621,6 +866,7 @@ export function SignalIndex({
                         <button
                           type="button"
                           onClick={() => toggleSort(col.key)}
+                          title={col.tip}
                           className={`inline-flex items-center gap-1 transition-colors cursor-pointer ${
                             isSorted
                               ? "font-semibold text-[var(--amber)]"

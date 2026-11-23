@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, ArrowRight } from "lucide-react";
+import { Download, FileText, ArrowRight } from "lucide-react";
 import type { CompanySnapshot, FilingDiffItem } from "@/lib/finance";
+import { exportFilingDiffCard } from "@/lib/export-card";
 import { FilingAlertModal } from "@/components/FilingAlertModal";
 
 interface FilingDiffRadarProps {
@@ -151,9 +152,34 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
                 </span>
               </div>
 
-              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                {diff.section}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                  {diff.section}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportFilingDiffCard({
+                      ticker: company.ticker,
+                      companyName: company.name,
+                      filingType: diff.filingType,
+                      filingDate: diff.filingDate,
+                      category: diff.category,
+                      section: diff.section,
+                      materiality: diff.materiality,
+                      headline: diff.headline,
+                      priorExcerpt: diff.priorExcerpt,
+                      currentExcerpt: diff.currentExcerpt,
+                      signalNote: diff.signalNote,
+                      accessionNumber: diff.accessionNumber,
+                    })
+                  }
+                  className="inline-flex h-6 items-center gap-1 rounded border border-[var(--border)] bg-[var(--surface-subtle)] px-2 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
+                >
+                  <Download className="h-3 w-3" />
+                  PNG
+                </button>
+              </div>
             </div>
 
             <h3 className="mt-3 text-[15px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">

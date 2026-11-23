@@ -8,6 +8,14 @@ import {
   getSectorBenchmark,
 } from "@/data/repository";
 import { CompanyWorkspace } from "@/components/CompanyWorkspace";
+import {
+  computeAnnualMetrics,
+  computeEnterpriseValue,
+  computeNetDilutionCagr,
+  formatCurrencyCompact,
+  formatPct,
+  solveReverseDcf,
+} from "@/lib/finance";
 
 export const revalidate = 86400;
 export const dynamicParams = true;
@@ -34,9 +42,25 @@ export async function generateMetadata({
     return { title: "Ticker Not Found" };
   }
 
+  const series = computeAnnualMetrics(company.annuals);
+  const latest = series[series.length - 1];
+  const ev = computeEnterpriseValue(company);
+  const dilution = computeNetDilutionCagr(company.annuals);
+  const dcf = solveReverseDcf({
+    enterpriseValue: ev,
+    baseRevenue: latest.revenue,
+    waccPct: company.defaultDcf.wacc,
+    terminalMultiple: company.defaultDcf.terminalMultiple,
+    targetTrueFcfMarginPct: Math.max(
+      1.5,
+      company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
+    ),
+    currentTrueFcfMarginPct: latest.trueFcfMargin,
+  });
+
   return {
-    title: `${company.ticker} | ${company.name}`,
-    description: `${company.name} (${company.ticker}) SBC-adjusted True Free Cash Flow, Reverse DCF implied growth, and SEC ${company.lastFiling.type} filing diffs.`,
+    title: `${company.ticker} Valuation, 10-K Changes & Reality Check (${formatPct(dcf.impliedRevenueCagrPct)} Implied Growth)`,
+    description: `${company.name} (${company.ticker}) reality check: ${formatPct(dcf.impliedRevenueCagrPct)}/yr priced-in 10Y growth, ${formatCurrencyCompact(latest.trueFcf)} True FCF (${formatPct(latest.trueFcfMargin)} margin), ${formatPct(dilution, true)}/yr share count trend, and SEC ${company.lastFiling.type} filing diffs.`,
   };
 }
 
@@ -63,12 +87,68 @@ export default async function TickerPage({ params }: TickerPageProps) {
     )
     .slice(0, 4);
 
+  const series = computeAnnualMetrics(company.annuals);
+  const latest = series[series.length - 1];
+  const ev = computeEnterpriseValue(company);
+  const dilution = computeNetDilutionCagr(company.annuals);
+  const dcf = solveReverseDcf({
+    enterpriseValue: ev,
+    baseRevenue: latest.revenue,
+    waccPct: company.defaultDcf.wacc,
+    terminalMultiple: company.defaultDcf.terminalMultiple,
+    targetTrueFcfMarginPct: Math.max(
+      1.5,
+      company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
+    ),
+    currentTrueFcfMarginPct: latest.trueFcfMargin,
+  });
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `What growth rate is ${company.ticker} stock pricing in?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `At $${company.price.toFixed(2)} (${formatCurrencyCompact(ev)} Enterprise Value), ${company.name} (${company.ticker}) is pricing in approximately ${formatPct(dcf.impliedRevenueCagrPct)} annual revenue growth over the next 10 years under baseline Reverse DCF assumptions.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Does ${company.ticker} dilute shareholders?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Over the last 4 fiscal years, ${company.name}'s diluted share count changed at ${formatPct(dilution, true)}/yr (currently ${latest.dilutedShares.toLocaleString()}M diluted shares), with ${formatCurrencyCompact(latest.sbc)} in latest-period stock-based compensation (${formatPct(latest.sbcPctRevenue)} of revenue).`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `What changed in ${company.ticker}'s latest SEC filing?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text:
+            company.filingDiffs.length > 0
+              ? `${company.filingDiffs[0].headline}: ${company.filingDiffs[0].summary}`
+              : `${company.name} last filed a ${company.lastFiling.type} on ${company.lastFiling.date} reporting ${formatCurrencyCompact(latest.revenue)} in revenue and ${formatCurrencyCompact(latest.trueFcf)} in True Free Cash Flow.`,
+        },
+      },
+    ],
+  };
+
   return (
-    <CompanyWorkspace
-      company={company}
-      insiderTrades={insiderTrades}
-      sectorBenchmark={sectorBenchmark}
-      sectorPeers={sectorPeers}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <CompanyWorkspace
+        company={company}
+        insiderTrades={insiderTrades}
+        sectorBenchmark={sectorBenchmark}
+        sectorPeers={sectorPeers}
+      />
+    </>
   );
 }
