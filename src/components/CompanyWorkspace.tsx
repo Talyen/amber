@@ -199,15 +199,44 @@ export function CompanyWorkspace({
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {company.ticker}
               </span>
-              <span>·</span>
+              <span aria-hidden="true">·</span>
               <span>{company.exchange}</span>
-              <span>·</span>
+              <span aria-hidden="true">·</span>
               <span>{company.sector}</span>
-              <span>·</span>
-              <span className="font-mono-num">
-                SEC {company.lastFiling.type} ({company.lastFiling.date})
-              </span>
-              <span>·</span>
+            </div>
+
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
+              {company.name}
+            </h1>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              {company.tagline}
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => watchlist.toggle(company.ticker)}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                  isStarred
+                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Star
+                  className="h-3.5 w-3.5"
+                  fill={isStarred ? "currentColor" : "none"}
+                />
+                {isStarred ? "Watchlisted" : "Watchlist"}
+              </button>
+
+              <Link
+                href={`/portfolio?add=${company.ticker}`}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+              >
+                <PieChart className="h-3.5 w-3.5" />
+                Add to Portfolio
+              </Link>
+
               <Link
                 href={`/compare?t=${[
                   company.ticker,
@@ -215,36 +244,12 @@ export function CompanyWorkspace({
                     .filter((t) => t !== company.ticker)
                     .slice(0, 3),
                 ].join(",")}`}
-                className="inline-flex items-center gap-1 font-medium text-[var(--amber)] hover:underline"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               >
                 <GitCompareArrows className="h-3.5 w-3.5" />
                 Compare
               </Link>
-              <span>·</span>
-              <Link
-                href={`/portfolio?add=${company.ticker}`}
-                className="inline-flex items-center gap-1 font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--amber)]"
-              >
-                <PieChart className="h-3.5 w-3.5" />
-                Add to Portfolio
-              </Link>
-              <span>·</span>
-              <button
-                type="button"
-                onClick={() => watchlist.toggle(company.ticker)}
-                className={`inline-flex items-center gap-1 font-medium transition-colors cursor-pointer ${
-                  isStarred
-                    ? "text-[var(--amber)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                <Star
-                  className="h-3 w-3"
-                  fill={isStarred ? "currentColor" : "none"}
-                />
-                {isStarred ? "Watchlisted" : "Watchlist"}
-              </button>
-              <span>·</span>
+
               <button
                 type="button"
                 onClick={async () => {
@@ -263,28 +268,21 @@ export function CompanyWorkspace({
                     // Ignore clipboard errors
                   }
                 }}
-                className="inline-flex items-center gap-1 font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] cursor-pointer"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 {copiedMd ? (
                   <>
-                    <Check className="h-3 w-3 text-[var(--positive)]" />
+                    <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
                     Copied MD
                   </>
                 ) : (
                   <>
-                    <Copy className="h-3 w-3" />
+                    <Copy className="h-3.5 w-3.5" />
                     Copy MD
                   </>
                 )}
               </button>
             </div>
-
-            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-              {company.name}
-            </h1>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {company.tagline}
-            </p>
           </div>
 
           <div className="flex flex-wrap items-baseline gap-6 sm:text-right">
