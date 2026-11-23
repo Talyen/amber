@@ -304,7 +304,7 @@ export function SignalIndex({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="flex flex-wrap items-center gap-2">
             {DISCOVERY_LENSES.map((lens) => {
               const isSelected = activeLensId === lens.id;
               const matchCount = entries.filter(lens.filter).length;
@@ -318,34 +318,23 @@ export function SignalIndex({
                   key={lens.id}
                   type="button"
                   onClick={() => selectLens(lens.id)}
-                  className={`rounded-xl border p-4 text-left transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
                     isSelected
-                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)]"
-                      : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--text-primary)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:border-[var(--border-strong)]"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${style.badge}`}
-                    >
-                      <LensIcon className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                      {matchCount}
-                    </span>
-                  </div>
-                  <div
-                    className={`mt-2.5 text-xs font-semibold ${
-                      isSelected
-                        ? "text-[var(--amber)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
+                  <span
+                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${style.badge}`}
                   >
+                    <LensIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
+                  <span className={isSelected ? "text-[var(--amber)] font-semibold" : ""}>
                     {lens.title}
-                  </div>
-                  <p className="mt-1 text-[11px] leading-snug text-[var(--text-secondary)]">
-                    {lens.subtitle}
-                  </p>
+                  </span>
+                  <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                    {matchCount}
+                  </span>
                 </button>
               );
             })}
