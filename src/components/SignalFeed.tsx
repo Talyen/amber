@@ -41,6 +41,27 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
   >([]);
   const watchlist = useWatchlist();
 
+  const upcomingEarnings = useMemo(() => {
+    const base =
+      watchlist.tickers.length > 0
+        ? entries.filter((e) => watchlist.has(e.ticker))
+        : entries.slice(0, 12);
+
+    return base
+      .filter((e) => e.lastFilingDate)
+      .map((e) => {
+        const last = Date.parse(e.lastFilingDate);
+        // Quarterly SEC filings occur ~91 days after the prior filing
+        const estNextMs = Number.isFinite(last) ? last + 91 * 86400 * 1000 : Date.now();
+        const estDate = new Date(estNextMs).toISOString().slice(0, 10);
+        const daysAway = Math.round((estNextMs - Date.now()) / 86400000);
+        return { ticker: e.ticker, name: cleanEntity(e.name), estDate, daysAway };
+      })
+      .filter((x) => x.daysAway >= -5 && x.daysAway <= 75)
+      .sort((a, b) => a.daysAway - b.daysAway)
+      .slice(0, 6);
+  }, [entries, watchlist]);
+
   const newsKey =
     watchlist.tickers.length > 0
       ? watchlist.tickers.slice(0, 8).join(",")
@@ -150,6 +171,45 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
             })}
           </div>
         </section>
+
+        {upcomingEarnings.length > 0 && (
+          <section className="mt-6">
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                {watchlist.tickers.length > 0
+                  ? "Upcoming Watchlist Filings (Est.)"
+                  : "Upcoming Earnings & Filings (Est.)"}
+              </h2>
+              <span className="text-[11px] text-[var(--text-muted)]">
+                Based on quarterly SEC cadence
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+              {upcomingEarnings.map((item) => (
+                <Link
+                  key={item.ticker}
+                  href={`/t/${item.ticker}`}
+                  className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 transition-colors hover:border-[var(--amber-border)]"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-mono-num text-xs font-bold text-[var(--amber)]">
+                      {item.ticker}
+                    </span>
+                    <span className="font-mono-num text-[10px] text-[var(--text-muted)]">
+                      {item.daysAway <= 0 ? "Soon" : `~${item.daysAway}d`}
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                    {item.name}
+                  </div>
+                  <div className="font-mono-num mt-1 text-[10px] text-[var(--text-muted)]">
+                    {item.estDate}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {headlines.length > 0 && (
           <section className="mt-6">

@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, PieChart, RefreshCw } from "lucide-react";
-import { getArenaPortfolioById, getSpyBenchmarks } from "@/data/repository";
+import {
+  getArenaEquityCurve,
+  getArenaPortfolioById,
+  getSpyBenchmarks,
+} from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import {
@@ -41,6 +45,7 @@ export default async function ArenaDetailPage({
   if (!portfolio) notFound();
 
   const spyReturn = benchmarks[portfolio.periodKey];
+  const curvePoints = await getArenaEquityCurve(portfolio);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -71,7 +76,13 @@ export default async function ArenaDetailPage({
                 </span>
               )}
               <span className="font-mono-num text-xs text-[var(--text-muted)]">
-                @{portfolio.handle} · Started {portfolio.lockedAt.slice(0, 10)}
+                <Link
+                  href={`/u/${encodeURIComponent(portfolio.handle)}`}
+                  className="hover:text-[var(--amber)] hover:underline"
+                >
+                  @{portfolio.handle}
+                </Link>{" "}
+                · Started {portfolio.lockedAt.slice(0, 10)}
                 {portfolio.rebalances.length > 0 && (
                   <> · Rebalanced {portfolio.lastRebalancedAt.slice(0, 10)}</>
                 )}
@@ -129,6 +140,7 @@ export default async function ArenaDetailPage({
             portfolioReturnPct={portfolio.totalReturnPct}
             spyReturnPct={spyReturn}
             periodLabel={portfolio.periodKey}
+            curvePoints={curvePoints}
           />
         )}
 

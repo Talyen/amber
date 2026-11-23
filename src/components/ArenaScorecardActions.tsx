@@ -1,7 +1,7 @@
 "use client";
 
 import { Download } from "lucide-react";
-import type { ArenaPortfolioView } from "@/data/repository";
+import type { ArenaPortfolioView, EquityCurvePoint } from "@/data/repository";
 import { formatPct } from "@/lib/finance";
 
 interface ArenaScorecardActionsProps {
@@ -157,15 +157,53 @@ export function ArenaBenchmarkCard({
   portfolioReturnPct,
   spyReturnPct,
   periodLabel,
+  curvePoints = [],
 }: {
   portfolioReturnPct: number;
   spyReturnPct: number;
   periodLabel: string;
+  curvePoints?: EquityCurvePoint[];
 }) {
   const alpha = portfolioReturnPct - spyReturnPct;
   const maxAbs = Math.max(5, Math.abs(portfolioReturnPct), Math.abs(spyReturnPct));
   const portWidth = Math.min(100, Math.max(4, (Math.abs(portfolioReturnPct) / maxAbs) * 100));
   const spyWidth = Math.min(100, Math.max(4, (Math.abs(spyReturnPct) / maxAbs) * 100));
+
+  const hasCurve = curvePoints.length >= 2;
+  const W = 740;
+  const H = 180;
+  const pad = { top: 18, right: 54, bottom: 26, left: 46 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  let portPath = "";
+  let spyPath = "";
+  let zeroY = pad.top + plotH / 2;
+  let minVal = 0;
+  let maxVal = 0;
+
+  if (hasCurve) {
+    const vals = curvePoints.flatMap((p) => [p.portfolioPct, p.spyPct, 0]);
+    minVal = Math.min(...vals);
+    maxVal = Math.max(...vals);
+    const span = Math.max(2, maxVal - minVal);
+    minVal -= span * 0.1;
+    maxVal += span * 0.1;
+    const adjSpan = maxVal - minVal;
+
+    const xFor = (i: number) =>
+      pad.left + (i / (curvePoints.length - 1)) * plotW;
+    const yFor = (v: number) =>
+      pad.top + plotH - ((v - minVal) / adjSpan) * plotH;
+
+    zeroY = yFor(0);
+    portPath = curvePoints
+      .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p.portfolioPct).toFixed(1)}`)
+      .join(" ");
+    spyPath = curvePoints
+      .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p.spyPct).toFixed(1)}`)
+      .join(" ");
+  }
 
   return (
     <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -187,45 +225,147 @@ export function ArenaBenchmarkCard({
         )}
       </div>
 
-      <div className="mt-4 space-y-3">
-        <div>
-          <div className="mb-1 flex items-center justify-between text-xs">
-            <span className="font-medium text-[var(--text-primary)]">This Portfolio</span>
-            <span
-              className={`font-mono-num font-semibold ${
-                portfolioReturnPct >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"
-              }`}
+      {hasCurve ? (
+        <div className="mt-4 overflow-x-auto">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="h-auto w-full min-w-[440px]"
+            role="img"
+            aria-label="Portfolio cumulative return curve vs S&P 500"
+          >
+            <line
+              x1={pad.left}
+              y1={zeroY}
+              x2={pad.left + plotW}
+              y2={zeroY}
+              stroke="var(--border-strong)"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <text
+              x={pad.left - 8}
+              y={zeroY + 3.5}
+              textAnchor="end"
+              fontSize="10"
+              fill="var(--text-muted)"
+              className="font-mono-num"
             >
-              {formatPct(portfolioReturnPct, true)}
-            </span>
-          </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${portWidth}%`,
-                backgroundColor:
-                  portfolioReturnPct >= 0 ? "var(--amber)" : "var(--negative)",
-              }}
-            />
-          </div>
-        </div>
+              0%
+            </text>
+            <text
+              x={pad.left - 8}
+              y={pad.top + 4}
+              textAnchor="end"
+              fontSize="10"
+              fill="var(--text-muted)"
+              className="font-mono-num"
+            >
+              {formatPct(maxVal, true, 0)}
+            </text>
+            <text
+              x={pad.left - 8}
+              y={pad.top + plotH}
+              textAnchor="end"
+              fontSize="10"
+              fill="var(--text-muted)"
+              className="font-mono-num"
+            >
+              {formatPct(minVal, true, 0)}
+            </text>
 
-        <div>
-          <div className="mb-1 flex items-center justify-between text-xs">
-            <span className="text-[var(--text-secondary)]">S&amp;P 500 (SPY)</span>
-            <span className="font-mono-num font-medium text-[var(--text-secondary)]">
-              {formatPct(spyReturnPct, true)}
+            {/* S&P 500 dashed benchmark line */}
+            <path
+              d={spyPath}
+              fill="none"
+              stroke="var(--text-muted)"
+              strokeWidth="1.6"
+              strokeDasharray="4 4"
+              opacity="0.75"
+            />
+
+            {/* Portfolio cumulative return line */}
+            <path
+              d={portPath}
+              fill="none"
+              stroke="var(--amber)"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+
+            {/* Start and end date labels */}
+            <text
+              x={pad.left}
+              y={H - 6}
+              fontSize="10"
+              fill="var(--text-muted)"
+              className="font-mono-num"
+            >
+              {curvePoints[0].date}
+            </text>
+            <text
+              x={pad.left + plotW}
+              y={H - 6}
+              textAnchor="end"
+              fontSize="10"
+              fill="var(--text-muted)"
+              className="font-mono-num"
+            >
+              {curvePoints[curvePoints.length - 1].date}
+            </text>
+          </svg>
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-[var(--text-secondary)]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-0.5 w-3.5 bg-[var(--amber)]" />
+              Portfolio ({formatPct(portfolioReturnPct, true)})
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-0.5 w-3.5 border-t border-dashed border-[var(--text-muted)]" />
+              S&amp;P 500 ({formatPct(spyReturnPct, true)})
             </span>
           </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
-            <div
-              className="h-full rounded-full bg-[var(--text-muted)] opacity-55 transition-all"
-              style={{ width: `${spyWidth}%` }}
-            />
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="font-medium text-[var(--text-primary)]">This Portfolio</span>
+              <span
+                className={`font-mono-num font-semibold ${
+                  portfolioReturnPct >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"
+                }`}
+              >
+                {formatPct(portfolioReturnPct, true)}
+              </span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${portWidth}%`,
+                  backgroundColor:
+                    portfolioReturnPct >= 0 ? "var(--amber)" : "var(--negative)",
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="text-[var(--text-secondary)]">S&amp;P 500 (SPY)</span>
+              <span className="font-mono-num font-medium text-[var(--text-secondary)]">
+                {formatPct(spyReturnPct, true)}
+              </span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+              <div
+                className="h-full rounded-full bg-[var(--text-muted)] opacity-55 transition-all"
+                style={{ width: `${spyWidth}%` }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

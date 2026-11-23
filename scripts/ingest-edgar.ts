@@ -110,6 +110,7 @@ interface CompanyFactsResponse {
   entityName: string;
   facts?: {
     "us-gaap"?: Record<string, { units?: Record<string, XbrlFactUnit[]> }>;
+    "ifrs-full"?: Record<string, { units?: Record<string, XbrlFactUnit[]> }>;
     "dei"?: Record<string, { units?: Record<string, XbrlFactUnit[]> }>;
   };
 }
@@ -199,19 +200,30 @@ function extractAnnualSeries(
   requireDuration = true
 ): Map<string, { val: number; end: string; filed: string; accn: string }> {
   const gaap = facts.facts?.["us-gaap"];
+  const ifrs = facts.facts?.["ifrs-full"];
   const merged = new Map<
     string,
     { val: number; end: string; filed: string; accn: string; priority: number }
   >();
 
-  if (!gaap) return new Map();
+  if (!gaap && !ifrs) return new Map();
+
+  const annualForms = new Set([
+    "10-K",
+    "10-K/A",
+    "20-F",
+    "20-F/A",
+    "40-F",
+    "40-F/A",
+  ]);
 
   tagCandidates.forEach((tag, priority) => {
-    const entries = gaap[tag]?.units?.[unit];
-    if (!entries?.length) return;
+    const entries =
+      gaap?.[tag]?.units?.[unit] ?? ifrs?.[tag]?.units?.[unit] ?? [];
+    if (!entries.length) return;
 
     for (const e of entries) {
-      if (e.form !== "10-K" && e.form !== "10-K/A") continue;
+      if (!annualForms.has(e.form)) continue;
 
       if (requireDuration) {
         if (!e.start) continue;
@@ -255,15 +267,25 @@ function extractLatestInstant(
   unit: "USD" | "shares"
 ): number {
   const gaap = facts.facts?.["us-gaap"];
+  const ifrs = facts.facts?.["ifrs-full"];
   const dei = facts.facts?.["dei"];
 
   for (const tag of tagCandidates) {
     const entries =
-      gaap?.[tag]?.units?.[unit] ?? dei?.[tag]?.units?.[unit] ?? [];
+      gaap?.[tag]?.units?.[unit] ??
+      ifrs?.[tag]?.units?.[unit] ??
+      dei?.[tag]?.units?.[unit] ??
+      [];
     if (!entries.length) continue;
 
     const sorted = [...entries]
-      .filter((e) => e.form === "10-K" || e.form === "10-Q")
+      .filter(
+        (e) =>
+          e.form === "10-K" ||
+          e.form === "10-Q" ||
+          e.form === "20-F" ||
+          e.form === "40-F"
+      )
       .sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed));
 
     if (sorted.length > 0 && Number.isFinite(sorted[0].val)) {
@@ -534,6 +556,7 @@ async function ingestCandidate(
         "Revenues",
         "SalesRevenueNet",
         "RevenueFromContractWithCustomerIncludingAssessedTax",
+        "Revenue",
       ],
       "USD"
     );
@@ -542,6 +565,7 @@ async function ingestCandidate(
       [
         "NetCashProvidedByUsedInOperatingActivities",
         "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        "CashFlowsFromUsedInOperatingActivities",
       ],
       "USD"
     );
@@ -550,17 +574,26 @@ async function ingestCandidate(
       [
         "PaymentsToAcquirePropertyPlantAndEquipment",
         "PaymentsToAcquireProductiveAssets",
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
       ],
       "USD"
     );
     const sbcMap = extractAnnualSeries(
       facts,
-      ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
+      [
+        "ShareBasedCompensation",
+        "AllocatedShareBasedCompensationExpense",
+        "ExpenseFromSharebasedPaymentTransactionsInWhichGoodsOrServicesReceivedDidNotQualifyForRecognitionAsAssets",
+      ],
       "USD"
     );
     const buybackMap = extractAnnualSeries(
       facts,
-      ["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"],
+      [
+        "PaymentsForRepurchaseOfCommonStock",
+        "PaymentsForRepurchaseOfEquity",
+        "PurchaseOfTreasuryShares",
+      ],
       "USD"
     );
     const sharesMap = extractAnnualSeries(
@@ -568,6 +601,8 @@ async function ingestCandidate(
       [
         "WeightedAverageNumberOfDilutedSharesOutstanding",
         "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
+        "AdjustedWeightedAverageShares",
+        "WeightedAverageShares",
       ],
       "shares"
     );
@@ -1047,6 +1082,14 @@ async function run() {
     }
     // Respect SEC EDGAR fair-access limit (<10 req/sec)
     await new Promise((r) => setTimeout(r, 140));
+  }
+
+  // Guarantee every flagship pilot ticker (e.g. PLTR, SNOW, SHOP) is present even if directory lookup missed it
+  const presentTickers = new Set(companies.map((c) => c.ticker));
+  for (const pilot of PILOT_TICKERS) {
+    if (!presentTickers.has(pilot.ticker)) {
+      companies.push(pilot);
+    }
   }
 
   const searchIndex = companies.map((c) => {
