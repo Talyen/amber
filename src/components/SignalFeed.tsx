@@ -219,9 +219,19 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
     );
   }, [scopedInsiders, filter]);
 
+  const entryByTicker = useMemo(
+    () => new Map(entries.map((e) => [e.ticker, e])),
+    [entries]
+  );
+
   const visibleHeadlines = showAllHeadlines
     ? headlines
     : headlines.slice(0, 9);
+
+  const leadStory = visibleHeadlines[0] ?? null;
+  const secondaryStories = visibleHeadlines.slice(1, 3);
+  const midStories = visibleHeadlines.slice(3, 5);
+  const wireStories = visibleHeadlines.slice(5);
 
   const showHeadlines = filter === "all" || filter === "headlines";
   const showFilings = filter === "all" || filter === "filings";
@@ -442,69 +452,281 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                 </div>
 
                 {loadingNews && headlines.length === 0 ? (
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {[0, 1, 2, 3, 4, 5].map((idx) => (
-                      <div
-                        key={idx}
-                        className="h-24 animate-pulse rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5"
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
+                    <div className="h-56 animate-pulse rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 lg:col-span-7" />
+                    <div className="flex flex-col gap-3.5 lg:col-span-5">
+                      <div className="h-26 animate-pulse rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" />
+                      <div className="h-26 animate-pulse rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4" />
+                    </div>
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                      {visibleHeadlines.map((item) => (
-                        <div
-                          key={item.link}
-                          className="group flex flex-col justify-between gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 transition-colors hover:border-[var(--amber-border)]"
-                        >
-                          <div>
-                            <div className="mb-1.5 flex items-center justify-between gap-2">
-                              <span className="rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                                {item.source || "Financial Wire"}
-                              </span>
-                              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                                {formatRelativeTime(item.pubDate)}
-                              </span>
-                            </div>
-                            <a
-                              href={item.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="line-clamp-2 text-xs font-medium leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)]"
+                    {/* Row 1: Front-Page Newspaper Hero (7 cols) + 2 Stacked Featured Stories (5 cols) */}
+                    {leadStory && (
+                      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
+                        {(() => {
+                          const primaryTicker = leadStory.tickers?.[0];
+                          const companySnap = primaryTicker
+                            ? entryByTicker.get(primaryTicker)
+                            : undefined;
+                          return (
+                            <div
+                              className={`group flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:border-[var(--amber-border)] sm:p-6 ${
+                                secondaryStories.length > 0
+                                  ? "lg:col-span-7"
+                                  : "lg:col-span-12"
+                              }`}
                             >
-                              {item.title}
-                            </a>
-                          </div>
+                              <div>
+                                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--amber)] uppercase">
+                                      Top Story
+                                    </span>
+                                    <span className="rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
+                                      {leadStory.source || "Financial Wire"}
+                                    </span>
+                                  </div>
+                                  <span className="font-mono-num text-xs text-[var(--text-muted)]">
+                                    {formatRelativeTime(leadStory.pubDate)}
+                                  </span>
+                                </div>
 
-                          <div className="flex items-center justify-between gap-2 pt-0.5">
-                            <div className="flex flex-wrap items-center gap-1">
-                              {(item.tickers ?? []).map((sym) => (
-                                <Link
-                                  key={sym}
-                                  href={`/t/${sym}`}
-                                  className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                <a
+                                  href={leadStory.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block text-lg font-semibold leading-[1.32] tracking-[-0.02em] text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[21px]"
                                 >
-                                  {sym}
-                                </Link>
-                              ))}
+                                  {leadStory.title}
+                                </a>
+
+                                {companySnap && (
+                                  <Link
+                                    href={`/t/${companySnap.ticker}`}
+                                    className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-xs transition-colors hover:border-[var(--amber-border)]"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono-num font-bold text-[var(--amber)]">
+                                        {companySnap.ticker}
+                                      </span>
+                                      <span className="font-medium text-[var(--text-primary)]">
+                                        {cleanEntity(companySnap.name)}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-secondary)]">
+                                      <span>
+                                        True FCF:{" "}
+                                        <strong className="font-mono-num text-[var(--text-primary)]">
+                                          {formatCurrencyCompact(
+                                            companySnap.trueFcf
+                                          )}{" "}
+                                          ({formatPct(companySnap.trueFcfMargin)}
+                                          )
+                                        </strong>
+                                      </span>
+                                      <span>
+                                        Implied 10Y:{" "}
+                                        <strong className="font-mono-num text-[var(--amber)]">
+                                          {formatPct(companySnap.impliedCagr)}
+                                        </strong>
+                                      </span>
+                                    </div>
+                                  </Link>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {(leadStory.tickers ?? []).map((sym) => (
+                                    <Link
+                                      key={sym}
+                                      href={`/t/${sym}`}
+                                      className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                    >
+                                      {sym}
+                                    </Link>
+                                  ))}
+                                </div>
+                                <a
+                                  href={leadStory.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--amber)]"
+                                >
+                                  Read article
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
                             </div>
-                            <a
-                              href={item.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label="Open article"
-                              className="text-[var(--text-muted)] hover:text-[var(--amber)]"
-                            >
-                              <ArrowUpRight className="h-3.5 w-3.5" />
-                            </a>
+                          );
+                        })()}
+
+                        {secondaryStories.length > 0 && (
+                          <div className="flex flex-col gap-3.5 lg:col-span-5">
+                            {secondaryStories.map((item) => (
+                              <div
+                                key={item.link}
+                                className="group flex flex-1 flex-col justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]"
+                              >
+                                <div>
+                                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                                    <span className="rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                      {item.source || "Financial Wire"}
+                                    </span>
+                                    <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                                      {formatRelativeTime(item.pubDate)}
+                                    </span>
+                                  </div>
+                                  <a
+                                    href={item.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block text-sm font-semibold leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[15px]"
+                                  >
+                                    {item.title}
+                                  </a>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 pt-0.5">
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    {(item.tickers ?? []).map((sym) => (
+                                      <Link
+                                        key={sym}
+                                        href={`/t/${sym}`}
+                                        className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                      >
+                                        {sym}
+                                      </Link>
+                                    ))}
+                                  </div>
+                                  <a
+                                    href={item.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="Open article"
+                                    className="text-[var(--text-muted)] hover:text-[var(--amber)]"
+                                  >
+                                    <ArrowUpRight className="h-3.5 w-3.5" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Row 2: 2-Column Mid-Size Feature Pair */}
+                    {midStories.length > 0 && (
+                      <div className="mt-3.5 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                        {midStories.map((item) => (
+                          <div
+                            key={item.link}
+                            className="group flex flex-col justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]"
+                          >
+                            <div>
+                              <div className="mb-1.5 flex items-center justify-between gap-2">
+                                <span className="rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                  {item.source || "Financial Wire"}
+                                </span>
+                                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                                  {formatRelativeTime(item.pubDate)}
+                                </span>
+                              </div>
+                              <a
+                                href={item.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-sm font-semibold leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[15px]"
+                              >
+                                {item.title}
+                              </a>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-0.5">
+                              <div className="flex flex-wrap items-center gap-1">
+                                {(item.tickers ?? []).map((sym) => (
+                                  <Link
+                                    key={sym}
+                                    href={`/t/${sym}`}
+                                    className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                  >
+                                    {sym}
+                                  </Link>
+                                ))}
+                              </div>
+                              <a
+                                href={item.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Open article"
+                                className="text-[var(--text-muted)] hover:text-[var(--amber)]"
+                              >
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Row 3+: 2-Column Editorial Wire (Readable Width) */}
+                    {wireStories.length > 0 && (
+                      <div className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        {wireStories.map((item) => (
+                          <div
+                            key={item.link}
+                            className="group flex flex-col justify-between gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 transition-colors hover:border-[var(--amber-border)]"
+                          >
+                            <div>
+                              <div className="mb-1.5 flex items-center justify-between gap-2">
+                                <span className="rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                  {item.source || "Financial Wire"}
+                                </span>
+                                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                                  {formatRelativeTime(item.pubDate)}
+                                </span>
+                              </div>
+                              <a
+                                href={item.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-[13.5px] font-medium leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)]"
+                              >
+                                {item.title}
+                              </a>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-0.5">
+                              <div className="flex flex-wrap items-center gap-1">
+                                {(item.tickers ?? []).map((sym) => (
+                                  <Link
+                                    key={sym}
+                                    href={`/t/${sym}`}
+                                    className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                  >
+                                    {sym}
+                                  </Link>
+                                ))}
+                              </div>
+                              <a
+                                href={item.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Open article"
+                                className="text-[var(--text-muted)] hover:text-[var(--amber)]"
+                              >
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {headlines.length > 9 && (
-                      <div className="mt-3 flex justify-center">
+                      <div className="mt-3.5 flex justify-center">
                         <button
                           type="button"
                           onClick={() => setShowAllHeadlines((v) => !v)}

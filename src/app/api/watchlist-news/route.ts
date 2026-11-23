@@ -10,6 +10,7 @@ export interface HeadlineItem {
   link: string;
   pubDate: string;
   source: string;
+  tier: 1 | 2;
   tickers: string[];
 }
 
@@ -36,6 +37,71 @@ function decodeXml(str: string): string {
     .trim();
 }
 
+/**
+ * Curated publisher tiers to surface real financial & technology journalism
+ * while filtering out SEO content farms and clickbait listicles ("investment slop").
+ */
+const TIER_1_PUBLISHERS: Record<string, string> = {
+  reuters: "Reuters",
+  "reuters.com": "Reuters",
+  bloomberg: "Bloomberg",
+  "bloomberg.com": "Bloomberg",
+  wsj: "WSJ",
+  "wsj.com": "WSJ",
+  "the wall street journal": "WSJ",
+  "wall street journal": "WSJ",
+  "financial times": "Financial Times",
+  "ft.com": "Financial Times",
+  cnbc: "CNBC",
+  "cnbc.com": "CNBC",
+  "barron's": "Barron's",
+  barrons: "Barron's",
+  "barrons.com": "Barron's",
+  "the new york times": "New York Times",
+  "new york times": "New York Times",
+  "nytimes.com": "New York Times",
+  "ap news": "AP News",
+  "associated press": "AP News",
+  "the economist": "The Economist",
+  "the information": "The Information",
+};
+
+const TIER_2_PUBLISHERS: Record<string, string> = {
+  axios: "Axios",
+  semafor: "Semafor",
+  fortune: "Fortune",
+  forbes: "Forbes",
+  marketwatch: "MarketWatch",
+  "business insider": "Business Insider",
+  techcrunch: "TechCrunch",
+  "the verge": "The Verge",
+  "ars technica": "Ars Technica",
+  "the guardian": "The Guardian",
+  "washington post": "Washington Post",
+  "the washington post": "Washington Post",
+  "bbc": "BBC",
+  "bbc news": "BBC",
+};
+
+const SLOP_HEADLINE_RE =
+  /\b(motley fool|benzinga|zacks|insider monkey|24\/7 wall|simply wall|investorplace|gurufocus|thestreet|barchart|tipranks|seeking alpha|finbold|stocknews|schaeffer|fxempire|invezz|mitrade|1 thing|better buy|millionaire-maker|if you invested \$|a \d+-year-old with \$|no-brainer|monster stock|unstoppable .* stock to buy|stock prices? by 202[789]|stock could finish 202[67] (higher|lower)|history says that's a mistake)\b|^Prediction:|^Forget /i;
+
+function classifyPublisher(
+  rawSource: string
+): { canonical: string; tier: 1 | 2 } | null {
+  const key = rawSource
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .trim();
+  if (TIER_1_PUBLISHERS[key]) {
+    return { canonical: TIER_1_PUBLISHERS[key], tier: 1 };
+  }
+  if (TIER_2_PUBLISHERS[key]) {
+    return { canonical: TIER_2_PUBLISHERS[key], tier: 2 };
+  }
+  return null;
+}
+
 // Tickers that are unmistakable even as standalone uppercase tokens in a headline
 const UNMISTAKABLE_UPPER_TICKERS = new Set([
   "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "GOOG", "TSLA", "PLTR", "AVGO",
@@ -49,22 +115,19 @@ const UNMISTAKABLE_UPPER_TICKERS = new Set([
   "GILD", "AMGN", "BIIB", "BMY", "SCHW", "MSCI", "SPGI", "FICO", "VRSK",
 ]);
 
-// Generic first words of company names that must include the second word to avoid false matches
 const GENERIC_FIRST_WORDS = new Set([
   "american", "bank", "first", "general", "global", "international", "national",
   "united", "western", "southern", "northern", "eastern", "pacific", "atlantic",
   "central", "digital", "advanced", "applied", "public", "republic", "standard",
   "universal", "premier", "select", "choice", "crown", "royal", "imperial",
   "liberty", "freedom", "enterprise", "consolidated", "associated", "allied",
-  "fidelity", "citizens", "regions", "PNC", "us", "new", "old", "east", "west",
+  "fidelity", "citizens", "regions", "pnc", "us", "new", "old", "east", "west",
   "north", "south", "texas", "california", "new york",
 ]);
 
-// Words that are too common in financial headlines to ever be used alone as a company brand match
 const STOPWORD_BRANDS = new Set([
-  "apple", // handled via custom rule below to avoid "apple of" idioms if needed, though Apple is safe
-  "target", "gap", "visa", "block", "square", "match", "zoom", "box", "BILL",
-  "bill", "nice", "fast", "five", "flex", "globe", "guardant", "brown", "waters",
+  "target", "gap", "visa", "block", "square", "match", "zoom", "box", "bill",
+  "nice", "fast", "five", "flex", "globe", "guardant", "brown", "waters",
   "jacobs", "ball", "pool", "rollins", "loews", "popular", "ally", "discover",
   "expand", "next", "open", "real", "step", "talk", "task", "true", "unit",
   "view", "well", "work", "on", "sea", "arm", "fox", "news",
@@ -187,7 +250,7 @@ function escapeRegex(s: string): string {
 function extractBrandPhrase(rawName: string): string {
   const stripped = rawName
     .replace(
-      /\b(Inc\.?|Corp\.?|Corporation|Company|Co\.?|Holdings?|Group|PLC|plc|Ltd\.?|Limited|N\.V\.|S\.A\.|S\.A\.B\. de C\.V\.|SE|LP|LLC|A\/S|Technologies|Technology|Pharmaceuticals|Therapeutics|Biosciences|International| Enterprises|Systems|Networks|Solutions|Platforms| Laboratories|Brands|Resources|Energy|Partners)\b/gi,
+      /\b(Inc\.?|Corp\.?|Corporation|Company|Co\.?|Holdings?|Group|PLC|plc|Ltd\.?|Limited|N\.V\.|S\.A\.|S\.A\.B\. de C\.V\.|SE|LP|LLC|A\/S|Technologies|Technology|Pharmaceuticals|Therapeutics|Biosciences|International|Enterprises|Systems|Networks|Solutions|Platforms|Laboratories|Brands|Resources|Energy|Partners)\b/gi,
       " "
     )
     .replace(/[.,/]+/g, " ")
@@ -242,7 +305,7 @@ function detectTickersInHeadline(
     if (validTickers.has(norm)) matched.add(norm);
   }
 
-  // 3. Match comma-separated ticker lists at the start of a headline (e.g. "NVDA, INTC, MU, AMD Chip Stocks...")
+  // 3. Match comma-separated ticker lists at the start of a headline
   const leadingListMatch = title.match(
     /^([A-Z]{2,5}(?:\s*,\s*[A-Z]{2,5})+)\b/
   );
@@ -266,89 +329,7 @@ function detectTickersInHeadline(
   return [...matched].slice(0, 4);
 }
 
-function inferSourceFromUrl(link: string, fallback = "Yahoo Finance"): string {
-  try {
-    const host = new URL(link).hostname.replace(/^www\./, "").toLowerCase();
-    if (host.includes("reuters")) return "Reuters";
-    if (host.includes("wsj.com")) return "WSJ";
-    if (host.includes("bloomberg")) return "Bloomberg";
-    if (host.includes("cnbc")) return "CNBC";
-    if (host.includes("barrons")) return "Barron's";
-    if (host.includes("marketwatch")) return "MarketWatch";
-    if (host.includes("ft.com")) return "Financial Times";
-    if (host.includes("seekingalpha")) return "Seeking Alpha";
-    if (host.includes("fool.com")) return "Motley Fool";
-    if (host.includes("investopedia")) return "Investopedia";
-    if (host.includes("benzinga")) return "Benzinga";
-    if (host.includes("thestreet")) return "TheStreet";
-    if (host.includes("forbes")) return "Forbes";
-    if (host.includes("fortune")) return "Fortune";
-    if (host.includes("businessinsider")) return "Business Insider";
-    if (host.includes("techcrunch")) return "TechCrunch";
-    if (host.includes("theverge")) return "The Verge";
-    if (host.includes("yahoo")) return "Yahoo Finance";
-    return fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-async function fetchYahooRssBatch(
-  tickers: string[],
-  validSet: Set<string>,
-  brandMatchers: Array<[RegExp, string]>
-): Promise<HeadlineItem[]> {
-  if (tickers.length === 0) return [];
-  const requestedSet = new Set(tickers);
-  try {
-    const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(
-      tickers.join(",")
-    )}&region=US&lang=en-US`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AmberFinance/1.0)" },
-      next: { revalidate: 900 },
-    });
-    if (!res.ok) return [];
-    const xml = await res.text();
-    const out: HeadlineItem[] = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
-    let match: RegExpExecArray | null;
-    while ((match = itemRegex.exec(xml)) !== null && out.length < 14) {
-      const block = match[1];
-      const titleMatch = block.match(/<title>([\s\S]*?)<\/title>/i);
-      const linkMatch = block.match(/<link>([\s\S]*?)<\/link>/i);
-      const dateMatch = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
-      const sourceMatch = block.match(/<source[^>]*>([\s\S]*?)<\/source>/i);
-
-      const title = titleMatch ? decodeXml(titleMatch[1]) : "";
-      const link = linkMatch ? decodeXml(linkMatch[1]) : "";
-      const pubDate = dateMatch ? decodeXml(dateMatch[1]) : "";
-      const source = sourceMatch
-        ? decodeXml(sourceMatch[1])
-        : inferSourceFromUrl(link, "Yahoo Finance");
-
-      if (!title || !link) continue;
-
-      // Require the headline itself to genuinely mention at least one of the requested companies
-      const detected = detectTickersInHeadline(title, validSet, brandMatchers);
-      const relevant = detected.filter((t) => requestedSet.has(t));
-      if (relevant.length === 0) continue;
-
-      out.push({
-        title,
-        link,
-        pubDate,
-        source,
-        tickers: detected,
-      });
-    }
-    return out;
-  } catch {
-    return [];
-  }
-}
-
-async function fetchGoogleFinanceNewsRss(
+async function fetchCuratedGoogleNewsBatch(
   tickers: string[],
   byTicker: Map<string, SearchIndexEntry>,
   validSet: Set<string>,
@@ -357,17 +338,16 @@ async function fetchGoogleFinanceNewsRss(
   if (tickers.length === 0) return [];
   const requestedSet = new Set(tickers);
   try {
-    // Build query terms combining brand names and tickers for high precision
-    const terms = tickers.slice(0, 8).map((t) => {
+    const terms = tickers.slice(0, 6).map((t) => {
       const entry = byTicker.get(t);
       const brand = entry ? extractBrandPhrase(entry.name) : "";
       if (brand && brand.length >= 4 && brand.toLowerCase() !== t.toLowerCase()) {
-        return `"${brand}" OR ${t}`;
+        return `"${brand}"`;
       }
       return `${t} stock`;
     });
-    const whenWindow = tickers.length <= 2 ? "when:14d" : "when:3d";
-    const query = `(${terms.join(" OR ")}) (stock OR shares OR earnings OR revenue) ${whenWindow}`;
+    const whenWindow = tickers.length <= 2 ? "when:14d" : "when:4d";
+    const query = `(${terms.join(" OR ")}) (stock OR shares OR earnings OR revenue OR chip OR cloud OR AI) ${whenWindow}`;
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(
       query
     )}&hl=en-US&gl=US&ceid=US:en`;
@@ -382,7 +362,7 @@ async function fetchGoogleFinanceNewsRss(
     const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
     let match: RegExpExecArray | null;
 
-    while ((match = itemRegex.exec(xml)) !== null && out.length < 16) {
+    while ((match = itemRegex.exec(xml)) !== null && out.length < 24) {
       const block = match[1];
       const titleMatch = block.match(/<title>([\s\S]*?)<\/title>/i);
       const linkMatch = block.match(/<link>([\s\S]*?)<\/link>/i);
@@ -392,16 +372,25 @@ async function fetchGoogleFinanceNewsRss(
       let title = titleMatch ? decodeXml(titleMatch[1]) : "";
       const link = linkMatch ? decodeXml(linkMatch[1]) : "";
       const pubDate = dateMatch ? decodeXml(dateMatch[1]) : "";
-      const source = sourceMatch ? decodeXml(sourceMatch[1]) : "Financial News";
+      const rawSource = sourceMatch ? decodeXml(sourceMatch[1]) : "";
 
-      // Strip trailing " - Publisher Name" from Google News titles
-      if (source && title.endsWith(` - ${source}`)) {
-        title = title.slice(0, -` - ${source}`.length).trim();
+      // Strip trailing " - Publisher Name" and "Exclusive | " prefixes
+      if (rawSource && title.endsWith(` - ${rawSource}`)) {
+        title = title.slice(0, -` - ${rawSource}`.length).trim();
       } else {
         title = title.replace(/\s+-\s+[A-Za-z0-9 .,'&]+$/, "").trim();
       }
+      title = title.replace(/^(?:Exclusive|FirstFT|Essay)\s*[|:]\s*/i, "").trim();
 
-      if (!title || !link) continue;
+      if (!title || !link || !rawSource) continue;
+
+      // Enforce Tier-1 / Tier-2 editorial publisher allowlist and anti-slop filter
+      const pub = classifyPublisher(rawSource);
+      if (!pub) continue;
+      if (SLOP_HEADLINE_RE.test(title) || SLOP_HEADLINE_RE.test(rawSource)) {
+        continue;
+      }
+
       const detected = detectTickersInHeadline(title, validSet, brandMatchers);
       const relevant = detected.filter((t) => requestedSet.has(t));
       if (relevant.length === 0) continue;
@@ -410,7 +399,8 @@ async function fetchGoogleFinanceNewsRss(
         title,
         link,
         pubDate,
-        source,
+        source: pub.canonical,
+        tier: pub.tier,
         tickers: detected,
       });
     }
@@ -548,7 +538,7 @@ export async function GET(request: Request) {
       .split(",")
       .map((t) => t.trim().toUpperCase())
       .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
-      .slice(0, 14);
+      .slice(0, 18);
   } else {
     const trendingSyms = trending.map((t) => t.ticker);
     const core = [
@@ -565,50 +555,84 @@ export async function GET(request: Request) {
       "JPM",
       "LLY",
       "NFLX",
-      "XOM",
+      "WMT",
+      "COST",
+      "BA",
     ];
-    targetTickers = [...new Set([...trendingSyms, ...core])].slice(0, 16);
+    targetTickers = [...new Set([...trendingSyms, ...core])].slice(0, 18);
   }
 
   if (targetTickers.length === 0) {
     return NextResponse.json({ items: [], trending });
   }
 
-  const batchA = targetTickers.slice(0, 8);
-  const batchB = targetTickers.slice(8, 16);
+  // Split into 3 parallel 6-ticker batches so Google News returns broad coverage across all companies
+  const batch1 = targetTickers.slice(0, 6);
+  const batch2 = targetTickers.slice(6, 12);
+  const batch3 = targetTickers.slice(12, 18);
 
-  const [yahooA, yahooB, googleNews] = await Promise.all([
-    fetchYahooRssBatch(batchA, validSet, brandMatchers),
-    batchB.length > 0
-      ? fetchYahooRssBatch(batchB, validSet, brandMatchers)
+  const [news1, news2, news3] = await Promise.all([
+    fetchCuratedGoogleNewsBatch(batch1, byTicker, validSet, brandMatchers),
+    batch2.length > 0
+      ? fetchCuratedGoogleNewsBatch(batch2, byTicker, validSet, brandMatchers)
       : Promise.resolve([]),
-    fetchGoogleFinanceNewsRss(targetTickers, byTicker, validSet, brandMatchers),
+    batch3.length > 0
+      ? fetchCuratedGoogleNewsBatch(batch3, byTicker, validSet, brandMatchers)
+      : Promise.resolve([]),
   ]);
 
-  // Deduplicate by normalized title prefix and sort newest first
+  // Deduplicate by normalized title prefix
   const seenKeys = new Set<string>();
-  const merged: HeadlineItem[] = [];
+  const deduped: HeadlineItem[] = [];
 
-  for (const item of [...googleNews, ...yahooA, ...yahooB]) {
+  for (const item of [...news1, ...news2, ...news3]) {
     const normKey = item.title
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "")
-      .slice(0, 55);
+      .slice(0, 50);
     if (!normKey || seenKeys.has(normKey)) continue;
     seenKeys.add(normKey);
-    merged.push(item);
+    deduped.push(item);
   }
 
-  merged.sort((a, b) => {
-    const ta = Date.parse(a.pubDate);
-    const tb = Date.parse(b.pubDate);
-    if (Number.isFinite(ta) && Number.isFinite(tb)) return tb - ta;
-    return 0;
+  // Sort by Tier-1 authority + recency
+  const now = Date.now();
+  deduped.sort((a, b) => {
+    const ageHrA = Math.max(0, (now - (Date.parse(a.pubDate) || now)) / 3600000);
+    const ageHrB = Math.max(0, (now - (Date.parse(b.pubDate) || now)) / 3600000);
+    const scoreA = (a.tier === 1 ? 18 : 0) - ageHrA;
+    const scoreB = (b.tier === 1 ? 18 : 0) - ageHrB;
+    return scoreB - scoreA;
   });
+
+  // When browsing multiple tickers (All Market or multi-stock Watchlist),
+  // diversify the top stories so a single mega-cap doesn't monopolize all lead slots.
+  const isSingleTicker = targetTickers.length === 1;
+  let finalItems: HeadlineItem[];
+  if (isSingleTicker) {
+    finalItems = deduped.slice(0, 16);
+  } else {
+    const primaryPass: HeadlineItem[] = [];
+    const overflowPass: HeadlineItem[] = [];
+    const countByPrimaryTicker = new Map<string, number>();
+
+    for (const item of deduped) {
+      const leadSym = item.tickers[0] ?? "MARKET";
+      const curCount = countByPrimaryTicker.get(leadSym) ?? 0;
+      const cap = primaryPass.length < 5 ? 1 : 2;
+      if (curCount < cap) {
+        countByPrimaryTicker.set(leadSym, curCount + 1);
+        primaryPass.push(item);
+      } else {
+        overflowPass.push(item);
+      }
+    }
+    finalItems = [...primaryPass, ...overflowPass].slice(0, 17);
+  }
 
   return NextResponse.json(
     {
-      items: merged.slice(0, 20),
+      items: finalItems,
       trending,
     },
     {
