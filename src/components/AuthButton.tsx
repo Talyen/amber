@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { LogIn, LogOut, User, X } from "lucide-react";
+import { LogIn, LogOut, Settings, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 interface ProviderAvailability {
@@ -152,13 +153,16 @@ export function AuthButton() {
       session.user.name?.trim() || session.user.email?.split("@")[0] || "Account";
     return (
       <div className="inline-flex items-center gap-1">
-        <span
-          title={session.user.email ?? displayName}
-          className="hidden h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] md:inline-flex"
+        <Link
+          href="/settings"
+          title="Account & Profile Settings"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
         >
-          <User className="h-3.5 w-3.5 text-[var(--amber)]" />
-          <span className="max-w-[110px] truncate">{displayName}</span>
-        </span>
+          <Settings className="h-3.5 w-3.5 text-[var(--amber)]" />
+          <span className="hidden max-w-[110px] truncate md:inline">
+            {displayName}
+          </span>
+        </Link>
         <button
           type="button"
           onClick={handleSignOut}

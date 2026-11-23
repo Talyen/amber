@@ -44,14 +44,19 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const hasEbit = currentOpMargin !== null && currentOpMargin > 2;
   const hasPe = currentNetMargin !== null && currentNetMargin > 2;
 
+  // Auto-select Earnings (P/E) for Financials/Banks where EV & FCF are structurally distorted
+  const isFinancials = /financial|bank|insur/i.test(company.sector);
+
   // Auto-select Operating Income (EBIT) lens for heavy growth-CapEx compounders (e.g. AMZN)
   // where massive reinvestment temporarily depresses near-term Free Cash Flow
   const isHeavyCapexCycle =
+    !isFinancials &&
     hasEbit &&
     capexPctRev >= 10 &&
     currentOpMargin! > Math.max(2, latest.trueFcfMargin * 1.6);
 
-  const defaultLens: ValuationLens = isHeavyCapexCycle ? "ebit" : "fcf";
+  const defaultLens: ValuationLens =
+    isFinancials && hasPe ? "pe" : isHeavyCapexCycle ? "ebit" : "fcf";
 
   function defaultsForLens(lens: ValuationLens) {
     if (lens === "ebit" && hasEbit) {
@@ -149,6 +154,38 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     ]
   );
 
+  // Baseline 3-model Fair Value comparison strip (so users see all lenses at a glance)
+  const modelStrip = useMemo(() => {
+    const lenses: Array<{ id: ValuationLens; label: string; enabled: boolean }> = [
+      { id: "fcf", label: "True FCF", enabled: true },
+      { id: "ebit", label: "EBIT", enabled: hasEbit },
+      { id: "pe", label: "P/E", enabled: hasPe },
+    ];
+    return lenses
+      .filter((m) => m.enabled)
+      .map((m) => {
+        const d = defaultsForLens(m.id);
+        const res = computeFiveYearScenario({
+          currentPrice: company.price,
+          dilutedShares: latest.dilutedShares,
+          baseRevenue: latest.revenue,
+          currentTrueFcfMarginPct: d.currentMargin,
+          netCash: m.id === "pe" ? 0 : company.cashAndEquiv - company.totalDebt,
+          revGrowthPct: histGrowth,
+          targetTrueFcfMarginPct: d.margin,
+          exitMultiple: d.multiple,
+          hurdleRatePct: 10,
+        });
+        return {
+          id: m.id,
+          label: m.label,
+          fairValue: res.fairValueToday,
+          upsidePct: res.upsidePct,
+        };
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company, latest, hasEbit, hasPe, histGrowth]);
+
   const verdict =
     projection.upsidePct >= 12
       ? {
@@ -195,6 +232,11 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
               <span>Valuation Model</span>
+              {isFinancials && lens === "pe" && (
+                <span className="text-[var(--amber)]">
+                  Auto-selected (Financials)
+                </span>
+              )}
               {isHeavyCapexCycle && lens === "ebit" && (
                 <span className="text-[var(--amber)]">
                   Auto-selected (heavy growth CapEx)
@@ -457,11 +499,38 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             If <strong className="text-[var(--text-primary)]">{company.name}</strong> grows revenue{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{formatPct(revGrowth, true, 0)}/yr</strong> to{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{formatCurrencyCompact(projection.yr5Rev)}</strong> at a{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong> real cash margin and trades at{" "}
+            <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong>{" "}
+            {lens === "ebit" ? "operating" : lens === "pe" ? "net profit" : "real cash"} margin and trades at{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in 5 years, shares reach{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">${projection.yr5TargetPrice.toFixed(2)}</strong>, worth{" "}
             <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today if you require a 10%/yr return.
           </p>
+
+          {modelStrip.length >= 2 && (
+            <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
+              <span className="text-[11px] text-[var(--text-muted)]">
+                Base Case across models:
+              </span>
+              {modelStrip.map((m) => {
+                const isSelected = lens === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => switchLens(m.id)}
+                    className={`font-mono-num inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-[var(--amber-soft)] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                        : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    <span>{m.label}:</span>
+                    <strong>${m.fairValue.toFixed(0)}</strong>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-4 sm:grid-cols-4">
