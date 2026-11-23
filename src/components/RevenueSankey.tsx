@@ -156,11 +156,29 @@ export function RevenueSankey({
       y1: curY3 + h,
       srcY0: srcY3,
       srcY1: srcY3 + h,
+      labelY: curY3 + h / 2,
     };
     curY3 += h + gap3;
     srcY3 += h;
     return node;
   });
+
+  // Collision-free vertical positioning for right-hand 2-line labels (min 30px spacing)
+  const MIN_COL3_GAP = 30;
+  for (let i = 1; i < col3Nodes.length; i++) {
+    const minAllowed = col3Nodes[i - 1].labelY + MIN_COL3_GAP;
+    if (col3Nodes[i].labelY < minAllowed) {
+      col3Nodes[i].labelY = minAllowed;
+    }
+  }
+
+  // Collision-free vertical positioning for col2 side labels (indices 1..N, min 16px spacing)
+  const col2LabelY = col2Nodes.map((n) => (n.y0 + n.y1) / 2);
+  for (let i = 2; i < col2LabelY.length; i++) {
+    if (col2LabelY[i] < col2LabelY[i - 1] + 16) {
+      col2LabelY[i] = col2LabelY[i - 1] + 16;
+    }
+  }
 
   function exportSvgAsPng() {
     const svg = svgRef.current;
@@ -399,7 +417,7 @@ export function RevenueSankey({
               ) : (
                 <text
                   x={x2 + barW + 8}
-                  y={(n.y0 + n.y1) / 2 + 3.5}
+                  y={col2LabelY[idx] + 3.5}
                   textAnchor="start"
                   className="fill-[var(--text-muted)] text-[10px]"
                 >
@@ -413,34 +431,46 @@ export function RevenueSankey({
           ))}
 
           {/* Column 3 Nodes */}
-          {col3Nodes.map((n) => (
-            <g key={`n3-${n.label}`}>
-              <rect
-                x={x3}
-                y={n.y0}
-                width={barW}
-                height={Math.max(4, n.y1 - n.y0)}
-                rx={3}
-                fill={n.color}
-              />
-              <text
-                x={x3 + barW + 8}
-                y={(n.y0 + n.y1) / 2 - 2}
-                textAnchor="start"
-                className="fill-[var(--text-secondary)] text-[10px] font-medium"
-              >
-                {n.label}
-              </text>
-              <text
-                x={x3 + barW + 8}
-                y={(n.y0 + n.y1) / 2 + 10}
-                textAnchor="start"
-                className="font-mono-num fill-[var(--text-primary)] text-[10px] font-semibold"
-              >
-                {formatCurrencyCompact(n.val)} ({formatPct((n.val / rev) * 100, false, 0)})
-              </text>
-            </g>
-          ))}
+          {col3Nodes.map((n) => {
+            const barMidY = (n.y0 + n.y1) / 2;
+            const nudged = Math.abs(n.labelY - barMidY) > 5;
+            return (
+              <g key={`n3-${n.label}`}>
+                <rect
+                  x={x3}
+                  y={n.y0}
+                  width={barW}
+                  height={Math.max(4, n.y1 - n.y0)}
+                  rx={3}
+                  fill={n.color}
+                />
+                {nudged && (
+                  <path
+                    d={`M ${x3 + barW + 2} ${barMidY} L ${x3 + barW + 7} ${n.labelY}`}
+                    stroke="var(--border-strong)"
+                    strokeWidth="1"
+                    fill="none"
+                  />
+                )}
+                <text
+                  x={x3 + barW + 10}
+                  y={n.labelY - 2}
+                  textAnchor="start"
+                  className="fill-[var(--text-secondary)] text-[10px] font-medium"
+                >
+                  {n.label}
+                </text>
+                <text
+                  x={x3 + barW + 10}
+                  y={n.labelY + 10}
+                  textAnchor="start"
+                  className="font-mono-num fill-[var(--text-primary)] text-[10px] font-semibold"
+                >
+                  {formatCurrencyCompact(n.val)} ({formatPct((n.val / rev) * 100, false, 0)})
+                </text>
+              </g>
+            );
+          })}
         </svg>
       </div>
     </section>

@@ -19,24 +19,87 @@ function progressPct(value: number, min: number, max: number): string {
   return `${(((value - min) / (max - min)) * 100).toFixed(1)}%`;
 }
 
+type ValuationLens = "fcf" | "ebit" | "pe";
+
 export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
+  const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
+  const latestFy = fyOnly[fyOnly.length - 1] ?? latest;
+
   const histGrowth = Math.max(
     1,
     Math.min(24, Math.round(computeRevenueCagr(company.annuals)))
   );
-  const rawBaseMargin = Math.max(
-    1,
-    company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
-  );
-  const baseMargin = Number(
-    Math.max(1, Math.min(55, Math.round(rawBaseMargin * 2) / 2)).toFixed(1)
-  );
-  const baseMultiple = company.defaultDcf.terminalMultiple;
+
+  const capexPctRev =
+    latest.revenue > 0 ? (latest.capex / latest.revenue) * 100 : 0;
+  const currentOpMargin =
+    typeof latestFy.operatingIncome === "number" && latestFy.revenue > 0
+      ? (latestFy.operatingIncome / latestFy.revenue) * 100
+      : null;
+  const currentNetMargin =
+    typeof latestFy.netIncome === "number" && latestFy.revenue > 0
+      ? (latestFy.netIncome / latestFy.revenue) * 100
+      : null;
+
+  const hasEbit = currentOpMargin !== null && currentOpMargin > 2;
+  const hasPe = currentNetMargin !== null && currentNetMargin > 2;
+
+  // Auto-select Operating Income (EBIT) lens for heavy growth-CapEx compounders (e.g. AMZN)
+  // where massive reinvestment temporarily depresses near-term Free Cash Flow
+  const isHeavyCapexCycle =
+    hasEbit &&
+    capexPctRev >= 10 &&
+    currentOpMargin! > Math.max(2, latest.trueFcfMargin * 1.6);
+
+  const defaultLens: ValuationLens = isHeavyCapexCycle ? "ebit" : "fcf";
+
+  function defaultsForLens(lens: ValuationLens) {
+    if (lens === "ebit" && hasEbit) {
+      const m = Number(
+        Math.max(3, Math.min(55, Math.round(currentOpMargin! * 1.05 * 2) / 2)).toFixed(1)
+      );
+      const mult = histGrowth >= 12 ? 20 : histGrowth >= 7 ? 16 : 13;
+      return { margin: m, multiple: mult, currentMargin: currentOpMargin! };
+    }
+    if (lens === "pe" && hasPe) {
+      const m = Number(
+        Math.max(2, Math.min(50, Math.round(currentNetMargin! * 1.05 * 2) / 2)).toFixed(1)
+      );
+      const mult = histGrowth >= 12 ? 24 : histGrowth >= 7 ? 20 : 15;
+      return { margin: m, multiple: mult, currentMargin: currentNetMargin! };
+    }
+    const rawBaseMargin = Math.max(
+      1,
+      company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
+    );
+    const m = Number(
+      Math.max(1, Math.min(55, Math.round(rawBaseMargin * 2) / 2)).toFixed(1)
+    );
+    return {
+      margin: m,
+      multiple: company.defaultDcf.terminalMultiple,
+      currentMargin: latest.trueFcfMargin,
+    };
+  }
+
+  const [lens, setLens] = useState<ValuationLens>(defaultLens);
+  const lensDefaults = defaultsForLens(lens);
+  const baseMargin = lensDefaults.margin;
+  const baseMultiple = lensDefaults.multiple;
 
   const [revGrowth, setRevGrowth] = useState(histGrowth);
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
+
+  function switchLens(nextLens: ValuationLens) {
+    setLens(nextLens);
+    const d = defaultsForLens(nextLens);
+    setRevGrowth(histGrowth);
+    setTargetMargin(d.margin);
+    setExitMultiple(d.multiple);
+    setActivePreset("base");
+  }
 
   function applyPreset(kind: "bear" | "base" | "bull") {
     setActivePreset(kind);
@@ -65,8 +128,8 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
         currentPrice: company.price,
         dilutedShares: latest.dilutedShares,
         baseRevenue: latest.revenue,
-        currentTrueFcfMarginPct: latest.trueFcfMargin,
-        netCash: company.cashAndEquiv - company.totalDebt,
+        currentTrueFcfMarginPct: lensDefaults.currentMargin,
+        netCash: lens === "pe" ? 0 : company.cashAndEquiv - company.totalDebt,
         revGrowthPct: revGrowth,
         targetTrueFcfMarginPct: targetMargin,
         exitMultiple,
@@ -78,7 +141,8 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       company.totalDebt,
       latest.dilutedShares,
       latest.revenue,
-      latest.trueFcfMargin,
+      lensDefaults.currentMargin,
+      lens,
       revGrowth,
       targetMargin,
       exitMultiple,
@@ -125,6 +189,44 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             </p>
           </div>
         </div>
+
+        {/* Valuation Methodology Selector */}
+        {(hasEbit || hasPe) && (
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+              <span>Valuation Model</span>
+              {isHeavyCapexCycle && lens === "ebit" && (
+                <span className="text-[var(--amber)]">
+                  Auto-selected (heavy growth CapEx)
+                </span>
+              )}
+            </div>
+            <div className="inline-flex w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] p-0.5 text-xs">
+              {(
+                [
+                  { id: "fcf" as const, label: "True FCF", enabled: true },
+                  { id: "ebit" as const, label: "Operating (EBIT)", enabled: hasEbit },
+                  { id: "pe" as const, label: "Earnings (P/E)", enabled: hasPe },
+                ]
+              )
+                .filter((m) => m.enabled)
+                .map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => switchLens(m.id)}
+                    className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors cursor-pointer ${
+                      lens === m.id
+                        ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Bear / Base / Bull Presets */}
         <div className="mt-4 grid grid-cols-3 gap-2">
@@ -193,7 +295,11 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
                 htmlFor="sc-margin"
                 className="font-medium text-[var(--text-primary)]"
               >
-                Year-5 Real Cash Margin (True FCF)
+                {lens === "ebit"
+                  ? "Year-5 Operating Margin (EBIT)"
+                  : lens === "pe"
+                    ? "Year-5 Net Profit Margin"
+                    : "Year-5 Real Cash Margin (True FCF)"}
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {formatPct(targetMargin, false, 1)}
@@ -219,7 +325,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             />
             <div className="font-mono-num mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
               <span>1%</span>
-              <span>Now: {formatPct(latest.trueFcfMargin, false, 1)}</span>
+              <span>Now: {formatPct(lensDefaults.currentMargin, false, 1)}</span>
               <span>55%</span>
             </div>
           </div>
@@ -231,7 +337,11 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
                 htmlFor="sc-mult"
                 className="font-medium text-[var(--text-primary)]"
               >
-                Year-5 Valuation Multiple (EV / True FCF)
+                {lens === "ebit"
+                  ? "Year-5 Valuation Multiple (EV / EBIT)"
+                  : lens === "pe"
+                    ? "Year-5 Valuation Multiple (P/E)"
+                    : "Year-5 Valuation Multiple (EV / True FCF)"}
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {exitMultiple}x

@@ -58,14 +58,6 @@ export function LockPortfolioModal({
           setTitle(port.title);
           setThesis(port.thesis);
           setAvatarIcon(normalizeAvatarId(port.avatarIcon));
-        } else if (session.user.name) {
-          const suggested = session.user.name
-            .toLowerCase()
-            .replace(/[^a-z0-9_.-]+/g, "_")
-            .slice(0, 24);
-          if (suggested.length >= 2) {
-            setHandle((prev) => prev || suggested);
-          }
         }
       })
       .catch(() => {});
@@ -272,9 +264,12 @@ export function LockPortfolioModal({
               autoFocus
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
-              placeholder="e.g. compounder_ryan"
+              placeholder="e.g. value_owl (never uses your Google name)"
               className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
             />
+            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+              Shown publicly on leaderboards instead of your Google or GitHub name.
+            </p>
           </div>
 
           <div>

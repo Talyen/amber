@@ -150,12 +150,30 @@ export function computeGroundedDefaultDcf(
 
   const ocfMargin =
     latest.revenue > 0 ? (latest.operatingCashFlow / latest.revenue) * 100 : 10;
+  const capexPctRev =
+    latest.revenue > 0 ? (latest.capex / latest.revenue) * 100 : 0;
+  const latestOpMargin =
+    typeof latest.operatingIncome === "number" && latest.revenue > 0
+      ? (latest.operatingIncome / latest.revenue) * 100
+      : null;
+
+  // For heavy growth-CapEx compounders (e.g. AMZN, ORCL) where temporary CapEx surges
+  // depress near-term FCF below operating earnings power, normalize long-term FCF conversion
+  const heavyCapexNormalized =
+    capexPctRev >= 10 &&
+    latestOpMargin !== null &&
+    latestOpMargin > 5 &&
+    latestOpMargin > medianRepMargin * 1.5
+      ? latestOpMargin * 0.72
+      : 0;
 
   // Modest +10% operating-leverage headroom above historical median, never an arbitrary 18% floor
-  const rawTarget =
+  const rawTarget = Math.max(
+    heavyCapexNormalized,
     medianRepMargin > 0.5
       ? medianRepMargin * 1.1
-      : Math.max(2, Math.min(18, ocfMargin * 0.55));
+      : Math.max(2, Math.min(18, ocfMargin * 0.55))
+  );
 
   const targetFcfMargin = Number(
     Math.max(1.5, Math.min(55, rawTarget)).toFixed(1)
