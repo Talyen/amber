@@ -136,7 +136,7 @@ export function AuthButton() {
   }
 
   if (!isPending && session?.user) {
-    const displayLabel = userHandle ? `@${userHandle}` : "Settings";
+    const displayLabel = userHandle || "Settings";
     return (
       <div className="inline-flex items-center gap-1">
         <Link

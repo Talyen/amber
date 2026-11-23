@@ -353,7 +353,7 @@ export function ArenaLeaderboard({
                     </div>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--text-muted)]">
-                      <span className="font-mono-num">@{p.handle}</span>
+                      <span className="font-mono-num">{p.handle}</span>
                       <span className="font-mono-num">
                         {p.isFinalized ? "Finalized" : `Started ${p.lockedAt.slice(0, 10)}`}
                       </span>

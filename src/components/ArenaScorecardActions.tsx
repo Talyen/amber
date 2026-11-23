@@ -52,7 +52,7 @@ export function ArenaScorecardExport({
     ctx.fillStyle = amber;
     ctx.font = '700 14px "JetBrains Mono", ui-monospace, monospace';
     ctx.fillText(
-      `AMBER PORTFOLIO ARENA / @${portfolio.handle.toUpperCase()}`,
+      `AMBER PORTFOLIO ARENA / ${portfolio.handle.toUpperCase()}`,
       72,
       86
     );

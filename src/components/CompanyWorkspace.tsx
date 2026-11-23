@@ -1,17 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Banknote,
   Calculator,
   Check,
+  ChevronDown,
   Copy,
+  Download,
   FileDiff,
+  FileText,
   GitCompareArrows,
   LayoutDashboard,
   PieChart,
+  Sparkles,
   Star,
+  Table2,
   UserCheck,
 } from "lucide-react";
 import {
@@ -20,7 +25,12 @@ import {
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
-import { buildTickerMarkdown } from "@/lib/export-markdown";
+import {
+  buildTickerAiContext,
+  buildTickerMarkdown,
+  buildTickerPlainText,
+} from "@/lib/export-markdown";
+import { exportTrueFcfCard } from "@/lib/export-card";
 import { valuationModelFromUrl } from "@/lib/valuation-link";
 import { useWatchlist } from "@/lib/watchlist";
 import type { SearchIndexEntry } from "@/data/universe";
@@ -80,9 +90,29 @@ export function CompanyWorkspace({
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
   const [restoredLocation, setRestoredLocation] = useState(false);
-  const [copiedMd, setCopiedMd] = useState(false);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+  const copyMenuRef = useRef<HTMLDivElement>(null);
   const watchlist = useWatchlist();
   const isStarred = watchlist.has(company.ticker);
+
+  useEffect(() => {
+    if (!copyMenuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (copyMenuRef.current && !copyMenuRef.current.contains(e.target as Node)) {
+        setCopyMenuOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setCopyMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [copyMenuOpen]);
 
   // Restore the tab and valuation model independently for older shared links.
   useEffect(() => {
@@ -278,38 +308,156 @@ export function CompanyWorkspace({
                 Compare
               </Link>
 
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(
-                      buildTickerMarkdown(
-                        company,
-                        series,
-                        reverseDcf.impliedRevenueCagrPct,
-                        window.location.origin
-                      )
-                    );
-                    setCopiedMd(true);
-                    window.setTimeout(() => setCopiedMd(false), 1800);
-                  } catch {
-                    // Ignore clipboard errors
-                  }
-                }}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
-              >
-                {copiedMd ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
-                    Copied Summary
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy Summary
-                  </>
+              <div ref={copyMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setCopyMenuOpen((prev) => !prev)}
+                  aria-expanded={copyMenuOpen}
+                  aria-haspopup="menu"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  {copiedLabel ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
+                      {copiedLabel}
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                      <ChevronDown className="h-3 w-3 opacity-70" />
+                    </>
+                  )}
+                </button>
+
+                {copyMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 z-40 mt-1.5 w-60 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-1.5 shadow-lg"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            buildTickerPlainText(
+                              company,
+                              series,
+                              reverseDcf.impliedRevenueCagrPct,
+                              window.location.origin
+                            )
+                          );
+                          setCopiedLabel("Copied Text");
+                          setCopyMenuOpen(false);
+                          window.setTimeout(() => setCopiedLabel(null), 1800);
+                        } catch {
+                          // Ignore clipboard errors
+                        }
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                      <div>
+                        <div className="text-xs font-medium text-[var(--text-primary)]">
+                          Plain-text summary
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          Messages, email, Slack, notes
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            buildTickerMarkdown(
+                              company,
+                              series,
+                              reverseDcf.impliedRevenueCagrPct,
+                              window.location.origin
+                            )
+                          );
+                          setCopiedLabel("Copied Markdown");
+                          setCopyMenuOpen(false);
+                          window.setTimeout(() => setCopiedLabel(null), 1800);
+                        } catch {
+                          // Ignore clipboard errors
+                        }
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      <Table2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                      <div>
+                        <div className="text-xs font-medium text-[var(--text-primary)]">
+                          Markdown table
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          Reddit, Notion, Obsidian
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            buildTickerAiContext(
+                              company,
+                              series,
+                              reverseDcf.impliedRevenueCagrPct,
+                              window.location.origin
+                            )
+                          );
+                          setCopiedLabel("Copied for AI");
+                          setCopyMenuOpen(false);
+                          window.setTimeout(() => setCopiedLabel(null), 1800);
+                        } catch {
+                          // Ignore clipboard errors
+                        }
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--amber)]" />
+                      <div>
+                        <div className="text-xs font-medium text-[var(--text-primary)]">
+                          Copy for AI
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          Paste into ChatGPT or Claude
+                        </div>
+                      </div>
+                    </button>
+
+                    <div className="my-1 border-t border-[var(--border)]" />
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        exportTrueFcfCard(company, series);
+                        setCopyMenuOpen(false);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      <Download className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                      <div>
+                        <div className="text-xs font-medium text-[var(--text-primary)]">
+                          Download PNG card
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          2× retina image snapshot
+                        </div>
+                      </div>
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
           </div>
 

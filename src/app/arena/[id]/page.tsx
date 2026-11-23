@@ -27,7 +27,7 @@ export async function generateMetadata({
   if (!portfolio) return { title: "Portfolio Not Found" };
 
   return {
-    title: `${portfolio.title} (@${portfolio.handle}) | Arena`,
+    title: `${portfolio.title} (${portfolio.handle}) | Arena`,
     description: `Amber Arena portfolio started ${portfolio.lockedAt.slice(0, 10)}: ${formatPct(portfolio.totalReturnPct, true)} return.`,
   };
 }
@@ -80,7 +80,7 @@ export default async function ArenaDetailPage({
                   href={`/u/${encodeURIComponent(portfolio.handle)}`}
                   className="hover:text-[var(--amber)] hover:underline"
                 >
-                  @{portfolio.handle}
+                  {portfolio.handle}
                 </Link>
                 <span>Started {portfolio.lockedAt.slice(0, 10)}</span>
                 {portfolio.rebalances.length > 0 && (

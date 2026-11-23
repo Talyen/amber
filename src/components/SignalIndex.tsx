@@ -352,8 +352,6 @@ export function SignalIndex({
     );
   }, [leaderboardEligible]);
 
-  const QUICK_CHECK_TICKERS = ["NVDA", "AAPL", "MSFT", "PLTR", "META", "COST"];
-
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <TopNav />
@@ -361,26 +359,22 @@ export function SignalIndex({
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
         {/* Quiet Tool Header */}
         <section className="border-b border-[var(--border)] pb-8">
-          <h1 className="max-w-2xl text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
-            SEC filings, cash flow, and valuation.
+          <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
+            Understand any public company in 60 seconds.
           </h1>
-          <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            Financials, filing changes, implied growth, and Form 4 insider trades across {entries.length} public companies.
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
+            Financials, SEC filing changes, implied growth, and Form 4 insider trades across {entries.length} public companies.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <CommandSearch variant="hero" initialEntries={entries} />
-            <div className="flex flex-wrap items-center gap-1.5">
-              {QUICK_CHECK_TICKERS.map((t) => (
-                <Link
-                  key={t}
-                  href={`/t/${t}`}
-                  className="font-mono-num inline-flex h-8 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
-                >
-                  {t}
-                </Link>
-              ))}
-            </div>
+            <Link
+              href="/t/NVDA"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
+            >
+              Explore NVDA
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </section>
 
@@ -692,14 +686,6 @@ export function SignalIndex({
               );
             })}
           </div>
-          {activeLens && (
-            <p className="mb-3 text-xs text-[var(--text-muted)]">
-              <span className="font-medium text-[var(--text-secondary)]">
-                {activeLens.title}:
-              </span>{" "}
-              {activeLens.criteriaSummary}
-            </p>
-          )}
 
           {/* Consolidated Filters Drawer (Sector, Fundamentals, Grouping) */}
           {screenerOpen && (

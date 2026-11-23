@@ -41,6 +41,73 @@ export function buildTickerMarkdown(
   return lines.join("\n");
 }
 
+export function buildTickerPlainText(
+  company: CompanySnapshot,
+  series: ComputedAnnual[],
+  impliedCagr: number,
+  siteOrigin = SITE_URL
+): string {
+  const latest = series[series.length - 1];
+  const ev = computeEnterpriseValue(company);
+  const dilution = computeNetDilutionCagr(company.annuals);
+
+  return [
+    `${company.name} (${company.ticker}) — $${company.price.toFixed(2)}`,
+    `Market Cap: ${formatCurrencyCompact(company.marketCap)} | Enterprise Value: ${formatCurrencyCompact(ev)}`,
+    `Revenue (${latest.fiscalYear}): ${formatCurrencyCompact(latest.revenue)}`,
+    `True FCF: ${formatCurrencyCompact(latest.trueFcf)} (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
+    `Stock-Based Comp: ${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctRevenue)} of rev)`,
+    `Share Count (4Y CAGR): ${formatPct(dilution, true)}/yr (${latest.dilutedShares.toLocaleString()}M shares)`,
+    `Implied 10Y Revenue Growth: ${formatPct(impliedCagr)}/yr`,
+    "",
+    `Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) — ${siteOrigin}/t/${company.ticker}`,
+  ].join("\n");
+}
+
+export function buildTickerAiContext(
+  company: CompanySnapshot,
+  series: ComputedAnnual[],
+  impliedCagr: number,
+  siteOrigin = SITE_URL
+): string {
+  const latest = series[series.length - 1];
+  const ev = computeEnterpriseValue(company);
+  const dilution = computeNetDilutionCagr(company.annuals);
+  const topDiffs = company.filingDiffs.slice(0, 4);
+
+  const lines = [
+    `Analyze ${company.name} (${company.ticker}) using the SEC EDGAR data below:`,
+    "",
+    `Valuation & Balance Sheet:`,
+    `- Share Price: $${company.price.toFixed(2)}`,
+    `- Market Cap: ${formatCurrencyCompact(company.marketCap)} | Enterprise Value: ${formatCurrencyCompact(ev)}`,
+    `- Cash & Equivalents: ${formatCurrencyCompact(company.cashAndEquiv)} | Total Debt: ${formatCurrencyCompact(company.totalDebt)}`,
+    `- Implied 10Y Revenue CAGR (Reverse DCF): ${formatPct(impliedCagr)}/yr`,
+    `- 4Y Net Share Dilution CAGR: ${formatPct(dilution, true)}/yr (${latest.dilutedShares.toLocaleString()}M diluted shares)`,
+    "",
+    `Financial History ($M):`,
+    ...series.map(
+      (r) =>
+        `- ${r.fiscalYear}: Rev ${formatCurrencyCompact(r.revenue)}, Rep FCF ${formatCurrencyCompact(r.reportedFcf)}, SBC ${formatCurrencyCompact(r.sbc)} (${formatPct(r.sbcPctRevenue)}), True FCF ${formatCurrencyCompact(r.trueFcf)} (${formatPct(r.trueFcfMargin)} margin), Shares ${r.dilutedShares.toLocaleString()}M`
+    ),
+  ];
+
+  if (topDiffs.length > 0) {
+    lines.push("", "Recent SEC Filing Changes / 8-K Events:");
+    for (const d of topDiffs) {
+      lines.push(
+        `- [${d.filingType} ${d.filingDate} | ${d.category}] ${d.headline}: ${d.summary}`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    `Source: SEC EDGAR via Amber (${siteOrigin}/t/${company.ticker})`
+  );
+  return lines.join("\n");
+}
+
 export function buildComparisonMarkdown(
   items: SearchIndexEntry[],
   siteOrigin = SITE_URL

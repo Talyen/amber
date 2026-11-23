@@ -20,8 +20,8 @@ export async function generateMetadata({
   const { handle } = await params;
   const decoded = decodeURIComponent(handle);
   return {
-    title: `@${decoded} | Investor Profile`,
-    description: `Active portfolio and Arena track record for @${decoded} on Amber.`,
+    title: `${decoded} | Investor Profile`,
+    description: `Active portfolio and Arena track record for ${decoded} on Amber.`,
   };
 }
 
@@ -74,7 +74,7 @@ export default async function InvestorProfilePage({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-mono-num text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)]">
-                  @{primary.handle}
+                  {primary.handle}
                 </h1>
                 {primary.isBot ? (
                   <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">

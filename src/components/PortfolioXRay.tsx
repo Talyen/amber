@@ -303,7 +303,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                 Your Arena Portfolio: {myArena.title}
               </span>
               <span className="font-mono-num text-[var(--text-secondary)]">
-                @{myArena.handle}
+                {myArena.handle}
               </span>
             </div>
             <Link
