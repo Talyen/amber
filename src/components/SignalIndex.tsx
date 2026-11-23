@@ -15,6 +15,7 @@ import {
   Layers,
   SlidersHorizontal,
   Star,
+  X,
 } from "lucide-react";
 import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
 import { useWatchlist } from "@/lib/watchlist";
@@ -287,83 +288,9 @@ export function SignalIndex({
           </div>
         </section>
 
-        {/* Curated Discovery Lenses ("Start Exploring") */}
-        <section aria-label="Curated discovery lenses" className="mt-7">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Explore by Lens
-            </h2>
-            {activeLens && (
-              <button
-                type="button"
-                onClick={() => selectLens(null)}
-                className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
-              >
-                Clear lens
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {DISCOVERY_LENSES.map((lens) => {
-              const isSelected = activeLensId === lens.id;
-              const matchCount = entries.filter(lens.filter).length;
-              const style = LENS_STYLES[lens.id] ?? {
-                icon: Compass,
-                badge: "bg-amber-500/12 text-amber-600 ring-amber-500/25 dark:text-amber-400",
-              };
-              const LensIcon = style.icon;
-              return (
-                <button
-                  key={lens.id}
-                  type="button"
-                  onClick={() => selectLens(lens.id)}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                    isSelected
-                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--text-primary)]"
-                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:border-[var(--border-strong)]"
-                  }`}
-                >
-                  <span
-                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${style.badge}`}
-                  >
-                    <LensIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                  </span>
-                  <span className={isSelected ? "text-[var(--amber)] font-semibold" : ""}>
-                    {lens.title}
-                  </span>
-                  <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                    {matchCount}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {activeLens && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-3 text-xs text-[var(--text-primary)]">
-              <div>
-                <span className="font-semibold text-[var(--amber)]">
-                  Why {activeLens.title} matters:{" "}
-                </span>
-                <span className="text-[var(--text-secondary)]">
-                  {activeLens.whyItMatters}
-                </span>
-              </div>
-              <Link
-                href={`/lenses/${activeLens.id}`}
-                className="inline-flex shrink-0 items-center gap-1 font-semibold text-[var(--amber)] hover:underline"
-              >
-                Open full lens page
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          )}
-        </section>
-
-        {/* Companies Table */}
-        <section className="mt-10">
-          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+        {/* Companies Table + Integrated Lens Filters */}
+        <section className="mt-8">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <h2
                 id="coverage-caption"
@@ -431,6 +358,48 @@ export function SignalIndex({
                 )}
               </button>
             </div>
+          </div>
+
+          {/* Integrated Discovery Lens Strip */}
+          <div className="mb-3.5 flex flex-wrap items-center gap-2">
+            {DISCOVERY_LENSES.map((lens) => {
+              const isSelected = activeLensId === lens.id;
+              const matchCount = entries.filter(lens.filter).length;
+              const style = LENS_STYLES[lens.id] ?? {
+                icon: Compass,
+                badge: "bg-amber-500/12 text-amber-600 ring-amber-500/25 dark:text-amber-400",
+              };
+              const LensIcon = style.icon;
+              return (
+                <button
+                  key={lens.id}
+                  type="button"
+                  onClick={() => selectLens(lens.id)}
+                  title={isSelected ? `Clear ${lens.title} filter` : lens.subtitle}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                    isSelected
+                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--text-primary)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] hover:border-[var(--border-strong)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${style.badge}`}
+                  >
+                    <LensIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
+                  <span className={isSelected ? "font-semibold text-[var(--amber)]" : ""}>
+                    {lens.title}
+                  </span>
+                  {isSelected ? (
+                    <X className="h-3.5 w-3.5 text-[var(--amber)] opacity-80" aria-hidden="true" />
+                  ) : (
+                    <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                      {matchCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Consolidated Filters Drawer (Sector, Fundamentals, Grouping) */}
