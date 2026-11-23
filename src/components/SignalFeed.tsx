@@ -219,17 +219,15 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
     );
   }, [scopedInsiders, filter]);
 
-  const entryByTicker = useMemo(
-    () => new Map(entries.map((e) => [e.ticker, e])),
-    [entries]
-  );
-
   const visibleHeadlines = showAllHeadlines
     ? headlines
     : headlines.slice(0, 10);
 
-  const featuredStories = visibleHeadlines.slice(0, 3);
-  const wireStories = visibleHeadlines.slice(3);
+  const leadStories = visibleHeadlines.slice(0, 2);
+  const wireStories = visibleHeadlines.slice(2);
+  const midPoint = Math.ceil(wireStories.length / 2);
+  const wireLeft = wireStories.slice(0, midPoint);
+  const wireRight = wireStories.slice(midPoint);
 
   const showHeadlines = filter === "all" || filter === "headlines";
   const showFilings = filter === "all" || filter === "filings";
@@ -454,166 +452,124 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                 ) : (
                   <>
                     <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+                      {/* Top Row: 2 Side-by-Side Featured Lead Stories */}
                       <div
                         className={`grid grid-cols-1 divide-y divide-[var(--border)] ${
-                          wireStories.length > 0
-                            ? "lg:grid-cols-12 lg:divide-x lg:divide-y-0"
+                          leadStories.length > 1
+                            ? "lg:grid-cols-2 lg:divide-x lg:divide-y-0"
                             : ""
                         }`}
                       >
-                        {/* Left Column: Top 3 Featured Stories with inline Company Fundamental Strips */}
+                        {leadStories.map((item, idx) => (
+                          <div
+                            key={item.link}
+                            className="group px-4 py-3.5 transition-colors hover:bg-[var(--surface-subtle)]/50 sm:px-5 sm:py-4"
+                          >
+                            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {idx === 0 && (
+                                  <span className="rounded bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--amber)] uppercase">
+                                    Top Story
+                                  </span>
+                                )}
+                                <span className="rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                  {item.source || "Financial Wire"}
+                                </span>
+                                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                                  {formatRelativeTime(item.pubDate)}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {(item.tickers ?? []).map((sym) => (
+                                  <Link
+                                    key={sym}
+                                    href={`/t/${sym}`}
+                                    className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                  >
+                                    {sym}
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+
+                            <a
+                              href={item.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex w-full items-baseline justify-between gap-2 text-[15.5px] font-semibold leading-snug tracking-[-0.015em] text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[16.5px]"
+                            >
+                              <span>{item.title}</span>
+                              <ArrowUpRight className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-[var(--text-muted)] group-hover:text-[var(--amber)]" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Below: Balanced 2-Column Editorial News Wire */}
+                      {wireStories.length > 0 && (
                         <div
-                          className={`divide-y divide-[var(--border)] ${
-                            wireStories.length > 0
-                              ? "lg:col-span-6"
-                              : "lg:col-span-12"
+                          className={`grid grid-cols-1 divide-y divide-[var(--border)] border-t border-[var(--border)] ${
+                            wireRight.length > 0
+                              ? "lg:grid-cols-2 lg:divide-x lg:divide-y-0"
+                              : ""
                           }`}
                         >
-                          {featuredStories.map((item, idx) => {
-                            const primaryTicker = item.tickers?.[0];
-                            const companySnap = primaryTicker
-                              ? entryByTicker.get(primaryTicker)
-                              : undefined;
-                            const isLead = idx === 0;
-
-                            return (
+                          {[wireLeft, wireRight]
+                            .filter((col) => col.length > 0)
+                            .map((col, colIdx) => (
                               <div
-                                key={item.link}
-                                className="group px-4 py-3.5 transition-colors hover:bg-[var(--surface-subtle)]/50 sm:px-5 sm:py-4"
+                                key={colIdx}
+                                className="divide-y divide-[var(--border)]"
                               >
-                                {/* Compact Single-Line Header: Source + Time + Ticker Pills */}
-                                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    {isLead && (
-                                      <span className="rounded bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--amber)] uppercase">
-                                        Top Story
-                                      </span>
-                                    )}
-                                    <span className="rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                                      {item.source || "Financial Wire"}
-                                    </span>
-                                    <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                                      {formatRelativeTime(item.pubDate)}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center gap-1">
-                                    {(item.tickers ?? []).map((sym) => (
-                                      <Link
-                                        key={sym}
-                                        href={`/t/${sym}`}
-                                        className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
-                                      >
-                                        {sym}
-                                      </Link>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Headline Title */}
-                                <a
-                                  href={item.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`inline-flex items-baseline justify-between gap-2 font-semibold leading-snug tracking-[-0.015em] text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] ${
-                                    isLead
-                                      ? "text-[15.5px] sm:text-[17px]"
-                                      : "text-sm sm:text-[15px]"
-                                  }`}
-                                >
-                                  <span>{item.title}</span>
-                                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-[var(--text-muted)] group-hover:text-[var(--amber)]" />
-                                </a>
-
-                                {/* Compact 1-Line Company Fundamental Snapshot Bar */}
-                                {companySnap && (
-                                  <Link
-                                    href={`/t/${companySnap.ticker}`}
-                                    className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--border)]/80 bg-[var(--bg)] px-2.5 py-1.5 text-[11px] transition-colors hover:border-[var(--amber-border)]"
+                                {col.map((item) => (
+                                  <div
+                                    key={item.link}
+                                    className="group flex items-start justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--surface-subtle)]/60 sm:px-5 sm:py-3"
                                   >
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-mono-num font-bold text-[var(--amber)]">
-                                        {companySnap.ticker}
-                                      </span>
-                                      <span className="truncate font-medium text-[var(--text-secondary)]">
-                                        {cleanEntity(companySnap.name)}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-[var(--text-secondary)]">
-                                      <span>
-                                        True FCF:{" "}
-                                        <strong className="font-mono-num text-[var(--text-primary)]">
-                                          {formatCurrencyCompact(
-                                            companySnap.trueFcf
-                                          )}{" "}
-                                          ({formatPct(companySnap.trueFcfMargin)}
-                                          )
-                                        </strong>
-                                      </span>
-                                      <span>
-                                        Implied 10Y:{" "}
-                                        <strong className="font-mono-num text-[var(--amber)]">
-                                          {formatPct(companySnap.impliedCagr)}
-                                        </strong>
-                                      </span>
-                                    </div>
-                                  </Link>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Right Column: High-Density Editorial News Wire */}
-                        {wireStories.length > 0 && (
-                          <div className="divide-y divide-[var(--border)] lg:col-span-6">
-                            {wireStories.map((item) => (
-                              <div
-                                key={item.link}
-                                className="group flex items-start justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--surface-subtle)]/60 sm:px-4.5 sm:py-3"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <a
-                                    href={item.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block text-[13px] font-medium leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[13.5px]"
-                                  >
-                                    {item.title}
-                                  </a>
-                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
-                                    <span className="font-semibold text-[var(--text-secondary)]">
-                                      {item.source || "Financial Wire"}
-                                    </span>
-                                    <span className="font-mono-num">
-                                      {formatRelativeTime(item.pubDate)}
-                                    </span>
-                                    {(item.tickers ?? []).map((sym) => (
-                                      <Link
-                                        key={sym}
-                                        href={`/t/${sym}`}
-                                        className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.2 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                    <div className="min-w-0 flex-1">
+                                      <a
+                                        href={item.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block text-[13px] font-medium leading-snug text-[var(--text-primary)] transition-colors group-hover:text-[var(--amber)] sm:text-[13.5px]"
                                       >
-                                        {sym}
-                                      </Link>
-                                    ))}
-                                  </div>
-                                </div>
+                                        {item.title}
+                                      </a>
+                                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                                        <span className="font-semibold text-[var(--text-secondary)]">
+                                          {item.source || "Financial Wire"}
+                                        </span>
+                                        <span className="font-mono-num">
+                                          {formatRelativeTime(item.pubDate)}
+                                        </span>
+                                        {(item.tickers ?? []).map((sym) => (
+                                          <Link
+                                            key={sym}
+                                            href={`/t/${sym}`}
+                                            className="font-mono-num rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.2 text-[10px] font-semibold text-[var(--amber)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)]"
+                                          >
+                                            {sym}
+                                          </Link>
+                                        ))}
+                                      </div>
+                                    </div>
 
-                                <a
-                                  href={item.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  aria-label="Open article"
-                                  className="mt-0.5 shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--amber)]"
-                                >
-                                  <ArrowUpRight className="h-3.5 w-3.5" />
-                                </a>
+                                    <a
+                                      href={item.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      aria-label="Open article"
+                                      className="mt-0.5 shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--amber)]"
+                                    >
+                                      <ArrowUpRight className="h-3.5 w-3.5" />
+                                    </a>
+                                  </div>
+                                ))}
                               </div>
                             ))}
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {headlines.length > 10 && (
