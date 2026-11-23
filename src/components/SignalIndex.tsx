@@ -26,12 +26,30 @@ import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
 
 type SortKey = IndexSortKey;
 
-const LENS_ICONS: Record<string, typeof Landmark> = {
-  "cash-machines": Landmark,
-  "buyback-cannibals": Flame,
-  "priced-for-perfection": Gauge,
-  "hidden-dilution": AlertTriangle,
-  "modest-expectations": Compass,
+const LENS_STYLES: Record<
+  string,
+  { icon: typeof Landmark; badge: string }
+> = {
+  "cash-machines": {
+    icon: Landmark,
+    badge: "bg-emerald-500/12 text-emerald-600 ring-emerald-500/25 dark:text-emerald-400",
+  },
+  "buyback-cannibals": {
+    icon: Flame,
+    badge: "bg-orange-500/12 text-orange-600 ring-orange-500/25 dark:text-orange-400",
+  },
+  "priced-for-perfection": {
+    icon: Gauge,
+    badge: "bg-violet-500/12 text-violet-600 ring-violet-500/25 dark:text-violet-400",
+  },
+  "hidden-dilution": {
+    icon: AlertTriangle,
+    badge: "bg-rose-500/12 text-rose-600 ring-rose-500/25 dark:text-rose-400",
+  },
+  "modest-expectations": {
+    icon: Compass,
+    badge: "bg-teal-500/12 text-teal-600 ring-teal-500/25 dark:text-teal-400",
+  },
 };
 
 export function SignalIndex({
@@ -70,9 +88,15 @@ export function SignalIndex({
     }
   }, []);
 
-  const hasCustomScreen = Boolean(
-    minFcfMargin.trim() || maxSbcPct.trim() || maxImplied.trim() || maxDilution.trim()
-  );
+  const activeFilterCount =
+    (minFcfMargin.trim() ? 1 : 0) +
+    (maxSbcPct.trim() ? 1 : 0) +
+    (maxImplied.trim() ? 1 : 0) +
+    (maxDilution.trim() ? 1 : 0) +
+    (selectedSector !== "All" ? 1 : 0) +
+    (groupBySector ? 1 : 0);
+
+  const hasCustomScreen = activeFilterCount > 0;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -244,12 +268,7 @@ export function SignalIndex({
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
         {/* Crisp Editorial Hero */}
         <section className="border-b border-[var(--border)] pb-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-1 text-[11px] font-medium text-[var(--amber)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--amber)]" />
-            SEC EDGAR XBRL · {entries.length} Companies
-          </div>
-
-          <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
+          <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
             Understand any business in 60 seconds.
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
@@ -289,7 +308,11 @@ export function SignalIndex({
             {DISCOVERY_LENSES.map((lens) => {
               const isSelected = activeLensId === lens.id;
               const matchCount = entries.filter(lens.filter).length;
-              const LensIcon = LENS_ICONS[lens.id] ?? Compass;
+              const style = LENS_STYLES[lens.id] ?? {
+                icon: Compass,
+                badge: "bg-amber-500/12 text-amber-600 ring-amber-500/25 dark:text-amber-400",
+              };
+              const LensIcon = style.icon;
               return (
                 <button
                   key={lens.id}
@@ -303,23 +326,22 @@ export function SignalIndex({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
-                        isSelected
-                          ? "text-[var(--amber)]"
-                          : "text-[var(--text-primary)]"
-                      }`}
+                      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${style.badge}`}
                     >
-                      <LensIcon
-                        className={`h-4 w-4 shrink-0 ${
-                          isSelected ? "text-[var(--amber)]" : "text-[var(--text-muted)]"
-                        }`}
-                        aria-hidden="true"
-                      />
-                      {lens.title}
+                      <LensIcon className="h-4 w-4" aria-hidden="true" />
                     </span>
                     <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
                       {matchCount}
                     </span>
+                  </div>
+                  <div
+                    className={`mt-2.5 text-xs font-semibold ${
+                      isSelected
+                        ? "text-[var(--amber)]"
+                        : "text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {lens.title}
                   </div>
                   <p className="mt-1 text-[11px] leading-snug text-[var(--text-secondary)]">
                     {lens.subtitle}
@@ -350,51 +372,46 @@ export function SignalIndex({
           )}
         </section>
 
-        {/* Full Coverage Screener Table */}
+        {/* Companies Table */}
         <section className="mt-10">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <h2
                 id="coverage-caption"
-                className="text-sm font-semibold text-[var(--text-primary)]"
+                className="flex items-baseline gap-2 text-sm font-semibold text-[var(--text-primary)]"
               >
-                SEC-Verified Coverage Universe ({rows.length})
+                <span>Companies</span>
+                <span className="font-mono-num text-xs font-normal text-[var(--text-muted)]">
+                  {rows.length}
+                </span>
               </h2>
-              <p className="text-xs text-[var(--text-muted)]">
-                Click any column header to sort, or click a company to launch its True FCF &amp; Reverse DCF workspace.
-              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWatchlistOnly((prev) => !prev);
+                  setVisibleLimit(30);
+                }}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                  watchlistOnly
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Star
+                  className="h-3.5 w-3.5"
+                  fill={watchlistOnly ? "currentColor" : "none"}
+                />
+                Watchlist
+                {watchlist.tickers.length > 0 && (
+                  <span className="font-mono-num opacity-75">
+                    ({watchlist.tickers.length})
+                  </span>
+                )}
+              </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setScreenerOpen((prev) => !prev)}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
-                  screenerOpen || hasCustomScreen
-                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
-                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                Screener
-                {hasCustomScreen && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--amber)]" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setGroupBySector((prev) => !prev)}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
-                  groupBySector
-                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
-                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                Group by Sector
-              </button>
-
               <input
                 type="search"
                 value={filter}
@@ -402,149 +419,157 @@ export function SignalIndex({
                   setFilter(e.target.value);
                   setVisibleLimit(30);
                 }}
-                placeholder="Filter table…"
-                aria-label="Filter coverage table"
+                placeholder="Filter by ticker or name…"
+                aria-label="Filter companies table"
                 className="h-8 w-48 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
               />
+
+              <button
+                type="button"
+                onClick={() => setScreenerOpen((prev) => !prev)}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors cursor-pointer ${
+                  screenerOpen || hasCustomScreen
+                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="font-mono-num rounded-full bg-[var(--amber)] px-1.5 py-0.2 text-[10px] font-semibold text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
-          {/* Watchlist + Sector Filter Pills */}
+          {/* Consolidated Filters Drawer (Sector, Fundamentals, Grouping) */}
           {screenerOpen && (
-            <div className="mb-3.5 grid grid-cols-2 gap-2.5 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-3.5 sm:grid-cols-5 sm:items-end">
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                  Min True FCF %
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={minFcfMargin}
-                  onChange={(e) => {
-                    setMinFcfMargin(e.target.value);
-                    setVisibleLimit(30);
-                  }}
-                  placeholder="e.g. 20"
-                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                />
-              </label>
+            <div className="mb-4 space-y-3 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <label className="col-span-2 block sm:col-span-1">
+                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                    Sector
+                  </span>
+                  <select
+                    value={selectedSector}
+                    onChange={(e) => {
+                      setSelectedSector(e.target.value);
+                      setVisibleLimit(30);
+                    }}
+                    className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 text-xs text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
+                  >
+                    {sectors.map((s) => (
+                      <option key={s} value={s}>
+                        {s === "All" ? "All Sectors" : s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                  Max SBC / Rev %
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={maxSbcPct}
-                  onChange={(e) => {
-                    setMaxSbcPct(e.target.value);
-                    setVisibleLimit(30);
-                  }}
-                  placeholder="e.g. 5"
-                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                />
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                    Min True FCF %
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={minFcfMargin}
+                    onChange={(e) => {
+                      setMinFcfMargin(e.target.value);
+                      setVisibleLimit(30);
+                    }}
+                    placeholder="e.g. 20"
+                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                  />
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                  Max Implied 10Y %
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  value={maxImplied}
-                  onChange={(e) => {
-                    setMaxImplied(e.target.value);
-                    setVisibleLimit(30);
-                  }}
-                  placeholder="e.g. 10"
-                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                />
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                    Max SBC / Rev %
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={maxSbcPct}
+                    onChange={(e) => {
+                      setMaxSbcPct(e.target.value);
+                      setVisibleLimit(30);
+                    }}
+                    placeholder="e.g. 5"
+                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                  />
+                </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                  Max Dilution %
-                </span>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={maxDilution}
-                  onChange={(e) => {
-                    setMaxDilution(e.target.value);
-                    setVisibleLimit(30);
-                  }}
-                  placeholder="e.g. 0"
-                  className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                />
-              </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                    Max Implied 10Y %
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={maxImplied}
+                    onChange={(e) => {
+                      setMaxImplied(e.target.value);
+                      setVisibleLimit(30);
+                    }}
+                    placeholder="e.g. 10"
+                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                  />
+                </label>
 
-              <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                    Max Dilution %
+                  </span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={maxDilution}
+                    onChange={(e) => {
+                      setMaxDilution(e.target.value);
+                      setVisibleLimit(30);
+                    }}
+                    placeholder="e.g. 0"
+                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setGroupBySector((prev) => !prev)}
+                  className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                    groupBySector
+                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+                      : "border-[var(--border)] bg-[var(--bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Group by Sector
+                </button>
+
                 {hasCustomScreen && (
                   <button
                     type="button"
                     onClick={() => {
+                      setSelectedSector("All");
+                      setGroupBySector(false);
                       setMinFcfMargin("");
                       setMaxSbcPct("");
                       setMaxImplied("");
                       setMaxDilution("");
                     }}
-                    className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                    className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
                   >
-                    Reset
+                    Reset all filters
                   </button>
                 )}
               </div>
             </div>
           )}
-
-          <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setWatchlistOnly((prev) => !prev);
-                setVisibleLimit(30);
-              }}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                watchlistOnly
-                  ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                  : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              <Star
-                className="h-3 w-3"
-                fill={watchlistOnly ? "currentColor" : "none"}
-              />
-              Watchlist
-              {watchlist.tickers.length > 0 && (
-                <span className="font-mono-num opacity-75">
-                  ({watchlist.tickers.length})
-                </span>
-              )}
-            </button>
-
-            {sectors.map((sector) => {
-              const active = selectedSector === sector;
-              return (
-                <button
-                  key={sector}
-                  type="button"
-                  onClick={() => {
-                    setSelectedSector(sector);
-                    setVisibleLimit(30);
-                  }}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                    active
-                      ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {sector}
-                </button>
-              );
-            })}
-          </div>
 
           <div
             tabIndex={0}
