@@ -256,7 +256,7 @@ export async function getInsiderTrades(
           .from(insiderTrades)
           .where(eq(insiderTrades.ticker, ticker))
           .orderBy(desc(insiderTrades.filingDate))
-          .limit(20);
+          .limit(24);
         return rows.map((r) => ({
           id: r.id,
           filingDate: r.filingDate,
@@ -272,8 +272,8 @@ export async function getInsiderTrades(
         return [];
       }
     },
-    ["amber-insider-trades", ticker],
-    { revalidate: 86400, tags: ["companies", `ticker-${ticker}`] }
+    ["amber-insider-trades-v2", ticker],
+    { revalidate: 3600, tags: ["companies", `ticker-${ticker}`] }
   );
 
   return await cachedFetch();
@@ -327,11 +327,24 @@ export async function getRecentMarketInsiders(): Promise<
   const cachedFetch = unstable_cache(
     async () => {
       try {
-        const rows = await db
-          .select()
-          .from(insiderTrades)
-          .orderBy(desc(insiderTrades.filingDate))
-          .limit(40);
+        // Fetch balanced recent Buys and Sells separately so high-volume executive sales never crowd out open-market purchases
+        const [buyRows, sellRows] = await Promise.all([
+          db
+            .select()
+            .from(insiderTrades)
+            .where(eq(insiderTrades.transactionType, "Buy"))
+            .orderBy(desc(insiderTrades.filingDate))
+            .limit(60),
+          db
+            .select()
+            .from(insiderTrades)
+            .where(eq(insiderTrades.transactionType, "Sell"))
+            .orderBy(desc(insiderTrades.filingDate))
+            .limit(60),
+        ]);
+        const rows = [...buyRows, ...sellRows].sort((a, b) =>
+          b.filingDate.localeCompare(a.filingDate)
+        );
         return rows.map((r) => ({
           id: r.id,
           ticker: r.ticker,
@@ -348,8 +361,8 @@ export async function getRecentMarketInsiders(): Promise<
         return [];
       }
     },
-    ["amber-market-insiders"],
-    { revalidate: 86400, tags: ["companies"] }
+    ["amber-market-insiders-v2"],
+    { revalidate: 3600, tags: ["companies"] }
   );
 
   return await cachedFetch();
