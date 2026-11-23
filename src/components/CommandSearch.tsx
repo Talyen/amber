@@ -247,7 +247,7 @@ export function CommandSearch({
                           </span>
                         </div>
                         <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
-                          {item.sector} · Mkt Cap {formatCurrencyCompact(item.marketCap)}
+                          {item.sector}, Mkt Cap {formatCurrencyCompact(item.marketCap)}
                         </div>
                       </div>
 
@@ -291,9 +291,9 @@ export function CommandSearch({
         </div>
 
         <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-2 text-[11px] text-[var(--text-muted)]">
-          <span>↑↓ Navigate · ↵ Open · Esc Close</span>
+          <span>↑↓ Navigate  ↵ Open  Esc Close</span>
           <span className="font-mono-num">
-            {entries.length} companies · SEC EDGAR 10-K
+            {entries.length} companies
           </span>
         </div>
       </dialog>

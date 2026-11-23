@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: "Amber | Fundamental Equity Analysis",
-    template: "%s · Amber",
+    template: "%s | Amber",
   },
   description:
     "SBC-adjusted True Free Cash Flow, interactive Reverse DCF stress-testing, and structured SEC filing diffs.",

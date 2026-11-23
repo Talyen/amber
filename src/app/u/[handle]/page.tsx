@@ -79,7 +79,7 @@ export default async function InvestorProfilePage({
                 {primary.isBot ? (
                   <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
                     <Bot className="h-3.5 w-3.5 text-[var(--amber)]" />
-                    Strategy Bot · {primary.botTheme}
+                    Strategy Bot ({primary.botTheme})
                   </span>
                 ) : (
                   <span className="inline-flex rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]">
@@ -88,8 +88,8 @@ export default async function InvestorProfilePage({
                 )}
               </div>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                {primary.title} · {primary.positions.length} active holdings
-                {beatCount > 0 && ` · Beat S&P 500 in ${beatCount} period${beatCount > 1 ? "s" : ""}`}
+                {primary.title}, {primary.positions.length} active holdings
+                {beatCount > 0 && `, beat S&P 500 in ${beatCount} period${beatCount > 1 ? "s" : ""}`}
               </p>
             </div>
           </div>

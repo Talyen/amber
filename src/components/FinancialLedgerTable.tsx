@@ -28,7 +28,7 @@ export function FinancialLedgerTable({
         </h3>
         <div className="flex items-center gap-3">
           <span className="hidden text-[11px] text-[var(--text-muted)] sm:inline">
-            USD · Tabular numerals
+            USD, Tabular numerals
           </span>
           <button
             type="button"

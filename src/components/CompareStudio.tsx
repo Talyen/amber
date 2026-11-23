@@ -245,7 +245,7 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
               </div>
             ) : (
               <span className="font-mono-num rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
-                4 / 4 max · remove one to swap
+                4 / 4 max (remove one to swap)
               </span>
             )}
           </div>

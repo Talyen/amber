@@ -55,7 +55,7 @@ export default async function LensPage({
 
         <section className="mt-4 border-b border-[var(--border)] pb-6">
           <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-            AMBER DISCOVERY LENS · {matched.length} COMPANIES
+            DISCOVERY LENS ({matched.length} COMPANIES)
           </div>
           <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
             {lens.title}

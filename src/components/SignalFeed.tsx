@@ -264,7 +264,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                   </h2>
                   <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
                     {watchlistOnly
-                      ? watchlist.tickers.slice(0, 6).join(" · ")
+                      ? watchlist.tickers.slice(0, 6).join(", ")
                       : "Trending Market Leaders"}
                   </span>
                 </div>
@@ -362,7 +362,7 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                                   {cleanEntity(c.name)}
                                 </span>
                                 <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                                  · {c.lastFilingDate}
+                                  {c.lastFilingDate}
                                 </span>
                               </div>
                               <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-[var(--text-secondary)]">
@@ -451,9 +451,9 @@ export function SignalFeed({ entries, insiders }: SignalFeedProps) {
                               </span>
                             </div>
                             <div className="mt-1 truncate text-xs text-[var(--text-secondary)]">
-                              {cleanEntity(t.insiderName)} ·{" "}
+                              {cleanEntity(t.insiderName)}{" "}
                               <span className="text-[var(--text-muted)]">
-                                {cleanEntity(t.insiderTitle)}
+                                ({cleanEntity(t.insiderTitle)})
                               </span>
                             </div>
                           </Link>

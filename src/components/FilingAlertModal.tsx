@@ -124,7 +124,7 @@ export function FilingAlertModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono-num text-[11px] font-semibold text-[var(--amber)]">
-              {ticker} · SEC EDGAR ALERTS
+              {ticker} Filing Alerts
             </div>
             <h2
               id="alert-dialog-title"

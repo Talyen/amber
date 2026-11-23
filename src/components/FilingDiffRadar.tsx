@@ -124,7 +124,7 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
                 </span>
                 <span className="font-mono-num inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
                   <FileText className="h-3 w-3" />
-                  {diff.filingType} · {diff.filingDate}
+                  {diff.filingType} ({diff.filingDate})
                 </span>
               </div>
 

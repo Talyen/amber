@@ -129,7 +129,7 @@ export function ArenaLeaderboard({
         <section className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-end">
           <div>
             <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-              PORTFOLIO ARENA · TOP 10
+              PORTFOLIO ARENA
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
               Portfolio Leaderboards
@@ -338,7 +338,7 @@ export function ArenaLeaderboard({
                       {p.isBot ? (
                         <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
                           <Bot className="h-3 w-3 text-[var(--amber)]" />
-                          Strategy Bot · {p.botTheme}
+                          Strategy Bot ({p.botTheme})
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]">
@@ -347,9 +347,8 @@ export function ArenaLeaderboard({
                       )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--text-muted)]">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--text-muted)]">
                       <span className="font-mono-num">@{p.handle}</span>
-                      <span className="hidden sm:inline" aria-hidden="true">·</span>
                       <span className="font-mono-num">
                         {p.isFinalized ? "Finalized" : `Started ${p.lockedAt.slice(0, 10)}`}
                       </span>

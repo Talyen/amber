@@ -68,23 +68,23 @@ export default async function ArenaDetailPage({
               {portfolio.isBot ? (
                 <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
                   <Bot className="h-3.5 w-3.5 text-[var(--amber)]" />
-                  Strategy Bot · {portfolio.botTheme}
+                  Strategy Bot ({portfolio.botTheme})
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]">
                   Community Portfolio
                 </span>
               )}
-              <span className="font-mono-num text-xs text-[var(--text-muted)]">
+              <span className="font-mono-num inline-flex flex-wrap items-center gap-x-3 text-xs text-[var(--text-muted)]">
                 <Link
                   href={`/u/${encodeURIComponent(portfolio.handle)}`}
                   className="hover:text-[var(--amber)] hover:underline"
                 >
                   @{portfolio.handle}
-                </Link>{" "}
-                · Started {portfolio.lockedAt.slice(0, 10)}
+                </Link>
+                <span>Started {portfolio.lockedAt.slice(0, 10)}</span>
                 {portfolio.rebalances.length > 0 && (
-                  <> · Rebalanced {portfolio.lastRebalancedAt.slice(0, 10)}</>
+                  <span>Rebalanced {portfolio.lastRebalancedAt.slice(0, 10)}</span>
                 )}
               </span>
             </div>

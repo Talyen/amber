@@ -199,9 +199,9 @@ export function CompanyWorkspace({
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {company.ticker}
               </span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">/</span>
               <span>{company.exchange}</span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">/</span>
               <span>{company.sector}</span>
             </div>
 
@@ -639,11 +639,11 @@ export function CompanyWorkspace({
 
         {/* Subtle Institutional Footer */}
         <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <p>© {new Date().getFullYear()} Amber · Not investment advice.</p>
+          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
           <div className="flex flex-wrap items-center gap-4">
             <MethodologyModal />
             <span className="font-mono-num">
-              CIK {company.cik} · Press 1–5 for tabs
+              CIK {company.cik} (Press 1–5 for tabs)
             </span>
           </div>
         </footer>

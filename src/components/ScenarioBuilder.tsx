@@ -445,7 +445,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
                 ${projection.fairValueToday.toFixed(2)}
               </strong>
             </span>
-            <span>·</span>
+            <span>/</span>
             <span>
               Current price:{" "}
               <strong className="font-mono-num text-[var(--text-primary)]">

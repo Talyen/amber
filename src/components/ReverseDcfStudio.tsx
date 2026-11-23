@@ -384,7 +384,7 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
                 Implied 10Y CAGR Sensitivity Matrix
               </h3>
               <p className="text-[11px] text-[var(--text-muted)]">
-                Rows: WACC · Columns: Terminal True FCF Multiple · Click any cell to snap sliders
+                Rows: WACC, Columns: Terminal True FCF Multiple. Click any cell to snap sliders.
               </p>
             </div>
           </div>
