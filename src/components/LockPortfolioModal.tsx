@@ -35,7 +35,15 @@ export function LockPortfolioModal({
   const lightDismiss = useDialogLightDismiss(dialogRef);
   const handleRef = useRef<HTMLInputElement>(null);
 
-  const [existing, setExisting] = useState<ExistingArenaPortfolio | null>(null);
+  const [existingState, setExistingState] = useState<{
+    userId: string;
+    portfolio: ExistingArenaPortfolio | null;
+  } | null>(null);
+  const sessionUserId = session?.user?.id ?? null;
+  const existing =
+    sessionUserId && existingState?.userId === sessionUserId
+      ? existingState.portfolio
+      : null;
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
   const [thesis, setThesis] = useState("");
@@ -44,8 +52,7 @@ export function LockPortfolioModal({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!session?.user) {
-      setExisting(null);
+    if (!sessionUserId) {
       return;
     }
     let active = true;
@@ -60,7 +67,7 @@ export function LockPortfolioModal({
         ]) => {
           if (!active) return;
           const port = arenaData?.portfolio ?? null;
-          setExisting(port);
+          setExistingState({ userId: sessionUserId, portfolio: port });
           if (port) {
             setHandle(port.handle);
             setTitle(port.title);
@@ -78,7 +85,7 @@ export function LockPortfolioModal({
     return () => {
       active = false;
     };
-  }, [session?.user]);
+  }, [sessionUserId]);
 
   function openModal() {
     if (!session?.user) {

@@ -11,15 +11,13 @@ import {
   Compass,
   FileDiff,
   Flame,
-  Gauge,
   Landmark,
-  Layers,
   SlidersHorizontal,
   Star,
   UserCheck,
   X,
 } from "lucide-react";
-import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import type {
   InsiderBuySummary,
   MarketFilingDiffItem,
@@ -29,6 +27,8 @@ import type {
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
+import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
+import { ExploreSignalStrip } from "@/components/ExploreSignalStrip";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
@@ -150,7 +150,7 @@ function sortableKeys(lensId: string | null) {
 }
 
 export function SignalIndex({
-  entries = SEARCH_INDEX,
+  entries = [],
   initialLensId = null,
   recentDiffs = [],
   recentInsiders = [],
@@ -187,6 +187,7 @@ export function SignalIndex({
   const [maxSbcPct, setMaxSbcPct] = useState("");
   const [maxImplied, setMaxImplied] = useState("");
   const [maxDilution, setMaxDilution] = useState("");
+  const [minMarketCapB, setMinMarketCapB] = useState("");
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
 
@@ -206,23 +207,31 @@ export function SignalIndex({
 
   const [hydratedLens, setHydratedLens] = useState<string | null>();
   useEffect(() => {
-    const state = readExploreLink(
-      new URLSearchParams(window.location.search),
-      initialLens,
-      DISCOVERY_LENSES,
-      sectors,
-      sortableKeys,
-    );
-    setActiveLensId(state.lensId);
-    setSelectedSector(state.sector);
-    setSortKey(state.sortKey);
-    setSortDir(state.sortDir);
-    setMinFcfMargin(state.fcf);
-    setMaxSbcPct(state.sbc);
-    setMaxImplied(state.imp);
-    setMaxDilution(state.dil);
-    setScreenerOpen(Boolean(state.fcf || state.sbc || state.imp || state.dil || state.sector !== "All"));
-    setHydratedLens(initialLens?.id ?? null);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const state = readExploreLink(
+        new URLSearchParams(window.location.search),
+        initialLens,
+        DISCOVERY_LENSES,
+        sectors,
+        sortableKeys,
+      );
+      setActiveLensId(state.lensId);
+      setSelectedSector(state.sector);
+      setSortKey(state.sortKey);
+      setSortDir(state.sortDir);
+      setMinFcfMargin(state.fcf);
+      setMaxSbcPct(state.sbc);
+      setMaxImplied(state.imp);
+      setMaxDilution(state.dil);
+      setMinMarketCapB(state.cap);
+      setScreenerOpen(Boolean(state.fcf || state.sbc || state.imp || state.dil || state.cap || state.sector !== "All"));
+      setHydratedLens(initialLens?.id ?? null);
+    });
+    return () => {
+      active = false;
+    };
   }, [initialLens, sectors]);
 
   const activeFilterCount =
@@ -230,6 +239,7 @@ export function SignalIndex({
     (maxSbcPct.trim() ? 1 : 0) +
     (maxImplied.trim() ? 1 : 0) +
     (maxDilution.trim() ? 1 : 0) +
+    (minMarketCapB.trim() ? 1 : 0) +
     (selectedSector !== "All" ? 1 : 0) +
     (groupBySector ? 1 : 0);
 
@@ -248,11 +258,12 @@ export function SignalIndex({
       sbc: maxSbcPct,
       imp: maxImplied,
       dil: maxDilution,
+      cap: minMarketCapB,
     }, activeLens, initialLens);
     if (url.href !== window.location.href) {
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
-  }, [activeLens, initialLens, hydratedLens, minFcfMargin, maxSbcPct, maxImplied, maxDilution, selectedSector, sortKey, sortDir]);
+  }, [activeLens, initialLens, hydratedLens, minFcfMargin, maxSbcPct, maxImplied, maxDilution, minMarketCapB, selectedSector, sortKey, sortDir]);
 
   const lensCtx = useMemo(
     () => ({
@@ -341,6 +352,7 @@ export function SignalIndex({
     const maxSbcVal = maxSbcPct.trim() !== "" ? Number(maxSbcPct) : null;
     const maxImpVal = maxImplied.trim() !== "" ? Number(maxImplied) : null;
     const maxDilVal = maxDilution.trim() !== "" ? Number(maxDilution) : null;
+    const minCapVal = minMarketCapB.trim() !== "" ? Number(minMarketCapB) * 1000 : null;
 
     const filtered = entries.filter((c) => {
       if (watchlistOnly && !watchlist.has(c.ticker)) return false;
@@ -350,6 +362,7 @@ export function SignalIndex({
       if (maxSbcVal !== null && Number.isFinite(maxSbcVal) && c.sbcPctRevenue > maxSbcVal) return false;
       if (maxImpVal !== null && Number.isFinite(maxImpVal) && c.impliedCagr > maxImpVal) return false;
       if (maxDilVal !== null && Number.isFinite(maxDilVal) && c.netDilutionCagr > maxDilVal) return false;
+      if (minCapVal !== null && Number.isFinite(minCapVal) && c.marketCap < minCapVal) return false;
       if (!q) return true;
       return (
         c.ticker.toLowerCase().includes(q) ||
@@ -393,6 +406,7 @@ export function SignalIndex({
     maxSbcPct,
     maxImplied,
     maxDilution,
+    minMarketCapB,
     sortKey,
     sortDir,
   ]);
@@ -662,180 +676,15 @@ export function SignalIndex({
         </section>
 
         {/* Trending Filings & Insider Activity */}
-        {!initialLensId && (featuredDiff || featuredInsiderBuy || featuredExpectation) && (
-          <section aria-label="Trending filings and insider activity" className="mt-7">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                Trending Filings &amp; Insider Activity
-              </h2>
-              <Link
-                href="/feed"
-                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--amber)] hover:underline"
-              >
-                View all
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-3">
-              {featuredDiff && (
-                <div className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
-                        <FileDiff className="h-3.5 w-3.5" />
-                        {featuredDiff.filingType} Filing
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => watchlist.toggle(featuredDiff.ticker)}
-                        aria-label={`Follow ${featuredDiff.ticker}`}
-                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
-                          watchlist.has(featuredDiff.ticker)
-                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        }`}
-                      >
-                        <Star
-                          className="h-3 w-3"
-                          fill={watchlist.has(featuredDiff.ticker) ? "currentColor" : "none"}
-                        />
-                        {watchlist.has(featuredDiff.ticker) ? "Following" : "Follow"}
-                      </button>
-                    </div>
-                    <Link
-                      href={`/t/${featuredDiff.ticker}?tab=diffs`}
-                      className="mt-2 block group"
-                    >
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-mono-num font-bold text-[var(--amber)]">
-                          {featuredDiff.ticker}
-                        </span>
-                        <span className="truncate text-[var(--text-muted)]">
-                          {featuredDiff.companyName}
-                        </span>
-                      </div>
-                      <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                        {featuredDiff.headline}
-                      </h3>
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                        {featuredDiff.summary}
-                      </p>
-                    </Link>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px] text-[var(--text-muted)]">
-                    <span>{featuredDiff.category}</span>
-                    <span className="font-mono-num">{featuredDiff.filingDate}</span>
-                  </div>
-                </div>
-              )}
-
-              {featuredInsiderBuy && (
-                <div className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--positive)]">
-                        <UserCheck className="h-3.5 w-3.5" />
-                        Insider Buy
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => watchlist.toggle(featuredInsiderBuy.ticker)}
-                        aria-label={`Follow ${featuredInsiderBuy.ticker}`}
-                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
-                          watchlist.has(featuredInsiderBuy.ticker)
-                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        }`}
-                      >
-                        <Star
-                          className="h-3 w-3"
-                          fill={watchlist.has(featuredInsiderBuy.ticker) ? "currentColor" : "none"}
-                        />
-                        {watchlist.has(featuredInsiderBuy.ticker) ? "Following" : "Follow"}
-                      </button>
-                    </div>
-                    <Link
-                      href={`/t/${featuredInsiderBuy.ticker}?tab=insiders`}
-                      className="mt-2 block group"
-                    >
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-mono-num font-bold text-[var(--amber)]">
-                          {featuredInsiderBuy.ticker}
-                        </span>
-                        <span className="truncate text-[var(--text-muted)]">
-                          {entries.find((e) => e.ticker === featuredInsiderBuy.ticker)?.name ??
-                            featuredInsiderBuy.ticker}
-                        </span>
-                      </div>
-                      <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                        {formatCurrencyCompact(featuredInsiderBuy.totalValue)} open-market purchase
-                      </h3>
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                        {featuredInsiderBuy.insiderName} ({featuredInsiderBuy.insiderTitle}) bought {Math.round(featuredInsiderBuy.shares).toLocaleString()} shares at ${featuredInsiderBuy.pricePerShare.toFixed(2)}.
-                      </p>
-                    </Link>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px] text-[var(--text-muted)]">
-                    <span>SEC Form 4 (Code P)</span>
-                    <span className="font-mono-num">{featuredInsiderBuy.filingDate}</span>
-                  </div>
-                </div>
-              )}
-
-              {featuredExpectation && (
-                <div className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--amber)]">
-                        <Gauge className="h-3.5 w-3.5" />
-                        Implied Growth
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => watchlist.toggle(featuredExpectation.ticker)}
-                        aria-label={`Follow ${featuredExpectation.ticker}`}
-                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer ${
-                          watchlist.has(featuredExpectation.ticker)
-                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        }`}
-                      >
-                        <Star
-                          className="h-3 w-3"
-                          fill={watchlist.has(featuredExpectation.ticker) ? "currentColor" : "none"}
-                        />
-                        {watchlist.has(featuredExpectation.ticker) ? "Following" : "Follow"}
-                      </button>
-                    </div>
-                    <Link
-                      href={`/t/${featuredExpectation.ticker}?tab=dcf`}
-                      className="mt-2 block group"
-                    >
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-mono-num font-bold text-[var(--amber)]">
-                          {featuredExpectation.ticker}
-                        </span>
-                        <span className="truncate text-[var(--text-muted)]">
-                          {featuredExpectation.name}
-                        </span>
-                      </div>
-                      <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                        Pricing in {formatPct(featuredExpectation.impliedCagr)}/yr growth for 10 years
-                      </h3>
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                        At {formatCurrencyCompact(featuredExpectation.marketCap)} market cap, today&apos;s valuation demands sustained decade-long compounding. Stress-test the sliders yourself.
-                      </p>
-                    </Link>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px] text-[var(--text-muted)]">
-                    <span>Interactive Reverse DCF</span>
-                    <span className="font-mono-num text-[var(--amber)]">Stress-test →</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
+        {!initialLensId && (
+          <ExploreSignalStrip
+            entries={entries}
+            featuredDiff={featuredDiff}
+            featuredInsiderBuy={featuredInsiderBuy}
+            featuredExpectation={featuredExpectation}
+            hasInWatchlist={watchlist.has}
+            onToggleWatchlist={watchlist.toggle}
+          />
         )}
 
         {/* Companies Table + Integrated Lens Filters */}
@@ -973,131 +822,62 @@ export function SignalIndex({
             })}
           </div>
 
-          {/* Consolidated Filters Drawer (Sector, Fundamentals, Grouping) */}
+          {/* Consolidated Filters Drawer (Presets, Sector, Fundamentals, Grouping) */}
           {screenerOpen && (
-            <div className="mb-4 space-y-3 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-4">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                <label className="col-span-2 block sm:col-span-1">
-                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                    Sector
-                  </span>
-                  <select
-                    value={selectedSector}
-                    onChange={(e) => {
-                      setSelectedSector(e.target.value);
-                      setVisibleLimit(30);
-                    }}
-                    className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 text-xs text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
-                  >
-                    {sectors.map((s) => (
-                      <option key={s} value={s}>
-                        {s === "All" ? "All Sectors" : s}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                    Min True FCF %
-                  </span>
-                  <input
-                    type="number"
-                    step="1"
-                    value={minFcfMargin}
-                    onChange={(e) => {
-                      setMinFcfMargin(e.target.value);
-                      setVisibleLimit(30);
-                    }}
-                    placeholder="e.g. 20"
-                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                    Max SBC / Rev %
-                  </span>
-                  <input
-                    type="number"
-                    step="1"
-                    value={maxSbcPct}
-                    onChange={(e) => {
-                      setMaxSbcPct(e.target.value);
-                      setVisibleLimit(30);
-                    }}
-                    placeholder="e.g. 5"
-                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                    Max Implied 10Y %
-                  </span>
-                  <input
-                    type="number"
-                    step="1"
-                    value={maxImplied}
-                    onChange={(e) => {
-                      setMaxImplied(e.target.value);
-                      setVisibleLimit(30);
-                    }}
-                    placeholder="e.g. 10"
-                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-                    Max Dilution %
-                  </span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={maxDilution}
-                    onChange={(e) => {
-                      setMaxDilution(e.target.value);
-                      setVisibleLimit(30);
-                    }}
-                    placeholder="e.g. 0"
-                    className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-                  />
-                </label>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
-                <button
-                  type="button"
-                  onClick={() => setGroupBySector((prev) => !prev)}
-                  className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
-                    groupBySector
-                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
-                      : "border-[var(--border)] bg-[var(--bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  Group by Sector
-                </button>
-
-                {hasCustomScreen && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSector("All");
-                      setGroupBySector(false);
-                      setMinFcfMargin("");
-                      setMaxSbcPct("");
-                      setMaxImplied("");
-                      setMaxDilution("");
-                    }}
-                    className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
-                  >
-                    Reset all filters
-                  </button>
-                )}
-              </div>
-            </div>
+            <ExploreScreenerDrawer
+              sectors={sectors}
+              selectedSector={selectedSector}
+              minFcfMargin={minFcfMargin}
+              maxSbcPct={maxSbcPct}
+              maxImplied={maxImplied}
+              maxDilution={maxDilution}
+              minMarketCapB={minMarketCapB}
+              groupBySector={groupBySector}
+              hasCustomScreen={hasCustomScreen}
+              onChangeSector={(value) => {
+                setSelectedSector(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMinFcf={(value) => {
+                setMinFcfMargin(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMaxSbc={(value) => {
+                setMaxSbcPct(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMaxImplied={(value) => {
+                setMaxImplied(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMaxDilution={(value) => {
+                setMaxDilution(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMinCapB={(value) => {
+                setMinMarketCapB(value);
+                setVisibleLimit(30);
+              }}
+              onToggleGroupBySector={() => setGroupBySector((prev) => !prev)}
+              onApplyPreset={(preset) => {
+                setSelectedSector(preset.values.sector ?? "All");
+                setMinFcfMargin(preset.values.fcf ?? "");
+                setMaxSbcPct(preset.values.sbc ?? "");
+                setMaxImplied(preset.values.imp ?? "");
+                setMaxDilution(preset.values.dil ?? "");
+                setMinMarketCapB(preset.values.cap ?? "");
+                setVisibleLimit(30);
+              }}
+              onResetAll={() => {
+                setSelectedSector("All");
+                setGroupBySector(false);
+                setMinFcfMargin("");
+                setMaxSbcPct("");
+                setMaxImplied("");
+                setMaxDilution("");
+                setMinMarketCapB("");
+              }}
+            />
           )}
 
           <div

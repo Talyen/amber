@@ -27,6 +27,7 @@ test("round-trips the sector and non-default sort on an Explore lens", () => {
     sbc: "",
     imp: "",
     dil: "",
+    cap: "",
   });
   assert.equal(params.get("source"), "shared");
 });

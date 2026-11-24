@@ -6,7 +6,7 @@ import {
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { SITE_URL } from "@/lib/site";
 
 export function buildTickerMarkdown(

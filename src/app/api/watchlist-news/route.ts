@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSearchIndex } from "@/data/repository";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { getTrendingTickers, type TrendingTickerItem } from "@/lib/trending";
 
 export type { TrendingTickerItem };

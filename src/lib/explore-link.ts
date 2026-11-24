@@ -3,7 +3,7 @@ import type { DiscoveryLens, IndexSortKey } from "./insights.ts";
 type SortDirection = "asc" | "desc";
 type LensSort = Pick<DiscoveryLens, "id" | "defaultSortKey" | "defaultSortDir">;
 
-const numericFilters = ["fcf", "sbc", "imp", "dil"] as const;
+const numericFilters = ["fcf", "sbc", "imp", "dil", "cap"] as const;
 
 export function exploreSortDefaults(lens: LensSort | null) {
   return {
@@ -36,6 +36,7 @@ export function readExploreLink(
     sbc: numericFilter(params.get("sbc")),
     imp: numericFilter(params.get("imp")),
     dil: numericFilter(params.get("dil")),
+    cap: numericFilter(params.get("cap")),
   };
 }
 
@@ -46,7 +47,7 @@ function numericFilter(raw: string | null) {
 
 export function writeExploreLink(
   params: URLSearchParams,
-  state: Record<typeof numericFilters[number], string> & {
+  state: Partial<Record<typeof numericFilters[number], string>> & {
     sector: string;
     sortKey: IndexSortKey;
     sortDir: SortDirection;
@@ -59,7 +60,7 @@ export function writeExploreLink(
     else params.delete(key);
   };
   set("lens", lens?.id ?? (initialLens ? "all" : ""));
-  for (const key of numericFilters) set(key, numericFilter(state[key]));
+  for (const key of numericFilters) set(key, numericFilter(state[key] ?? null));
   set("sector", state.sector === "All" ? "" : state.sector);
   const defaults = exploreSortDefaults(lens);
   const customSort = state.sortKey !== defaults.sortKey || state.sortDir !== defaults.sortDir;

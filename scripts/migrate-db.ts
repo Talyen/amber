@@ -40,6 +40,7 @@ async function migrate() {
     sql.query(filingDiffMigration),
     sql.query(readFileSync(new URL("../drizzle/0003_arena_handle_ownership.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0004_filing_alert_confirmation.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0005_user_valuation_presets.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -117,6 +118,20 @@ async function migrate() {
   }
   console.log("[amber-migrate] Verified filing alert confirmation and delivery.");
 
+  const [presetSchema] = await sql`
+    select
+      to_regclass('public.user_valuation_presets') is not null as table_exists,
+      exists (
+        select 1 from pg_index
+        where indexrelid = to_regclass('public.user_valuation_presets_user_ticker_idx')
+          and indrelid = 'public.user_valuation_presets'::regclass
+          and indisunique and indisvalid and indnkeyatts = 2
+      ) as unique_user_ticker
+  `;
+  if (!presetSchema?.table_exists || !presetSchema.unique_user_ticker) {
+    throw new Error("Could not verify the user_valuation_presets schema.");
+  }
+  console.log("[amber-migrate] Verified user_valuation_presets.");
 }
 
 await migrate();

@@ -22,8 +22,10 @@ import {
 import {
   type CompanySnapshot,
   computeCompanyValuation,
+  computeFinancialSectorMetrics,
   formatCurrencyCompact,
   formatPct,
+  isFinancialInstitution as checkFinancialInstitution,
 } from "@/lib/finance";
 import {
   buildTickerAiContext,
@@ -33,7 +35,7 @@ import {
 import { exportTrueFcfCard } from "@/lib/export-card";
 import { valuationModelFromUrl } from "@/lib/valuation-link";
 import { useWatchlist } from "@/lib/watchlist";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import type { SectorBenchmark } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { CompanyBriefing } from "@/components/CompanyBriefing";
@@ -52,25 +54,6 @@ import { FilingAlertModal } from "@/components/FilingAlertModal";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { buildCompanyBriefing } from "@/lib/insights";
-
-const FINANCIAL_INSTITUTION_TICKERS = new Set([
-  "JPM",
-  "GS",
-  "MS",
-  "BAC",
-  "WFC",
-  "C",
-  "AXP",
-  "BX",
-  "KKR",
-  "BLK",
-  "SCHW",
-  "COF",
-  "USB",
-  "PNC",
-  "TFC",
-  "AMP",
-]);
 
 type ActiveTab = "overview" | "fcf" | "dcf" | "diffs" | "insiders";
 
@@ -116,22 +99,29 @@ export function CompanyWorkspace({
 
   // Restore the tab and valuation model independently for older shared links.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get("tab");
-    const model = valuationModelFromUrl(params);
-    if (model) setValuationMode(model);
-    if (
-      tabParam === "overview" ||
-      tabParam === "dcf" ||
-      tabParam === "diffs" ||
-      tabParam === "fcf" ||
-      tabParam === "insiders"
-    ) {
-      setActiveTab(tabParam);
-    } else if (model) {
-      setActiveTab("dcf");
-    }
-    setRestoredLocation(true);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      const model = valuationModelFromUrl(params);
+      if (model) setValuationMode(model);
+      if (
+        tabParam === "overview" ||
+        tabParam === "dcf" ||
+        tabParam === "diffs" ||
+        tabParam === "fcf" ||
+        tabParam === "insiders"
+      ) {
+        setActiveTab(tabParam);
+      } else if (model) {
+        setActiveTab("dcf");
+      }
+      setRestoredLocation(true);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Sync active tab to URL so TopNav Share button always captures the exact tab
@@ -188,7 +178,11 @@ export function CompanyWorkspace({
     const fy = series.filter((s) => s.fiscalYear !== "TTM");
     return fy[fy.length - 1] ?? latest;
   }, [series, latest]);
-  const isFinancialInstitution = FINANCIAL_INSTITUTION_TICKERS.has(company.ticker);
+  const isFinancialInstitution = checkFinancialInstitution(company);
+  const financialMetrics = useMemo(
+    () => (isFinancialInstitution ? computeFinancialSectorMetrics(company) : null),
+    [company, isFinancialInstitution]
+  );
   const evToTrueFcf =
     latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
   const evToRepFcf =
@@ -489,24 +483,65 @@ export function CompanyWorkspace({
           </div>
         </section>
 
-        {/* Financial Institution Guardrail */}
+        {/* Financial Institution / REIT Guardrail & Sector-Specific Metrics */}
         {isFinancialInstitution && (
-          <div className="mt-5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2.5 text-xs text-[var(--text-secondary)]">
-            <strong className="font-semibold text-[var(--amber)]">
-              Financial Institution Note:
-            </strong>{" "}
-            For banks and asset managers, standard Free Cash Flow and Enterprise Value are distorted by customer deposits and loan books. Use the{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab("dcf");
-                setValuationMode("scenario");
-              }}
-              className="font-semibold text-[var(--amber)] underline cursor-pointer"
-            >
-              Earnings (P/E) Scenario Model
-            </button>{" "}
-            and Filing Diffs for cleaner analysis.
+          <div className="mt-5 space-y-3">
+            <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+              <strong className="font-semibold text-[var(--amber)]">
+                Financial Institution &amp; REIT Note:
+              </strong>{" "}
+              For banks, insurers, asset managers, and REITs, standard Free Cash Flow and Enterprise Value are distorted by deposits, loan books, or property debt. Use Book Value, ROE, the{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("dcf");
+                  setValuationMode("scenario");
+                }}
+                className="font-semibold text-[var(--amber)] underline cursor-pointer"
+              >
+                Earnings (P/E) Scenario Model
+              </button>
+              , and Filing Diffs for cleaner analysis.
+            </div>
+            {financialMetrics &&
+              (financialMetrics.priceToBook !== null ||
+                financialMetrics.roePct !== null ||
+                financialMetrics.peRatio !== null) && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                    <div className="text-[11px] text-[var(--text-muted)]">Price / Book</div>
+                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                      {financialMetrics.priceToBook !== null
+                        ? `${financialMetrics.priceToBook.toFixed(2)}×`
+                        : "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                    <div className="text-[11px] text-[var(--text-muted)]">Return on Equity (ROE)</div>
+                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                      {financialMetrics.roePct !== null
+                        ? formatPct(financialMetrics.roePct)
+                        : "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                    <div className="text-[11px] text-[var(--text-muted)]">P/E Multiple</div>
+                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                      {financialMetrics.peRatio !== null
+                        ? `${financialMetrics.peRatio.toFixed(1)}×`
+                        : "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                    <div className="text-[11px] text-[var(--text-muted)]">Book Value / Share</div>
+                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                      {financialMetrics.bookValuePerShare !== null
+                        ? `$${financialMetrics.bookValuePerShare.toFixed(2)}`
+                        : "—"}
+                    </div>
+                  </div>
+                </div>
+              )}
           </div>
         )}
 

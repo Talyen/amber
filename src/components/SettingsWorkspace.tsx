@@ -38,7 +38,23 @@ interface ProfileResponse {
 export function SettingsWorkspace() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
-  const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [profileState, setProfileState] = useState<{
+    userId: string;
+    profile: ProfileResponse | null;
+  } | null>(null);
+  const [alertState, setAlertState] = useState<{
+    userId: string;
+    tickers: string[];
+  } | null>(null);
+  const sessionUserId = session?.user?.id ?? null;
+  const profile =
+    sessionUserId && profileState?.userId === sessionUserId
+      ? profileState.profile
+      : null;
+  const alertTickers =
+    sessionUserId && alertState?.userId === sessionUserId
+      ? alertState.tickers
+      : [];
   const [handle, setHandle] = useState("");
   const [avatarIcon, setAvatarIcon] = useState<AvatarId>("compass");
   const [saving, setSaving] = useState(false);
@@ -48,14 +64,13 @@ export function SettingsWorkspace() {
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const theme = useTheme() ?? "system";
-  const [alertTickers, setAlertTickers] = useState<string[]>([]);
   const [removingAlerts, setRemovingAlerts] = useState<string[]>([]);
+  const [syncingWatchlistAlerts, setSyncingWatchlistAlerts] = useState(false);
+  const [alertStatus, setAlertStatus] = useState("");
   const [alertError, setAlertError] = useState("");
 
   useEffect(() => {
-    if (!session?.user) {
-      setProfile(null);
-      setAlertTickers([]);
+    if (!sessionUserId) {
       return;
     }
     let active = true;
@@ -63,7 +78,7 @@ export function SettingsWorkspace() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data: ProfileResponse | null) => {
         if (!active || !data) return;
-        setProfile(data);
+        setProfileState({ userId: sessionUserId, profile: data });
         if (data.user) {
           setHandle(data.user.handle ?? "");
           setAvatarIcon(normalizeAvatarId(data.user.avatarIcon));
@@ -75,7 +90,7 @@ export function SettingsWorkspace() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { tickers?: string[] } | null) => {
         if (active && Array.isArray(data?.tickers)) {
-          setAlertTickers(data.tickers);
+          setAlertState({ userId: sessionUserId, tickers: data.tickers });
         }
       })
       .catch(() => {});
@@ -83,7 +98,38 @@ export function SettingsWorkspace() {
     return () => {
       active = false;
     };
-  }, [session?.user]);
+  }, [sessionUserId]);
+
+  async function handleSyncWatchlistAlerts() {
+    if (!sessionUserId) return;
+    setSyncingWatchlistAlerts(true);
+    setAlertError("");
+    setAlertStatus("");
+    try {
+      const res = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "watchlist" }),
+      });
+      const data = (await res.json()) as {
+        tickers?: string[];
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setAlertError(data.error ?? "Could not sync watchlist alerts.");
+      } else {
+        if (Array.isArray(data.tickers)) {
+          setAlertState({ userId: sessionUserId, tickers: data.tickers });
+        }
+        setAlertStatus(data.message ?? "Watchlist alerts enabled.");
+      }
+    } catch {
+      setAlertError("Network error while syncing watchlist alerts.");
+    } finally {
+      setSyncingWatchlistAlerts(false);
+    }
+  }
 
   async function handleUnsubscribeAlert(ticker: string) {
     setRemovingAlerts((prev) => [...prev, ticker]);
@@ -93,7 +139,11 @@ export function SettingsWorkspace() {
         method: "DELETE",
       });
       if (res.ok) {
-        setAlertTickers((prev) => prev.filter((t) => t !== ticker));
+        setAlertState((prev) =>
+          prev
+            ? { ...prev, tickers: prev.tickers.filter((t) => t !== ticker) }
+            : prev
+        );
       } else {
         setAlertError(`Could not unsubscribe from ${ticker} filing alerts. Please try again.`);
       }
@@ -123,24 +173,27 @@ export function SettingsWorkspace() {
       if (!res.ok || !data.ok) {
         setError(data.error ?? "Could not save profile.");
       } else {
-        setProfile((prev) =>
-          prev
+        setProfileState((prev) =>
+          prev?.profile
             ? {
                 ...prev,
-                user: prev.user
-                  ? {
-                      ...prev.user,
-                      handle: data.user?.handle ?? handle,
-                      avatarIcon: data.user?.avatarIcon ?? avatarIcon,
-                    }
-                  : prev.user,
-                portfolio: prev.portfolio
-                  ? {
-                      ...prev.portfolio,
-                      handle: data.user?.handle ?? handle,
-                      avatarIcon: data.user?.avatarIcon ?? avatarIcon,
-                    }
-                  : null,
+                profile: {
+                  ...prev.profile,
+                  user: prev.profile.user
+                    ? {
+                        ...prev.profile.user,
+                        handle: data.user?.handle ?? handle,
+                        avatarIcon: data.user?.avatarIcon ?? avatarIcon,
+                      }
+                    : prev.profile.user,
+                  portfolio: prev.profile.portfolio
+                    ? {
+                        ...prev.profile.portfolio,
+                        handle: data.user?.handle ?? handle,
+                        avatarIcon: data.user?.avatarIcon ?? avatarIcon,
+                      }
+                    : null,
+                },
               }
             : prev
         );
@@ -166,7 +219,11 @@ export function SettingsWorkspace() {
         method: "DELETE",
       });
       if (res.ok) {
-        setProfile((prev) => (prev?.portfolio?.id === entryId ? { ...prev, portfolio: null } : prev));
+        setProfileState((prev) =>
+          prev?.profile?.portfolio?.id === entryId
+            ? { ...prev, profile: { ...prev.profile, portfolio: null } }
+            : prev
+        );
         setConfirmWithdraw(false);
       } else {
         setError("Could not withdraw portfolio.");
@@ -346,15 +403,28 @@ export function SettingsWorkspace() {
 
             {/* SEC Filing Alerts */}
             <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-              <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                  SEC Filing Alerts
-                </h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-[var(--amber)]" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                    SEC Filing Alerts
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  disabled={syncingWatchlistAlerts}
+                  onClick={handleSyncWatchlistAlerts}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                >
+                  {syncingWatchlistAlerts ? "Syncing…" : "Enable for Watchlist"}
+                </button>
               </div>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Email notifications when tracked companies file a new 10-K or 10-Q.
               </p>
+              {alertStatus && (
+                <p className="mt-2 text-xs text-[var(--positive)]">{alertStatus}</p>
+              )}
 
               {alertTickers.length === 0 ? (
                 <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-3 text-xs text-[var(--text-muted)]">

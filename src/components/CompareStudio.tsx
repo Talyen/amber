@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
+import { CompareHistoryCharts } from "@/components/CompareHistoryCharts";
+import type { CompareCompanyHistory } from "@/lib/compare-history";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { exportComparisonCard } from "@/lib/export-card";
 import { exportComparisonCsv } from "@/lib/export-csv";
@@ -19,9 +21,14 @@ const PRESETS: Array<{ label: string; tickers: string[] }> = [
 interface CompareStudioProps {
   entries: SearchIndexEntry[];
   initialTickers?: string[];
+  initialHistory?: CompareCompanyHistory[];
 }
 
-export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
+export function CompareStudio({
+  entries,
+  initialTickers,
+  initialHistory = [],
+}: CompareStudioProps) {
   const byTicker = useMemo(
     () => new Map(entries.map((e) => [e.ticker, e])),
     [entries]
@@ -38,19 +45,26 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
 
   // Hydrate ?t=PLTR,SNOW,NOW from URL on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const raw = params.get("t");
-    if (raw) {
-      const matchingTickers = raw
-        .split(",")
-        .map((t) => t.trim().toUpperCase())
-        .filter((t) => byTicker.has(t));
-      const parsed = [...new Set(matchingTickers)].slice(0, 4);
-      if (parsed.length >= 1) {
-        setSelectedTickers(parsed);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("t");
+      if (raw) {
+        const matchingTickers = raw
+          .split(",")
+          .map((t) => t.trim().toUpperCase())
+          .filter((t) => byTicker.has(t));
+        const parsed = [...new Set(matchingTickers)].slice(0, 4);
+        if (parsed.length >= 1) {
+          setSelectedTickers(parsed);
+        }
       }
-    }
-    setRestoredSelection(true);
+      setRestoredSelection(true);
+    });
+    return () => {
+      active = false;
+    };
   }, [byTicker]);
 
   // Keep ?t= synced cleanly for 1-click Share without cluttering clean /compare/[slug] URLs on initial load
@@ -511,6 +525,12 @@ export function CompareStudio({ entries, initialTickers }: CompareStudioProps) {
             </table>
           </div>
         </section>
+
+        <CompareHistoryCharts
+          tickers={selectedTickers}
+          initialHistory={initialHistory}
+        />
+
         <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
           <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
           <div className="flex items-center gap-4">

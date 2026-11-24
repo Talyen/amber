@@ -40,6 +40,7 @@ interface SubmissionsResponse {
 }
 
 interface FilingRef {
+  form: "10-K" | "10-Q";
   accessionNumber: string;
   filingDate: string;
   primaryDocument: string;
@@ -92,7 +93,7 @@ async function fetchSecText(url: string, retries = 2): Promise<string> {
   throw lastErr instanceof Error ? lastErr : new Error(`Failed fetching ${url}`);
 }
 
-async function getLatestTwo10Ks(cik: string): Promise<[FilingRef, FilingRef] | null> {
+async function getLatestPeriodicPair(cik: string): Promise<[FilingRef, FilingRef] | null> {
   const padded = cik.padStart(10, "0");
   const cikNum = String(Number(cik));
   const raw = await fetchSecText(
@@ -103,22 +104,38 @@ async function getLatestTwo10Ks(cik: string): Promise<[FilingRef, FilingRef] | n
   if (!recent) return null;
 
   const tenKs: FilingRef[] = [];
+  const tenQs: FilingRef[] = [];
   for (let i = 0; i < recent.form.length; i++) {
-    if (recent.form[i] === "10-K") {
-      const accn = recent.accessionNumber[i];
-      const doc = recent.primaryDocument[i];
-      const accnNoDash = accn.replace(/-/g, "");
-      tenKs.push({
-        accessionNumber: accn,
-        filingDate: recent.filingDate[i],
-        primaryDocument: doc,
-        url: `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnNoDash}/${doc}`,
-      });
-      if (tenKs.length === 2) break;
-    }
+    const form = recent.form[i];
+    if (form !== "10-K" && form !== "10-Q") continue;
+    const accn = recent.accessionNumber[i];
+    const doc = recent.primaryDocument[i];
+    const accnNoDash = accn.replace(/-/g, "");
+    const ref: FilingRef = {
+      form,
+      accessionNumber: accn,
+      filingDate: recent.filingDate[i],
+      primaryDocument: doc,
+      url: `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnNoDash}/${doc}`,
+    };
+    if (form === "10-K" && tenKs.length < 2) tenKs.push(ref);
+    if (form === "10-Q" && tenQs.length < 2) tenQs.push(ref);
+    if (tenKs.length === 2 && tenQs.length === 2) break;
   }
 
-  return tenKs.length === 2 ? [tenKs[0], tenKs[1]] : null;
+  const latest10K = tenKs[0];
+  const latest10Q = tenQs[0];
+  if (
+    latest10Q &&
+    tenQs.length === 2 &&
+    (!latest10K || latest10Q.filingDate > latest10K.filingDate)
+  ) {
+    return [tenQs[0], tenQs[1]];
+  }
+  if (tenKs.length === 2) {
+    return [tenKs[0], tenKs[1]];
+  }
+  return tenQs.length === 2 ? [tenQs[0], tenQs[1]] : null;
 }
 
 function htmlToCleanText(html: string): string {
@@ -198,7 +215,7 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
 }
 
 interface NovelParagraphPair {
-  section: "Item 1A: Risk Factors" | "Item 7: MD&A";
+  section: "Item 1A: Risk Factors" | "Item 7: MD&A" | "Item 2: MD&A";
   current: string;
   closestPrior: string | null;
   similarity: number;
@@ -213,7 +230,7 @@ interface NovelParagraphPair {
 function findNovelParagraphs(
   currentText: string,
   priorText: string,
-  section: "Item 1A: Risk Factors" | "Item 7: MD&A"
+  section: NovelParagraphPair["section"]
 ): NovelParagraphPair[] {
   const splitParas = (t: string) =>
     t
@@ -286,28 +303,31 @@ function deterministicProseDiff(
   const isCapital =
     kw.includes("capital") || kw.includes("debt") || kw.includes("liquidity");
 
+  const form = currentFiling.form;
+  const formSlug = form.toLowerCase().replace(/[^a-z0-9]/g, "");
+
   return [
     {
-      id: `${ticker.toLowerCase()}-10k-diff-${currentFiling.filingDate}`,
-      filingType: "10-K",
+      id: `${ticker.toLowerCase()}-${formSlug}-diff-${currentFiling.filingDate}`,
+      filingType: form,
       filingDate: currentFiling.filingDate,
       accessionNumber: currentFiling.accessionNumber,
-      section: `${chosen.section} (10-K Text Diff)`,
+      section: `${chosen.section} (${form} Text Diff)`,
       category: isConcentration
         ? "Customer Concentration"
         : isCapital
           ? "Capital Allocation"
           : "Risk Factors",
       materiality: chosen.matchedKeyword ? "High" : "Medium",
-      headline: `New ${kw} disclosure in latest 10-K (${currentFiling.filingDate})`,
-      summary: `Consecutive 10-K comparison (${priorFiling.filingDate} vs. ${currentFiling.filingDate}) detected newly added or materially revised ${chosen.section} language referencing ${kw}.`,
+      headline: `New ${kw} disclosure in latest ${form} (${currentFiling.filingDate})`,
+      summary: `Consecutive ${form} comparison (${priorFiling.filingDate} vs. ${currentFiling.filingDate}) detected newly added or materially revised ${chosen.section} language referencing ${kw}.`,
       priorExcerpt: (
         chosen.closestPrior ??
-        `Prior 10-K (${priorFiling.filingDate}) did not contain equivalent disclosure language in ${chosen.section}.`
+        `Prior ${form} (${priorFiling.filingDate}) did not contain equivalent disclosure language in ${chosen.section}.`
       ).slice(0, 260),
       currentExcerpt: chosen.current.slice(0, 260),
       signalNote:
-        "Extracted deterministically by comparing paragraph-level novelty across consecutive SEC EDGAR 10-K filings.",
+        `Extracted deterministically by comparing paragraph-level novelty across consecutive SEC EDGAR ${form} filings.`,
     },
   ];
 }
@@ -320,30 +340,33 @@ async function llmProseDiff(
 ): Promise<FilingDiffItem[]> {
   if (!GEMINI_API_KEY || novelPairs.length === 0) return [];
 
+  const form = currentFiling.form;
+  const mdaSection = form === "10-Q" ? "Item 2: MD&A" : "Item 7: MD&A";
+
   const digest = novelPairs
     .map(
       (p, idx) =>
         `[CHANGE ${idx + 1} | ${p.section}]\nPRIOR (${priorFiling.filingDate}): ${
-          p.closestPrior ? p.closestPrior.slice(0, 500) : "(No equivalent paragraph in prior 10-K)"
+          p.closestPrior ? p.closestPrior.slice(0, 500) : `(No equivalent paragraph in prior ${form})`
         }\nLATEST (${currentFiling.filingDate}): ${p.current.slice(0, 650)}`
     )
     .join("\n\n");
 
   const prompt = `You are an institutional equity research analyst for Amber.
-Below are the top pre-filtered paragraph-level changes between the PRIOR 10-K (${priorFiling.filingDate}) and LATEST 10-K (${currentFiling.filingDate}) for ${company.name} (${company.ticker}).
+Below are the top pre-filtered paragraph-level changes between the PRIOR ${form} (${priorFiling.filingDate}) and LATEST ${form} (${currentFiling.filingDate}) for ${company.name} (${company.ticker}).
 Return ONLY a valid JSON array of 1 to 2 genuinely material changes for long-term investors (skip routine date updates or generic boilerplate). Each item must match:
 {
-  "section": "Item 1A: Risk Factors" | "Item 7: MD&A",
+  "section": "Item 1A: Risk Factors" | "${mdaSection}",
   "category": "Risk Factors" | "Customer Concentration" | "Executive Comp" | "Capital Allocation",
   "materiality": "High" | "Medium" | "Watch",
   "headline": "Short punchy headline (<= 90 chars, no em-dashes)",
   "summary": "1-2 concise sentences explaining what changed and why it matters.",
-  "priorExcerpt": "Short verbatim excerpt from prior 10-K (<= 220 chars)",
-  "currentExcerpt": "Short verbatim excerpt from latest 10-K (<= 220 chars)",
+  "priorExcerpt": "Short verbatim excerpt from prior ${form} (<= 220 chars)",
+  "currentExcerpt": "Short verbatim excerpt from latest ${form} (<= 220 chars)",
   "signalNote": "One-sentence investor takeaway."
 }
 
-PRE-FILTERED 10-K CHANGES:
+PRE-FILTERED ${form} CHANGES:
 ${digest}`;
 
   const res = await fetch(
@@ -377,7 +400,7 @@ ${digest}`;
   return parsed.slice(0, 2).map((item, idx) => ({
     ...item,
     id: `${company.ticker.toLowerCase()}-llm-${currentFiling.filingDate}-${idx}`,
-    filingType: "10-K",
+    filingType: form,
     filingDate: currentFiling.filingDate,
     accessionNumber: currentFiling.accessionNumber,
   }));
@@ -464,7 +487,7 @@ export async function extractFilingDiffs({
     if (!requestedTickers && processed >= maxTickers) break;
 
     try {
-      const pair = await getLatestTwo10Ks(company.cik);
+      const pair = await getLatestPeriodicPair(company.cik);
       if (!pair) continue;
 
       const [latest, prior] = pair;
@@ -479,7 +502,7 @@ export async function extractFilingDiffs({
       }
 
       console.log(
-        `[amber-diffs] Fetching 10-K pair for ${company.ticker} (${prior.filingDate} -> ${latest.filingDate})...`
+        `[amber-diffs] Fetching ${latest.form} pair for ${company.ticker} (${prior.filingDate} -> ${latest.filingDate})...`
       );
 
       const [latestHtml, priorHtml] = await Promise.all([
@@ -491,7 +514,12 @@ export async function extractFilingDiffs({
       const priorClean = htmlToCleanText(priorHtml);
 
       const riskHeading = /item\s+1a\.?\s*risk\s+factors/gi;
-      const managementHeading = /item\s+7\.?\s*management['’]?s\s+discussion/gi;
+      const managementHeading =
+        latest.form === "10-Q"
+          ? /item\s+2\.?\s*management['’]?s\s+discussion/gi
+          : /item\s+7\.?\s*management['’]?s\s+discussion/gi;
+      const managementLabel: "Item 2: MD&A" | "Item 7: MD&A" =
+        latest.form === "10-Q" ? "Item 2: MD&A" : "Item 7: MD&A";
       const latestRisk = extractSectionSlice(latestClean, riskHeading, 75_000);
       const priorRisk = extractSectionSlice(priorClean, riskHeading, 75_000);
       const latestManagement = extractSectionSlice(latestClean, managementHeading, 60_000);
@@ -500,14 +528,14 @@ export async function extractFilingDiffs({
       const hasUnpairedSection = Boolean(latestRisk) !== Boolean(priorRisk) ||
         Boolean(latestManagement) !== Boolean(priorManagement);
       if (!hasComparableSection || hasUnpairedSection) {
-        console.warn(`[amber-diffs] ! ${company.ticker}: could not pair the 10-K sections.`);
+        console.warn(`[amber-diffs] ! ${company.ticker}: could not pair the ${latest.form} sections.`);
         continue;
       }
 
       const novelItem1A = findNovelParagraphs(latestRisk, priorRisk, "Item 1A: Risk Factors");
-      const novelItem7 = findNovelParagraphs(latestManagement, priorManagement, "Item 7: MD&A");
+      const novelMda = findNovelParagraphs(latestManagement, priorManagement, managementLabel);
 
-      const combinedNovel = [...novelItem1A.slice(0, 4), ...novelItem7.slice(0, 2)];
+      const combinedNovel = [...novelItem1A.slice(0, 4), ...novelMda.slice(0, 2)];
 
       let extracted: FilingDiffItem[] = [];
       let source: "llm" | "text-diff" = "text-diff";

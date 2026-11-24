@@ -4,8 +4,31 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
-import { SEARCH_INDEX, type SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
+
+let cachedSearchIndex: SearchIndexEntry[] | null = null;
+let inFlightSearchIndex: Promise<SearchIndexEntry[] | null> | null = null;
+
+function loadSearchIndex(): Promise<SearchIndexEntry[] | null> {
+  if (cachedSearchIndex) return Promise.resolve(cachedSearchIndex);
+  if (!inFlightSearchIndex) {
+    inFlightSearchIndex = fetch("/api/search-index")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: SearchIndexEntry[] | null) => {
+        if (Array.isArray(data) && data.length > 0) {
+          cachedSearchIndex = data;
+          return data;
+        }
+        return null;
+      })
+      .catch(() => null)
+      .finally(() => {
+        inFlightSearchIndex = null;
+      });
+  }
+  return inFlightSearchIndex;
+}
 
 interface CommandSearchProps {
   variant?: "nav" | "hero";
@@ -14,13 +37,20 @@ interface CommandSearchProps {
 
 export function CommandSearch({
   variant = "nav",
-  initialEntries = SEARCH_INDEX,
+  initialEntries,
 }: CommandSearchProps) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const lightDismiss = useDialogLightDismiss(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [entries, setEntries] = useState<SearchIndexEntry[]>(initialEntries);
+  const [entries, setEntries] = useState<SearchIndexEntry[]>(() => {
+    if (initialEntries && initialEntries.length > 0) {
+      cachedSearchIndex = initialEntries;
+      return initialEntries;
+    }
+    return cachedSearchIndex ?? [];
+  });
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -56,16 +86,14 @@ export function CommandSearch({
 
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      fetch("/api/search-index")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data: SearchIndexEntry[] | null) => {
-          if (Array.isArray(data) && data.length > 0) {
+      if (!cachedSearchIndex) setLoading(true);
+      loadSearchIndex()
+        .then((data) => {
+          if (data && data.length > 0) {
             setEntries(data);
           }
         })
-        .catch(() => {
-          // Keep the bundled search index on network error.
-        });
+        .finally(() => setLoading(false));
     }
 
     dialog.showModal();
@@ -142,7 +170,11 @@ export function CommandSearch({
         >
           <span className="inline-flex items-center gap-2.5">
             <Search className="h-4 w-4 text-[var(--amber)]" />
-            <span>Search {entries.length} SEC-verified companies…</span>
+            <span>
+              {entries.length > 0
+                ? `Search ${entries.length} SEC-verified companies…`
+                : "Search SEC-verified companies…"}
+            </span>
           </span>
           <kbd className="font-mono-num rounded border border-[var(--border)] bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]">
             ⌘K
@@ -190,7 +222,11 @@ export function CommandSearch({
         </div>
 
         <div className="max-h-[380px] overflow-y-auto p-2">
-          {results.length === 0 ? (
+          {loading && results.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+              Loading SEC-indexed companies…
+            </div>
+          ) : results.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
               No SEC-indexed companies match &ldquo;{query}&rdquo;.
             </div>

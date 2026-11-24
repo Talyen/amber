@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Flame } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
 interface NotableSignalsFeedProps {

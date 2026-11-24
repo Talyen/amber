@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getSearchIndex } from "@/data/repository";
+import { getCompanySnapshot, getSearchIndex } from "@/data/repository";
 import { CompareStudio } from "@/components/CompareStudio";
 import { POPULAR_COMPARE_SLUGS, resolveComparisonTickers } from "@/lib/compare";
+import { buildCompareCompanyHistory } from "@/lib/compare-history";
 
 export const revalidate = 86400;
 export const dynamicParams = true;
@@ -42,5 +43,16 @@ export default async function HeadToHeadComparePage({
   const initialTickers = resolveComparisonTickers(slug, new Set(entries.map((entry) => entry.ticker)));
   if (initialTickers.length === 0) notFound();
 
-  return <CompareStudio entries={entries} initialTickers={initialTickers} />;
+  const snapshots = await Promise.all(initialTickers.map((t) => getCompanySnapshot(t)));
+  const initialHistory = snapshots
+    .filter((c): c is NonNullable<typeof c> => Boolean(c))
+    .map(buildCompareCompanyHistory);
+
+  return (
+    <CompareStudio
+      entries={entries}
+      initialTickers={initialTickers}
+      initialHistory={initialHistory}
+    />
+  );
 }

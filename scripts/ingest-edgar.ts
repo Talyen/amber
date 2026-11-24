@@ -901,12 +901,21 @@ function extractQuarterlySeries(
 export function hasNewCoverageInputs(snapshot: EdgarSnapshot, now = Date.now()): boolean {
   const latestAnnual = snapshot.annuals.findLast((row) => row.fiscalYear !== "TTM");
   const sic = snapshot.sic;
-  // Banks, insurers, REITs, and oil & gas producers require different financial inputs.
-  if (!sic || (sic >= 6000 && sic < 6800) || sic === 1311) return false;
-  if (snapshot.edgarFallback || !latestAnnual?.periodEndDate || snapshot.cashAndEquiv <= 0) return false;
+  if (!sic || sic === 1311) return false;
+  if (snapshot.edgarFallback || !latestAnnual?.periodEndDate) return false;
   const age = now - Date.parse(latestAnnual.periodEndDate);
-  return age >= 0 && age <= 550 * DAY_MS &&
-    latestAnnual.capex > 0 && (snapshot.marketCapShares ?? 0) > 0;
+  if (age < 0 || age > 550 * DAY_MS || (snapshot.marketCapShares ?? 0) <= 0) return false;
+
+  // Financials, insurers, and REITs rely on book equity + net income rather than industrial CapEx.
+  if (sic >= 6000 && sic < 6800) {
+    return (
+      typeof latestAnnual.stockholdersEquity === "number" &&
+      latestAnnual.stockholdersEquity > 0 &&
+      typeof latestAnnual.netIncome === "number"
+    );
+  }
+
+  return snapshot.cashAndEquiv > 0 && latestAnnual.capex > 0;
 }
 
 export async function ingestCandidate(
@@ -951,53 +960,80 @@ export async function ingestCandidate(
       "shares",
       false
     );
+    const GROSS_PROFIT_TAGS = ["GrossProfit"];
+    const COST_OF_REVENUE_TAGS = [
+      "CostOfGoodsAndServicesSold",
+      "CostOfRevenue",
+      "CostOfGoodsSold",
+      "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+      "CostOfGoodsAndServicesExcludingDepreciationDepletionAndAmortization",
+      "CostOfServices",
+      "CostOfProducts",
+      "DirectOperatingCosts",
+      "CostOfSales",
+    ];
+    const RD_TAGS = [
+      "ResearchAndDevelopmentExpense",
+      "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+      "ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost",
+      "TechnologyAndContentExpense",
+    ];
+    const SGA_TAGS = [
+      "SellingGeneralAndAdministrativeExpense",
+      "GeneralAndAdministrativeExpense",
+      "SellingAndMarketingExpense",
+    ];
+    const OPERATING_INCOME_TAGS = [
+      "OperatingIncomeLoss",
+      "ProfitLossFromOperatingActivities",
+    ];
+    const NET_INCOME_TAGS = [
+      "NetIncomeLoss",
+      "ProfitLoss",
+      "NetIncomeLossAvailableToCommonStockholdersBasic",
+    ];
+    const EQUITY_TAGS = [
+      "StockholdersEquity",
+      "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ];
+
     const grossProfitMap = extractAnnualSeries(
       facts,
-      ["GrossProfit"],
+      GROSS_PROFIT_TAGS,
       "USD"
     );
     const costOfRevMap = extractAnnualSeries(
       facts,
-      [
-        "CostOfGoodsAndServicesSold",
-        "CostOfRevenue",
-        "CostOfGoodsSold",
-        "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
-      ],
+      COST_OF_REVENUE_TAGS,
       "USD"
     );
     const rdMap = extractAnnualSeries(
       facts,
-      [
-        "ResearchAndDevelopmentExpense",
-        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
-      ],
+      RD_TAGS,
       "USD"
     );
     const sgaMap = extractAnnualSeries(
       facts,
-      [
-        "SellingGeneralAndAdministrativeExpense",
-        "GeneralAndAdministrativeExpense",
-      ],
+      SGA_TAGS,
       "USD"
     );
     const opIncMap = extractAnnualSeries(
       facts,
-      ["OperatingIncomeLoss"],
+      OPERATING_INCOME_TAGS,
       "USD"
     );
     const netIncMap = extractAnnualSeries(
       facts,
-      ["NetIncomeLoss"],
+      NET_INCOME_TAGS,
       "USD"
     );
     const equityMap = extractAnnualSeries(
       facts,
-      ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+      EQUITY_TAGS,
       "USD",
       false
     );
+    const equityInstantSeries = instantSeries(facts, EQUITY_TAGS, "USD");
     const balanceSheet = balanceSheetByPeriod(facts);
     const latestEndByYear = new Map(
       [...revMap.keys()].filter((end) => ocfMap.has(end)).sort()
@@ -1130,17 +1166,12 @@ export async function ingestCandidate(
           )
         );
 
-        const gpQ = getQuarterPair(["GrossProfit"]);
-        const corQ = getQuarterPair([
-          "CostOfGoodsAndServicesSold",
-          "CostOfRevenue",
-          "CostOfGoodsSold",
-          "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
-        ]);
-        const opIncQ = getQuarterPair(["OperatingIncomeLoss"]);
-        const netIncQ = getQuarterPair(["NetIncomeLoss"]);
-        const rdQ = getQuarterPair(["ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"]);
-        const sgaQ = getQuarterPair(["SellingGeneralAndAdministrativeExpense", "GeneralAndAdministrativeExpense"]);
+        const gpQ = getQuarterPair(GROSS_PROFIT_TAGS);
+        const corQ = getQuarterPair(COST_OF_REVENUE_TAGS);
+        const opIncQ = getQuarterPair(OPERATING_INCOME_TAGS);
+        const netIncQ = getQuarterPair(NET_INCOME_TAGS);
+        const rdQ = getQuarterPair(RD_TAGS);
+        const sgaQ = getQuarterPair(SGA_TAGS);
 
         const ttmGp =
           latestAnnual.grossProfit != null
@@ -1172,6 +1203,14 @@ export async function ingestCandidate(
             ? Math.max(0, Math.round(latestAnnual.sgaExpense + (Math.abs(sgaQ.currentVal) - Math.abs(sgaQ.priorVal)) / 1e6))
             : null;
 
+        const ttmEquityEntry =
+          equityInstantSeries.get(revQ.window.end) ??
+          [...equityInstantSeries.values()]
+            .filter((entry) => entry.end <= revQ.window.end)
+            .sort((a, b) => b.end.localeCompare(a.end))[0];
+        const ttmBalance = balanceSheet.at(revQ.window.end);
+        const ttmSupplement = supplements?.[revQ.window.end];
+
         annuals.push({
           fiscalYear: "TTM",
           periodEndDate: revQ.window.end,
@@ -1189,6 +1228,12 @@ export async function ingestCandidate(
           sgaExpense: ttmSga,
           operatingIncome: ttmOpInc,
           netIncome: ttmNetInc,
+          stockholdersEquity:
+            ttmEquityEntry !== undefined
+              ? Math.round(ttmEquityEntry.val / 1e6)
+              : latestAnnual.stockholdersEquity ?? null,
+          cashAndEquiv: ttmSupplement?.cashAndEquiv ?? ttmBalance.cashAndEquiv,
+          totalDebt: ttmSupplement?.totalDebt ?? ttmBalance.totalDebt,
         });
         financialFiling = revQ.filing;
       }
@@ -1234,7 +1279,13 @@ export async function ingestCandidate(
       cik: candidate.cik,
       name: cleanCompanyName(curated?.name ?? candidate.name),
       exchange: candidate.exchange,
-      sector: meta?.sector ?? inferSector(candidate.name, candidate.ticker),
+      sector:
+        meta?.sector ??
+        (sic && (sic === 6798 || (sic >= 6500 && sic < 6600))
+          ? "Real Estate & REITs"
+          : sic && sic >= 6000 && sic < 6800
+            ? "Financials"
+            : inferSector(candidate.name, candidate.ticker)),
       tagline:
         meta?.tagline ??
         curated?.tagline ??

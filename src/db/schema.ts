@@ -315,3 +315,27 @@ export const userWatchlists = pgTable(
   },
   (table) => [index("user_watchlist_user_idx").on(table.userId)]
 );
+
+export const userValuationPresets = pgTable(
+  "user_valuation_presets",
+  {
+    id: text("id").primaryKey(), // `${userId}:${ticker}`
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ticker: text("ticker")
+      .notNull()
+      .references(() => companies.ticker, { onDelete: "cascade" }),
+    lens: text("lens").notNull().default("fcf"), // "fcf" | "ebit" | "pe"
+    revGrowth: doublePrecision("rev_growth").notNull(),
+    targetMargin: doublePrecision("target_margin").notNull(),
+    exitMultiple: doublePrecision("exit_multiple").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_valuation_presets_user_ticker_idx").on(table.userId, table.ticker),
+    index("user_valuation_presets_user_idx").on(table.userId),
+  ]
+);

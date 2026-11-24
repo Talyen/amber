@@ -11,6 +11,12 @@ import {
   formatPct,
 } from "@/lib/finance";
 import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
+import {
+  readLocalValuationPreset,
+  writeLocalValuationPreset,
+  type SavedValuationPreset,
+} from "@/lib/valuation-presets";
+import { authClient } from "@/lib/auth-client";
 
 interface ScenarioBuilderProps {
   company: CompanySnapshot;
@@ -109,47 +115,120 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const baseMargin = lensDefaults.margin;
   const baseMultiple = lensDefaults.multiple;
 
+  const { data: session } = authClient.useSession();
   const [revGrowth, setRevGrowth] = useState(histGrowth);
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
   const [fromSharedLink, setFromSharedLink] = useState(false);
   const [copiedThesis, setCopiedThesis] = useState(false);
+  const [savedThesis, setSavedThesis] = useState(false);
 
   // Hydrate shared thesis query params (?tab=dcf&lens=fcf&rev=15&m=28&exit=22)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const lensParam = params.get("lens");
-    const revParam = readScenarioInput(params, "rev", GROWTH_RANGE);
-    const mParam = readScenarioInput(params, "m", MARGIN_RANGE);
-    const exitParam = readScenarioInput(params, "exit", MULTIPLE_RANGE);
-    let loaded = false;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const params = new URLSearchParams(window.location.search);
+      const lensParam = params.get("lens");
+      const revParam = readScenarioInput(params, "rev", GROWTH_RANGE);
+      const mParam = readScenarioInput(params, "m", MARGIN_RANGE);
+      const exitParam = readScenarioInput(params, "exit", MULTIPLE_RANGE);
+      let loaded = false;
 
-    if (
-      (lensParam === "fcf" ||
-        (lensParam === "ebit" && hasEbit) ||
-        (lensParam === "pe" && hasPe))
-    ) {
-      setLens(lensParam);
-      loaded = true;
+      if (
+        (lensParam === "fcf" ||
+          (lensParam === "ebit" && hasEbit) ||
+          (lensParam === "pe" && hasPe))
+      ) {
+        setLens(lensParam);
+        loaded = true;
+      }
+      if (revParam !== undefined) {
+        setRevGrowth(revParam);
+        loaded = true;
+      }
+      if (mParam !== undefined) {
+        setTargetMargin(mParam);
+        loaded = true;
+      }
+      if (exitParam !== undefined) {
+        setExitMultiple(exitParam);
+        loaded = true;
+      }
+      if (loaded) {
+        setActivePreset("custom");
+        setFromSharedLink(true);
+        return;
+      }
+
+      const local = readLocalValuationPreset(company.ticker);
+      if (local) {
+        if (
+          local.lens === "fcf" ||
+          (local.lens === "ebit" && hasEbit) ||
+          (local.lens === "pe" && hasPe)
+        ) {
+          setLens(local.lens);
+        }
+        setRevGrowth(local.revGrowth);
+        setTargetMargin(local.targetMargin);
+        setExitMultiple(local.exitMultiple);
+        setActivePreset("custom");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [company.ticker, hasEbit, hasPe]);
+
+  useEffect(() => {
+    if (!session?.user?.id || fromSharedLink) return;
+    let active = true;
+    fetch(`/api/valuation-presets?ticker=${encodeURIComponent(company.ticker)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { preset?: SavedValuationPreset | null } | null) => {
+        const preset = data?.preset;
+        if (!active || !preset) return;
+        writeLocalValuationPreset(preset);
+        if (
+          preset.lens === "fcf" ||
+          (preset.lens === "ebit" && hasEbit) ||
+          (preset.lens === "pe" && hasPe)
+        ) {
+          setLens(preset.lens);
+        }
+        setRevGrowth(preset.revGrowth);
+        setTargetMargin(preset.targetMargin);
+        setExitMultiple(preset.exitMultiple);
+        setActivePreset("custom");
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id, company.ticker, fromSharedLink, hasEbit, hasPe]);
+
+  async function handleSaveThesis() {
+    const payload: SavedValuationPreset = {
+      ticker: company.ticker,
+      lens,
+      revGrowth,
+      targetMargin,
+      exitMultiple,
+      updatedAt: new Date().toISOString(),
+    };
+    writeLocalValuationPreset(payload);
+    setSavedThesis(true);
+    window.setTimeout(() => setSavedThesis(false), 1800);
+    if (session?.user?.id) {
+      fetch("/api/valuation-presets", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
     }
-    if (revParam !== undefined) {
-      setRevGrowth(revParam);
-      loaded = true;
-    }
-    if (mParam !== undefined) {
-      setTargetMargin(mParam);
-      loaded = true;
-    }
-    if (exitParam !== undefined) {
-      setExitMultiple(exitParam);
-      loaded = true;
-    }
-    if (loaded) {
-      setActivePreset("custom");
-      setFromSharedLink(true);
-    }
-  }, [hasEbit, hasPe]);
+  }
 
   async function handleCopyThesisLink() {
     const url = new URL(window.location.href);
@@ -318,23 +397,39 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               Pick a preset or drag 3 simple sliders to see your expected annual return.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleCopyThesisLink}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
-          >
-            {copiedThesis ? (
-              <>
-                <Check className="h-3 w-3 text-[var(--positive)]" />
-                Copied Link
-              </>
-            ) : (
-              <>
-                <Link2 className="h-3 w-3" />
-                Share Thesis
-              </>
-            )}
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleSaveThesis}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              {savedThesis ? (
+                <>
+                  <Check className="h-3 w-3 text-[var(--positive)]" />
+                  Saved
+                </>
+              ) : (
+                "Save Thesis"
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyThesisLink}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+            >
+              {copiedThesis ? (
+                <>
+                  <Check className="h-3 w-3 text-[var(--positive)]" />
+                  Copied Link
+                </>
+              ) : (
+                <>
+                  <Link2 className="h-3 w-3" />
+                  Share Thesis
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Valuation Methodology Selector */}

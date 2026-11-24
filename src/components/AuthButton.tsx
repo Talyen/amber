@@ -60,13 +60,33 @@ export function AuthButton() {
   const [submitting, setSubmitting] = useState<"google" | "github" | null>(null);
   const [error, setError] = useState("");
   const [providers, setProviders] = useState<ProviderAvailability | null>(null);
-  const [userHandle, setUserHandle] = useState<string>("");
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileState, setProfileState] = useState<{
+    userId: string;
+    handle: string;
+    loaded: boolean;
+  }>(() => {
+    try {
+      const cached =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("amber-profile-handle") ?? ""
+          : "";
+      return { userId: "", handle: cached, loaded: Boolean(cached) };
+    } catch {
+      return { userId: "", handle: "", loaded: false };
+    }
+  });
+
+  const sessionUserId = session?.user?.id ?? null;
+  const userHandle =
+    sessionUserId && (profileState.userId === sessionUserId || profileState.userId === "")
+      ? profileState.handle
+      : "";
+  const profileLoaded =
+    Boolean(sessionUserId) &&
+    (profileState.userId === sessionUserId || (profileState.userId === "" && profileState.loaded));
 
   useEffect(() => {
-    if (!session?.user) {
-      setUserHandle("");
-      setProfileLoaded(false);
+    if (!sessionUserId) {
       try {
         window.localStorage.removeItem("amber-profile-handle");
       } catch {
@@ -75,24 +95,12 @@ export function AuthButton() {
       return;
     }
 
-    // Hydrate cached handle immediately so the label never flashes "Settings" -> username
-    try {
-      const cached = window.localStorage.getItem("amber-profile-handle");
-      if (cached) {
-        setUserHandle(cached);
-        setProfileLoaded(true);
-      }
-    } catch {
-      // Ignore storage errors
-    }
-
     const fetchProfile = () => {
       fetch("/api/account/profile")
         .then((res) => (res.ok ? res.json() : null))
         .then((data: { user?: { handle?: string } } | null) => {
           const next = data?.user?.handle ?? "";
-          setUserHandle(next);
-          setProfileLoaded(true);
+          setProfileState({ userId: sessionUserId, handle: next, loaded: true });
           try {
             if (next) {
               window.localStorage.setItem("amber-profile-handle", next);
@@ -104,13 +112,17 @@ export function AuthButton() {
           }
         })
         .catch(() => {
-          setProfileLoaded(true);
+          setProfileState((prev) => ({
+            userId: sessionUserId,
+            handle: prev.userId === sessionUserId ? prev.handle : "",
+            loaded: true,
+          }));
         });
     };
     fetchProfile();
     window.addEventListener("amber:profile-updated", fetchProfile);
     return () => window.removeEventListener("amber:profile-updated", fetchProfile);
-  }, [session?.user]);
+  }, [sessionUserId]);
 
   function openModal() {
     const dialog = dialogRef.current;

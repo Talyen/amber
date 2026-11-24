@@ -14,7 +14,7 @@ import {
   Percent,
   Trophy,
 } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { authClient } from "@/lib/auth-client";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
@@ -44,48 +44,61 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [dollars, setDollars] = useState<Record<string, number>>({});
   const [sharedTickers, setSharedTickers] = useState<string[] | null>(null);
-  const [myArena, setMyArena] = useState<{
-    id: string;
-    title: string;
-    handle: string;
-    nav: number;
+  const [myArenaState, setMyArenaState] = useState<{
+    userId: string;
+    portfolio: {
+      id: string;
+      title: string;
+      handle: string;
+      nav: number;
+    } | null;
   } | null>(null);
+  const sessionUserId = session?.user?.id ?? null;
+  const myArena =
+    sessionUserId && myArenaState?.userId === sessionUserId
+      ? myArenaState.portfolio
+      : null;
   const [initialLocation, setInitialLocation] = useState<{ addTicker?: string } | null>(null);
 
   // Fetch signed-in user's Arena status banner
   useEffect(() => {
-    if (!session?.user) {
-      setMyArena(null);
+    if (!sessionUserId) {
       return;
     }
     let active = true;
     fetch("/api/arena/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { portfolio?: { id: string; title: string; handle: string; nav: number } | null } | null) => {
-        if (active) setMyArena(data?.portfolio ?? null);
+        if (active) setMyArenaState({ userId: sessionUserId, portfolio: data?.portfolio ?? null });
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [session?.user]);
+  }, [sessionUserId]);
 
   // Hydrate shareable ?h=AAPL:25,MSFT:25 or ?add=NVDA URL on mount
   useEffect(() => {
     if (initialLocation) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const raw = params.get("h");
-    if (raw !== null) {
-      const parsed = parsePortfolioHoldings(raw, byTicker);
-      if (parsed.size > 0 || raw === "") {
-        setSharedTickers([...parsed.keys()]);
-        setWeights(Object.fromEntries(parsed));
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("h");
+      if (raw !== null) {
+        const parsed = parsePortfolioHoldings(raw, byTicker);
+        if (parsed.size > 0 || raw === "") {
+          setSharedTickers([...parsed.keys()]);
+          setWeights(Object.fromEntries(parsed));
+        }
       }
-    }
 
-    const addTicker = params.get("add")?.trim().toUpperCase();
-    setInitialLocation({ addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined });
+      const addTicker = params.get("add")?.trim().toUpperCase();
+      setInitialLocation({ addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined });
+    });
+    return () => {
+      active = false;
+    };
   }, [byTicker, initialLocation]);
 
   const addTicker = initialLocation?.addTicker;

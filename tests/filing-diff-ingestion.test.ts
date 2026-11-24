@@ -79,3 +79,46 @@ test("a missed prior section does not publish unchanged prose or cache the compa
   await extractFilingDiffs({ directory, databaseUrl: "" });
   assert.deepEqual((await cache()).ABC.diffs, []);
 });
+
+test("extracts 10-Q prose diffs when a 10-Q is newer than the latest 10-K", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "amber-filing-diffs-10q-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(join(directory, "companies.json"), JSON.stringify([
+    { ticker: "QCO", cik: "3", name: "Quarterly Corp", marketCap: 500, filingDiffs: [] },
+  ]));
+
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    if (url.includes("/submissions/")) {
+      return Response.json({
+        filings: {
+          recent: {
+            form: ["10-Q", "10-Q", "10-K", "10-K"],
+            accessionNumber: [
+              "0000000003-26-000003",
+              "0000000003-26-000002",
+              "0000000003-26-000001",
+              "0000000003-25-000001",
+            ],
+            filingDate: ["2026-08-05", "2026-05-05", "2026-02-01", "2025-02-01"],
+            primaryDocument: ["q2.htm", "q1.htm", "k26.htm", "k25.htm"],
+          },
+        },
+      });
+    }
+    if (url.endsWith("q2.htm")) {
+      return new Response(
+        "<h2>Item 2. Management's Discussion</h2><p>During the quarter we experienced substantial tariff and supply chain disruption across our primary contract manufacturing facilities in Southeast Asia, increasing component procurement costs and compressing gross margins across our flagship enterprise hardware lines.</p>"
+      );
+    }
+    return new Response(
+      "<h2>Item 2. Management's Discussion</h2><p>Operations during the prior quarter remained stable with predictable fulfillment schedules, balanced inventory levels, and steady commercial demand across North American enterprise accounts.</p>"
+    );
+  });
+
+  await extractFilingDiffs({ directory, databaseUrl: "" });
+  const cacheData = JSON.parse(await readFile(join(directory, "filing-diffs-cache.json"), "utf8"));
+  assert.equal(cacheData.QCO.accessionNumber, "0000000003-26-000003");
+  assert.equal(cacheData.QCO.diffs.length, 1);
+  assert.equal(cacheData.QCO.diffs[0].filingType, "10-Q");
+  assert.match(cacheData.QCO.diffs[0].section, /Item 2: MD&A/);
+});

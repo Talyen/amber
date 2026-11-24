@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import {
   computeAnnualMetrics,
   computeEnterpriseValue,
+  computeFinancialSectorMetrics,
   computeFiveYearScenario,
   computeGroundedDefaultDcf,
   computeLatestRevenueGrowth,
   computeNetDilutionCagr,
   computeRevenueCagr,
+  isFinancialInstitution,
   reverseDcfTargetMargin,
   solveReverseDcf,
   type AnnualFinancials,
@@ -203,5 +205,24 @@ describe("Amber finance engine", () => {
     });
     assert.ok(scenario.fairValueToday > 0);
     assert.ok(Number.isFinite(scenario.irrPct));
+  });
+
+  it("computes Financials & REIT valuation metrics (P/B, ROE, P/E, Book Value/Share)", () => {
+    assert.equal(isFinancialInstitution({ ticker: "JPM", sector: "Fintech & Data" }), true);
+    assert.equal(isFinancialInstitution({ ticker: "PLD", sector: "Real Estate & REITs" }), true);
+    assert.equal(isFinancialInstitution({ ticker: "NVDA", sector: "Semiconductors" }), false);
+
+    const metrics = computeFinancialSectorMetrics({
+      marketCap: 200_000,
+      annuals: [
+        { ...sampleAnnuals[0], stockholdersEquity: 80_000, netIncome: 12_000, dilutedShares: 1_000 },
+        { ...sampleAnnuals[2], stockholdersEquity: 100_000, netIncome: 16_000, dilutedShares: 1_000 },
+      ],
+    });
+    assert.equal(metrics.priceToBook, 2);
+    assert.equal(metrics.roePct, 16);
+    assert.equal(metrics.peRatio, 12.5);
+    assert.equal(metrics.bookValuePerShare, 100);
+    assert.ok(metrics.equityCagrPct !== null && metrics.equityCagrPct > 0);
   });
 });

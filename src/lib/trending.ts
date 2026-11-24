@@ -3,7 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { arenaPositions, insiderTrades, userWatchlists } from "@/db/schema";
 import { getSearchIndex } from "@/data/repository";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 
 export interface TrendingTickerItem {
   ticker: string;

@@ -485,3 +485,102 @@ export function formatPct(value: number, showSign = false, decimals = 1): string
   const sign = showSign && value > 0 ? "+" : "";
   return `${sign}${value.toFixed(decimals)}%`;
 }
+
+export const FINANCIAL_INSTITUTION_TICKERS = new Set([
+  "JPM",
+  "GS",
+  "MS",
+  "BAC",
+  "WFC",
+  "C",
+  "AXP",
+  "BX",
+  "KKR",
+  "BLK",
+  "SCHW",
+  "COF",
+  "USB",
+  "PNC",
+  "TFC",
+  "AMP",
+  "CB",
+  "PGR",
+  "TRV",
+  "MET",
+  "PRU",
+  "AIG",
+  "ALL",
+]);
+
+export function isFinancialInstitution(
+  company: Pick<CompanySnapshot, "ticker" | "sector">
+): boolean {
+  return (
+    FINANCIAL_INSTITUTION_TICKERS.has(company.ticker) ||
+    company.sector === "Financials" ||
+    company.sector === "Real Estate & REITs"
+  );
+}
+
+export interface FinancialSectorMetrics {
+  priceToBook: number | null;
+  roePct: number | null;
+  peRatio: number | null;
+  bookValuePerShare: number | null;
+  equityCagrPct: number | null;
+  stockholdersEquity: number | null;
+}
+
+export function computeFinancialSectorMetrics(
+  company: Pick<CompanySnapshot, "marketCap" | "annuals">
+): FinancialSectorMetrics {
+  const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
+  const latestWithEquity =
+    [...company.annuals].reverse().find((a) => typeof a.stockholdersEquity === "number" && a.stockholdersEquity > 0) ??
+    null;
+  const latestWithNetIncome =
+    [...company.annuals].reverse().find((a) => typeof a.netIncome === "number") ??
+    null;
+
+  const equity = latestWithEquity?.stockholdersEquity ?? null;
+  const netIncome = latestWithNetIncome?.netIncome ?? null;
+  const shares = latestWithEquity?.dilutedShares ?? company.annuals.at(-1)?.dilutedShares ?? 0;
+
+  const priceToBook =
+    equity && equity > 0 && company.marketCap > 0
+      ? company.marketCap / equity
+      : null;
+  const roePct =
+    equity && equity > 0 && netIncome !== null
+      ? (netIncome / equity) * 100
+      : null;
+  const peRatio =
+    netIncome && netIncome > 0 && company.marketCap > 0
+      ? company.marketCap / netIncome
+      : null;
+  const bookValuePerShare =
+    equity && equity > 0 && shares > 0 ? equity / shares : null;
+
+  const equityFy = fyOnly.filter(
+    (a) => typeof a.stockholdersEquity === "number" && a.stockholdersEquity > 0
+  );
+  let equityCagrPct: number | null = null;
+  if (equityFy.length >= 2) {
+    const first = equityFy[0];
+    const last = equityFy[equityFy.length - 1];
+    const years = fiscalYearsBetween(first, last);
+    if (years && years > 0 && first.stockholdersEquity! > 0 && last.stockholdersEquity! > 0) {
+      equityCagrPct =
+        (Math.pow(last.stockholdersEquity! / first.stockholdersEquity!, 1 / years) - 1) * 100;
+    }
+  }
+
+  return {
+    priceToBook,
+    roePct,
+    peRatio,
+    bookValuePerShare,
+    equityCagrPct,
+    stockholdersEquity: equity,
+  };
+}

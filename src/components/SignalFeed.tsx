@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, ArrowUpRight, FileDiff, Flame, Radar, Star, X } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/universe";
+import type { SearchIndexEntry } from "@/data/search-index";
 import type {
   MarketFilingDiffItem,
   MarketInsiderFeedItem,
@@ -127,12 +127,8 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
   const [news, setNews] = useState<{ url: string; items: HeadlineItem[] } | null>(null);
   const [trending, setTrending] = useState<TrendingTickerItem[]>([]);
   const [showAllHeadlines, setShowAllHeadlines] = useState(false);
+  const [nowMs] = useState(() => Date.now());
   const hasWatchlist = watchlist.tickers.length > 0;
-
-  useEffect(() => {
-    if (hasWatchlist) setScope((selected) => selected ?? "watchlist");
-  }, [hasWatchlist]);
-
   const watchlistOnly = scope === "watchlist" || (scope === null && hasWatchlist);
 
   const newsQueryUrl = useMemo(() => {
@@ -192,9 +188,9 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
         const last = Date.parse(e.lastFilingDate);
         const estNextMs = Number.isFinite(last)
           ? last + 91 * 86400 * 1000
-          : Date.now();
+          : nowMs;
         const estDate = new Date(estNextMs).toISOString().slice(0, 10);
-        const daysAway = Math.round((estNextMs - Date.now()) / 86400000);
+        const daysAway = Math.round((estNextMs - nowMs) / 86400000);
         return {
           ticker: e.ticker,
           name: cleanEntity(e.name),
@@ -205,7 +201,7 @@ export function SignalFeed({ entries, insiders, diffs = [] }: SignalFeedProps) {
       .filter((x) => x.daysAway >= -5 && x.daysAway <= 75)
       .sort((a, b) => a.daysAway - b.daysAway)
       .slice(0, 6);
-  }, [entries, watchlist, watchlistOnly, selectedTicker]);
+  }, [entries, watchlist, watchlistOnly, selectedTicker, nowMs]);
 
   const recentFilings = useMemo(
     () =>

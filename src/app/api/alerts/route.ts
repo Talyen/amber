@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { cancelPendingConfirmation, requestAlertConfirmation, saveVerifiedAlert } from "@/data/alert-subscriptions";
 import { getDb } from "@/db";
-import { alertSubscriptions, companies } from "@/db/schema";
+import { alertSubscriptions, companies, userWatchlists } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { alertActionUrl, defaultAlertSender, escapeAlertHtml, filingAlertEmailIsVerified, sendAlertEmail } from "@/lib/alert-email";
 import { SITE_URL } from "@/lib/site";
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
  * Subscribe an email to SEC 10-K / 10-Q filing alerts for a validated ticker.
  */
 export async function POST(request: Request) {
-  let body: { email?: string; ticker?: string } | null;
+  let body: { email?: string; ticker?: string; scope?: string } | null;
   try {
     body = await request.json();
   } catch {
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  let account: { email: string; emailVerified: boolean } | undefined;
+  let account: { id?: string; email: string; emailVerified: boolean } | undefined;
   if (db) {
     try {
       const session = await getAuth().api.getSession({ headers: request.headers });
@@ -79,6 +79,58 @@ export async function POST(request: Request) {
     } catch {
       // Email confirmation is available without an authenticated session.
     }
+  }
+
+  // Batch watchlist alert subscription for authenticated verified-email accounts
+  if (body?.scope === "watchlist") {
+    if (!db) {
+      return NextResponse.json(
+        { error: "Filing alerts are currently unavailable. Please try again later." },
+        { status: 503 }
+      );
+    }
+    const email = account?.email?.trim().toLowerCase() ?? "";
+    if (!account?.id || !email || !filingAlertEmailIsVerified(email, account)) {
+      return NextResponse.json(
+        { error: "Sign in with a verified email to enable watchlist filing alerts." },
+        { status: 401 }
+      );
+    }
+
+    const watchlistRows = await db
+      .select({ ticker: userWatchlists.ticker })
+      .from(userWatchlists)
+      .where(eq(userWatchlists.userId, account.id))
+      .limit(50);
+
+    const existingRows = await db
+      .select({ ticker: alertSubscriptions.ticker })
+      .from(alertSubscriptions)
+      .where(
+        and(
+          eq(alertSubscriptions.email, email),
+          isNull(alertSubscriptions.confirmationExpiresAt)
+        )
+      );
+    const existingSet = new Set(existingRows.map((r) => r.ticker));
+    const toAdd = watchlistRows
+      .map((r) => r.ticker)
+      .filter((t) => TICKER_RE.test(t) && !existingSet.has(t));
+
+    for (const t of toAdd) {
+      await saveVerifiedAlert(db, `${t}:${email}`, email, t);
+    }
+
+    const updatedTickers = [...new Set([...toAdd, ...existingRows.map((r) => r.ticker)])];
+    return NextResponse.json({
+      subscribed: true,
+      added: toAdd,
+      tickers: updatedTickers,
+      message:
+        toAdd.length > 0
+          ? `Enabled filing alerts for ${toAdd.length} watchlist ${toAdd.length === 1 ? "company" : "companies"}.`
+          : "All watchlist companies already have filing alerts enabled.",
+    });
   }
 
   const providedEmail = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
