@@ -2,7 +2,7 @@
  * Amber Batch EOD Share Price & Market Cap Sync (Phase 3)
  *
  * Fetches latest closing share prices in polite batches (zero API key required)
- * and updates Market Cap (= Price * Latest Diluted Shares) across:
+ * and updates Market Cap using reported shares outstanding when available across:
  *   - src/data/generated/companies.json
  *   - src/data/generated/search-index.json
  *   - Neon Postgres (when DATABASE_URL is set)
@@ -13,40 +13,69 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { buildSearchIndexEntry } from "../src/data/search-index.ts";
+import { pathToFileURL } from "node:url";
+import { writeCompanyData } from "./write-company-data.ts";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq, sql } from "drizzle-orm";
-import { annualFinancials, companies as companiesTable } from "../src/db/schema.ts";
+import { companies as companiesTable } from "../src/db/schema.ts";
 import type { EdgarSnapshot } from "./ingest-edgar.ts";
 
 interface YahooChartResponse {
   chart?: {
-    result?: Array<{
-      meta?: {
-        regularMarketPrice?: number;
-      };
-      timestamp?: number[];
-      indicators?: {
-        adjclose?: Array<{ adjclose?: Array<number | null> }>;
-        quote?: Array<{ close?: Array<number | null> }>;
-      };
-    }>;
+    result?: YahooChartResult[];
   };
 }
 
-interface PriceFetchResult {
-  latestPrice: number;
-  byYear: Map<string, number>; // e.g. "2024" -> 134.2
-  byYearMonth: Map<string, number>; // e.g. "2024-09" -> 134.2
+interface YahooChartResult {
+  meta?: {
+    currency?: string;
+    instrumentType?: string;
+    exchangeTimezoneName?: string;
+    currentTradingPeriod?: { regular?: { start: number; end: number } };
+  };
+  timestamp?: number[];
+  indicators?: { quote?: Array<{ close?: Array<number | null> }> };
+}
+
+type Close = { date: string; price: number };
+
+export function completedDailyCloses(result: YahooChartResult, now: number): Close[] {
+  const timezone = result.meta?.exchangeTimezoneName;
+  const session = result.meta?.currentTradingPeriod?.regular;
+  if (!timezone || !session || result.meta?.currency !== "USD" || result.meta.instrumentType !== "EQUITY") return [];
+  const dateFormat = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const marketDate = (seconds: number) => dateFormat.format(seconds * 1000);
+  const today = marketDate(now);
+  const sessionDate = marketDate(session.start);
+  const close = result.indicators?.quote?.[0]?.close ?? [];
+  const closes: Close[] = [];
+
+  for (const [index, timestamp] of (result.timestamp ?? []).entries()) {
+    const price = close[index];
+    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0 ||
+      !Number.isFinite(timestamp) || timestamp > now) continue;
+    const date = marketDate(timestamp);
+    if (date > today || (date === today && (sessionDate !== today || now < session.end))) continue;
+    closes.push({ date, price: Number(price.toFixed(2)) });
+  }
+  return closes.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function closeAtPeriodEnd(closes: Close[], end: string): number | undefined {
+  const close = closes.findLast(({ date }) => date <= end);
+  // Accommodate weekends and holidays without using stale prices or looking ahead.
+  if (close && Date.parse(end) - Date.parse(close.date) <= 7 * 86_400_000) return close.price;
 }
 
 async function fetchPriceAndHistory(
   ticker: string,
   retries = 2
-): Promise<PriceFetchResult | null> {
+): Promise<Close[] | null> {
   const symbol = ticker.replace(/\./g, "-");
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5y&interval=1mo`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5y&interval=1d`;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -64,38 +93,12 @@ async function fetchPriceAndHistory(
       if (!res.ok) return null;
       const json = (await res.json()) as YahooChartResponse;
       const result = json.chart?.result?.[0];
-      const meta = result?.meta;
-      const latestPrice = meta?.regularMarketPrice;
-      if (typeof latestPrice !== "number" || !Number.isFinite(latestPrice) || latestPrice <= 0) {
-        return null;
-      }
-
-      const byYear = new Map<string, number>();
-      const byYearMonth = new Map<string, number>();
-      const timestamps = result?.timestamp ?? [];
-      // Prefer split-adjusted quote.close over dividend-adjusted adjclose so dividend payers
-      // don't appear artificially expensive relative to historical valuation medians
-      const closes =
-        result?.indicators?.quote?.[0]?.close ??
-        result?.indicators?.adjclose?.[0]?.adjclose ??
-        [];
-
-      for (let i = 0; i < timestamps.length; i++) {
-        const c = closes[i];
-        if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
-        const d = new Date(timestamps[i] * 1000);
-        const yr = String(d.getUTCFullYear());
-        const ym = `${yr}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-        const rounded = Number(c.toFixed(2));
-        byYear.set(yr, rounded);
-        byYearMonth.set(ym, rounded);
-      }
-
-      return {
-        latestPrice: Number(latestPrice.toFixed(2)),
-        byYear,
-        byYearMonth,
-      };
+      if (!result) return null;
+      const now = Date.now() / 1000;
+      const closes = completedDailyCloses(result, now);
+      const last = closes.at(-1);
+      if (!last || now * 1000 - Date.parse(last.date) > 10 * 86_400_000) return null;
+      return closes;
     } catch {
       if (attempt < retries) {
         await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
@@ -108,7 +111,6 @@ async function fetchPriceAndHistory(
 async function run() {
   const outDir = path.resolve(process.cwd(), "src/data/generated");
   const companiesPath = path.join(outDir, "companies.json");
-  const indexPath = path.join(outDir, "search-index.json");
 
   if (!fs.existsSync(companiesPath)) {
     throw new Error("Run `pnpm ingest:edgar` first to generate companies.json.");
@@ -139,39 +141,28 @@ async function run() {
       const fetched = results[j];
       if (!fetched) continue;
 
-      const latestShares =
-        company.annuals[company.annuals.length - 1]?.dilutedShares ?? 0;
+      const last = fetched.at(-1)!;
+      const latestShares = company.marketCapShares ?? company.annuals.at(-1)?.dilutedShares ?? 0;
       if (latestShares <= 0) continue;
 
-      company.price = fetched.latestPrice;
-      company.marketCap = Math.round(fetched.latestPrice * latestShares);
-
-      // Map 5-year historical closing prices to each fiscal year's periodEndDate (or calendar year fallback)
+      company.price = last.price;
+      company.marketCap = Math.round(last.price * latestShares);
       const history: Array<{ fiscalYear: string; price: number }> = [];
       for (const row of company.annuals) {
-        if (row.fiscalYear === "TTM") {
-          history.push({ fiscalYear: "TTM", price: fetched.latestPrice });
-          continue;
-        }
-        const periodYm = row.periodEndDate?.slice(0, 7);
-        const rawYr = row.fiscalYear.replace(/^FY/i, "");
-        const fullYear = rawYr.length === 4 ? rawYr : `20${rawYr}`;
-        const yrPrice =
-          (periodYm ? fetched.byYearMonth.get(periodYm) : undefined) ??
-          fetched.byYear.get(fullYear);
-        if (yrPrice) {
-          history.push({ fiscalYear: row.fiscalYear, price: yrPrice });
-        }
+        const rawYear = row.fiscalYear.replace(/^FY/i, "");
+        const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+        const price = row.fiscalYear === "TTM"
+          ? last.price
+          : closeAtPeriodEnd(fetched, row.periodEndDate ?? `${year}-12-31`);
+        if (price !== undefined) history.push({ fiscalYear: row.fiscalYear, price });
       }
-      if (history.length >= 2) {
-        company.priceHistory = history;
-      }
+      if (!company.edgarFallback) company.priceHistory = history.length >= 2 ? history : undefined;
 
       refreshed.push({
         ticker: company.ticker,
         price: company.price,
         marketCap: company.marketCap,
-        priceHistory: history.length >= 2 ? history : undefined,
+        priceHistory: company.edgarFallback ? undefined : company.priceHistory,
         edgarFallback: company.edgarFallback,
       });
     }
@@ -180,11 +171,7 @@ async function run() {
     await new Promise((r) => setTimeout(r, 250));
   }
 
-  // Recompute search-index.json with updated Market Cap & Reverse DCF Implied CAGR
-  const searchIndex = snapshots.map(buildSearchIndexEntry);
-
-  fs.writeFileSync(companiesPath, JSON.stringify(snapshots, null, 2) + "\n");
-  fs.writeFileSync(indexPath, JSON.stringify(searchIndex, null, 2) + "\n");
+  writeCompanyData(outDir, snapshots);
 
   if (db) {
     console.log(
@@ -199,19 +186,11 @@ async function run() {
             .update(companiesTable)
             .set({
               price: c.price,
-              // A fallback snapshot may carry an older share count and fiscal window.
-              marketCap: c.edgarFallback ? sql`coalesce(
-                round(${c.price} * (
-                  select ${annualFinancials.dilutedShares}
-                  from ${annualFinancials}
-                  where ${annualFinancials.ticker} = ${c.ticker}
-                    and ${annualFinancials.dilutedShares} > 0
-                  order by ${annualFinancials.sortOrder} desc
-                  limit 1
-                )),
-                ${companiesTable.marketCap}
-              )` : c.marketCap,
-              priceHistory: c.edgarFallback ? undefined : c.priceHistory,
+              // A fallback's shares may be stale. Reprice the last persisted market cap.
+              marketCap: c.edgarFallback ? sql`case when ${companiesTable.price} > 0
+                then round(${companiesTable.marketCap} * ${c.price} / ${companiesTable.price})
+                else ${companiesTable.marketCap} end` : c.marketCap,
+              priceHistory: c.edgarFallback ? undefined : c.priceHistory ?? null,
               updatedAt: new Date(),
             })
             .where(eq(companiesTable.ticker, c.ticker))
@@ -225,4 +204,6 @@ async function run() {
   );
 }
 
-run();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run();
+}

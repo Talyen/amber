@@ -10,14 +10,15 @@
  *   - src/data/generated/search-index.json
  *
  * Usage:
- *   pnpm ingest:edgar                    # Ingest top 125 SEC-verified companies
- *   UNIVERSE_LIMIT=500 pnpm ingest:edgar # Scale to 500 companies
+ *   pnpm ingest:edgar                    # Check 125 candidates
+ *   UNIVERSE_LIMIT=900 pnpm ingest:edgar # Match scheduled coverage
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { buildSearchIndexEntry } from "../src/data/search-index.ts";
+import { FILING_SUPPLEMENTS } from "./filing-supplements.ts";
+import { writeCompanyData } from "./write-company-data.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 import {
   type AnnualFinancials,
@@ -26,17 +27,23 @@ import {
   computeAnnualMetrics,
   computeGroundedDefaultDcf,
   computeNetDilutionCagr,
+  periodicFilingType,
 } from "../src/lib/finance.ts";
 
 const SEC_USER_AGENT =
   process.env.SEC_USER_AGENT ?? "AmberFinance research@amber.example";
 const UNIVERSE_LIMIT = Number(process.env.UNIVERSE_LIMIT ?? "125");
 const SEC_REQUEST_SPACING_MS = 140;
+const DAY_MS = 86_400_000;
 
-export type EdgarSnapshot = CompanySnapshot & { edgarFallback?: true };
+export type EdgarSnapshot = CompanySnapshot & {
+  edgarFallback?: true;
+  marketCapShares?: number; // Listed-share equivalents, in millions
+  sic?: number;
+};
 type PeriodicFiling = CompanySnapshot["lastFiling"];
 
-function fallbackSnapshot(existing?: CompanySnapshot, curated?: CompanySnapshot): EdgarSnapshot | null {
+function fallbackSnapshot(existing?: EdgarSnapshot, curated?: CompanySnapshot): EdgarSnapshot | null {
   const snapshot = existing && (!curated || existing.lastFiling.date >= curated.lastFiling.date)
     ? existing
     : curated;
@@ -47,45 +54,44 @@ interface CuratedMeta {
   ticker: string;
   sector: string;
   tagline: string;
-  fallbackPrice?: number;
 }
 
 const CURATED_META: Record<string, CuratedMeta> = {
-  PLTR: { ticker: "PLTR", sector: "Cloud & Software", tagline: "High-margin FCF inflection vs. persistent SBC & share count expansion", fallbackPrice: 143.49 },
-  NVDA: { ticker: "NVDA", sector: "Semiconductors", tagline: "Extraordinary cash conversion with rising hyperscaler concentration", fallbackPrice: 125.53 },
-  MSFT: { ticker: "MSFT", sector: "Cloud & Software", tagline: "AI datacenter CapEx surge compressing near-term FCF conversion", fallbackPrice: 484.52 },
-  SNOW: { ticker: "SNOW", sector: "Cloud & Software", tagline: "Classic SBC-to-FCF gap: strong headline cash flow vs. negative True FCF", fallbackPrice: 254.82 },
-  SHOP: { ticker: "SHOP", sector: "Cloud & Software", tagline: "Post-logistics operating leverage with disciplined SBC compression", fallbackPrice: 123.72 },
-  COST: { ticker: "COST", sector: "Consumer & Retail", tagline: "Ultra-clean cash flow and minimal SBC; stress-test the 50x+ valuation", fallbackPrice: 1102.15 },
-  AAPL: { ticker: "AAPL", sector: "Consumer & Retail", tagline: "Massive buyback engine offsetting modest SBC with steady share retirement", fallbackPrice: 342.56 },
-  GOOGL: { ticker: "GOOGL", sector: "Media & Telecom", tagline: "Heavy AI CapEx cycle paired with $20B+ annual SBC and aggressive buybacks", fallbackPrice: 265.29 },
-  AMZN: { ticker: "AMZN", sector: "Consumer & Retail", tagline: "AWS operating leverage vs. massive logistics & AI infrastructure CapEx", fallbackPrice: 246.82 },
-  META: { ticker: "META", sector: "Media & Telecom", tagline: "Year-of-efficiency FCF surge funding record AI datacenter buildout", fallbackPrice: 560.84 },
-  ORCL: { ticker: "ORCL", sector: "Cloud & Software", tagline: "OCI backlog acceleration driving a sharp step-up in CapEx intensity", fallbackPrice: 101.19 },
-  AMD: { ticker: "AMD", sector: "Semiconductors", tagline: "Datacenter GPU ramp vs. rising R&D equity compensation", fallbackPrice: 424.39 },
-  AVGO: { ticker: "AVGO", sector: "Semiconductors", tagline: "VMware integration and custom AI ASICs driving elite FCF margins", fallbackPrice: 304.41 },
-  CRWD: { ticker: "CRWD", sector: "Cloud & Software", tagline: "Best-in-class headline FCF margin weighed against steep SBC expense", fallbackPrice: 229.44 },
-  DDOG: { ticker: "DDOG", sector: "Cloud & Software", tagline: "Strong GAAP profitability inflection while SBC remains a major FCF drag", fallbackPrice: 142.8 },
-  NET: { ticker: "NET", sector: "Cloud & Software", tagline: "Edge infrastructure scale-up with high SBC relative to reported FCF", fallbackPrice: 274.96 },
-  PANW: { ticker: "PANW", sector: "Cloud & Software", tagline: "Platformization billings shift paired with $1B+ annual SBC", fallbackPrice: 192.0 },
-  NOW: { ticker: "NOW", sector: "Cloud & Software", tagline: "Durable 20%+ compounder with steady SBC compression toward True FCF", fallbackPrice: 985.0 },
-  CRM: { ticker: "CRM", sector: "Cloud & Software", tagline: "Activist-era margin discipline turning massive FCF into net share reduction", fallbackPrice: 180.62 },
-  ADBE: { ticker: "ADBE", sector: "Cloud & Software", tagline: "High-margin recurring cash flow funding consistent share count shrinkage", fallbackPrice: 448.2 },
-  V: { ticker: "V", sector: "Fintech & Data", tagline: "Gold-standard 55%+ True FCF margin tollbooth with relentless buybacks", fallbackPrice: 401.87 },
-  MA: { ticker: "MA", sector: "Fintech & Data", tagline: "Elite capital efficiency, minimal SBC, and consistent share reduction", fallbackPrice: 625.59 },
-  NFLX: { ticker: "NFLX", sector: "Media & Telecom", tagline: "Post-password-sharing FCF breakout with minimal SBC dilution", fallbackPrice: 968.0 },
-  UBER: { ticker: "UBER", sector: "Consumer & Retail", tagline: "From cash burn to multi-billion True FCF with moderating SBC", fallbackPrice: 76.8 },
-  ABNB: { ticker: "ABNB", sector: "Consumer & Retail", tagline: "Negative working capital float boosting FCF vs. ~12% SBC burden", fallbackPrice: 142.4 },
-  TSLA: { ticker: "TSLA", sector: "Consumer & Retail", tagline: "Heavy AI/factory CapEx vs. ambitious Reverse DCF growth expectations", fallbackPrice: 345.82 },
-  FICO: { ticker: "FICO", sector: "Fintech & Data", tagline: "Pricing power & buybacks driving one of the cleanest FCF profiles in S&P 500", fallbackPrice: 1845.0 },
-  JPM: { ticker: "JPM", sector: "Fintech & Data", tagline: "Fortress balance sheet and scale economics driving consistent share retirement", fallbackPrice: 308.4 },
-  GS: { ticker: "GS", sector: "Fintech & Data", tagline: "Global investment banking and trading powerhouse with disciplined buybacks", fallbackPrice: 624.5 },
-  MS: { ticker: "MS", sector: "Fintech & Data", tagline: "Wealth management fee durability paired with capital-markets operating leverage", fallbackPrice: 138.2 },
-  BAC: { ticker: "BAC", sector: "Fintech & Data", tagline: "Scale consumer deposit franchise generating durable net interest earnings", fallbackPrice: 48.9 },
-  WFC: { ticker: "WFC", sector: "Fintech & Data", tagline: "Aggressive net share count reduction powered by excess capital return", fallbackPrice: 79.4 },
-  BX: { ticker: "BX", sector: "Fintech & Data", tagline: "Fee-related earnings compounder across private credit, real estate, and infrastructure", fallbackPrice: 184.6 },
-  KKR: { ticker: "KKR", sector: "Fintech & Data", tagline: "Alternative asset management scale paired with insurance float compounding", fallbackPrice: 152.3 },
-  XOM: { ticker: "XOM", sector: "Energy & Utilities", tagline: "Permian and Guyana upstream scale funding $30B+ annual shareholder distributions", fallbackPrice: 119.8 },
+  PLTR: { ticker: "PLTR", sector: "Cloud & Software", tagline: "High-margin FCF inflection vs. persistent SBC & share count expansion" },
+  NVDA: { ticker: "NVDA", sector: "Semiconductors", tagline: "Extraordinary cash conversion with rising hyperscaler concentration" },
+  MSFT: { ticker: "MSFT", sector: "Cloud & Software", tagline: "AI datacenter CapEx surge compressing near-term FCF conversion" },
+  SNOW: { ticker: "SNOW", sector: "Cloud & Software", tagline: "Classic SBC-to-FCF gap: strong headline cash flow vs. negative True FCF" },
+  SHOP: { ticker: "SHOP", sector: "Cloud & Software", tagline: "Post-logistics operating leverage with disciplined SBC compression" },
+  COST: { ticker: "COST", sector: "Consumer & Retail", tagline: "Ultra-clean cash flow and minimal SBC; stress-test the 50x+ valuation" },
+  AAPL: { ticker: "AAPL", sector: "Consumer & Retail", tagline: "Massive buyback engine offsetting modest SBC with steady share retirement" },
+  GOOGL: { ticker: "GOOGL", sector: "Media & Telecom", tagline: "Heavy AI CapEx cycle paired with $20B+ annual SBC and aggressive buybacks" },
+  AMZN: { ticker: "AMZN", sector: "Consumer & Retail", tagline: "AWS operating leverage vs. massive logistics & AI infrastructure CapEx" },
+  META: { ticker: "META", sector: "Media & Telecom", tagline: "Year-of-efficiency FCF surge funding record AI datacenter buildout" },
+  ORCL: { ticker: "ORCL", sector: "Cloud & Software", tagline: "OCI backlog acceleration driving a sharp step-up in CapEx intensity" },
+  AMD: { ticker: "AMD", sector: "Semiconductors", tagline: "Datacenter GPU ramp vs. rising R&D equity compensation" },
+  AVGO: { ticker: "AVGO", sector: "Semiconductors", tagline: "VMware integration and custom AI ASICs driving elite FCF margins" },
+  CRWD: { ticker: "CRWD", sector: "Cloud & Software", tagline: "Best-in-class headline FCF margin weighed against steep SBC expense" },
+  DDOG: { ticker: "DDOG", sector: "Cloud & Software", tagline: "Strong GAAP profitability inflection while SBC remains a major FCF drag" },
+  NET: { ticker: "NET", sector: "Cloud & Software", tagline: "Edge infrastructure scale-up with high SBC relative to reported FCF" },
+  PANW: { ticker: "PANW", sector: "Cloud & Software", tagline: "Platformization billings shift paired with $1B+ annual SBC" },
+  NOW: { ticker: "NOW", sector: "Cloud & Software", tagline: "Durable 20%+ compounder with steady SBC compression toward True FCF" },
+  CRM: { ticker: "CRM", sector: "Cloud & Software", tagline: "Activist-era margin discipline turning massive FCF into net share reduction" },
+  ADBE: { ticker: "ADBE", sector: "Cloud & Software", tagline: "High-margin recurring cash flow funding consistent share count shrinkage" },
+  V: { ticker: "V", sector: "Fintech & Data", tagline: "Gold-standard 55%+ True FCF margin tollbooth with relentless buybacks" },
+  MA: { ticker: "MA", sector: "Fintech & Data", tagline: "Elite capital efficiency, minimal SBC, and consistent share reduction" },
+  NFLX: { ticker: "NFLX", sector: "Media & Telecom", tagline: "Post-password-sharing FCF breakout with minimal SBC dilution" },
+  UBER: { ticker: "UBER", sector: "Consumer & Retail", tagline: "From cash burn to multi-billion True FCF with moderating SBC" },
+  ABNB: { ticker: "ABNB", sector: "Consumer & Retail", tagline: "Negative working capital float boosting FCF vs. ~12% SBC burden" },
+  TSLA: { ticker: "TSLA", sector: "Consumer & Retail", tagline: "Heavy AI/factory CapEx vs. ambitious Reverse DCF growth expectations" },
+  FICO: { ticker: "FICO", sector: "Fintech & Data", tagline: "Pricing power & buybacks driving one of the cleanest FCF profiles in S&P 500" },
+  JPM: { ticker: "JPM", sector: "Fintech & Data", tagline: "Fortress balance sheet and scale economics driving consistent share retirement" },
+  GS: { ticker: "GS", sector: "Fintech & Data", tagline: "Global investment banking and trading powerhouse with disciplined buybacks" },
+  MS: { ticker: "MS", sector: "Fintech & Data", tagline: "Wealth management fee durability paired with capital-markets operating leverage" },
+  BAC: { ticker: "BAC", sector: "Fintech & Data", tagline: "Scale consumer deposit franchise generating durable net interest earnings" },
+  WFC: { ticker: "WFC", sector: "Fintech & Data", tagline: "Aggressive net share count reduction powered by excess capital return" },
+  BX: { ticker: "BX", sector: "Fintech & Data", tagline: "Fee-related earnings compounder across private credit, real estate, and infrastructure" },
+  KKR: { ticker: "KKR", sector: "Fintech & Data", tagline: "Alternative asset management scale paired with insurance float compounding" },
+  XOM: { ticker: "XOM", sector: "Energy & Utilities", tagline: "Permian and Guyana upstream scale funding $30B+ annual shareholder distributions" },
 };
 
 // Explicit ordinary-shares-per-ADR multipliers for 20-F foreign ADR issuers
@@ -119,9 +125,9 @@ export const FALLBACK_SHARES_MILLIONS: Record<string, number> = {
   ERIE: 52,
 };
 
-// Override SEC directory shell CIKs where historical 10-K filings live on the operating registrant CIK
-const CIK_OVERRIDES: Record<string, string> = {
-  XOM: "0000034088",
+// The successor files under the directory CIK. Keep annual history from the former registrant.
+const PREDECESSOR_CIK: Record<string, string> = {
+  "0002115436": "0000034088", // Exxon Mobil
 };
 
 // Priority tickers guaranteed to be included first regardless of SEC directory order
@@ -142,7 +148,8 @@ const PRIORITY_TICKERS = [
   "ARM", "RDDT", "SOFI", "TOST", "AFRM", "DKNG", "CAVA", "ELF", "HIMS", "ONON",
   "AXON", "VST", "CEG", "GEV", "MSTR", "SMCI", "MRVL", "U", "ROKU", "PINS",
   "SNAP", "ESTC", "BILL", "MNDY", "CELH", "LULU", "DECK", "PODD", "DXCM", "REGN",
-  "VRTX", "CRSP", "FI", "FIS", "GPN", "XYZ", "ROST", "TGT", "DG", "DLTR",
+  "VRTX", "CRSP", "FISV", "FIS", "GPN", "XYZ", "ROST", "TGT", "DG", "DLTR",
+  "PWR", "EMR", "GLW", "ITW", "COR", "GWW", "MPWR", "PCAR", "ETR", "BKR", "CARR",
 ];
 
 interface SecDirectoryResponse {
@@ -170,11 +177,70 @@ interface CompanyFactsResponse {
   };
 }
 
+const REVENUE_TAGS = [
+  "Revenues",
+  "RevenueFromContractWithCustomerExcludingAssessedTax",
+  "RevenuesNetOfInterestExpense",
+  "SalesRevenueNet",
+  "RevenueFromContractWithCustomerIncludingAssessedTax",
+  "RegulatedAndUnregulatedOperatingRevenue",
+  "OperatingRevenues",
+  "Revenue",
+];
+const OPERATING_CASH_FLOW_TAGS = [
+  "NetCashProvidedByUsedInOperatingActivities",
+  "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+  "CashFlowsFromUsedInOperatingActivities",
+];
+const CAPEX_TAGS = [
+  "PaymentsToAcquirePropertyPlantAndEquipment",
+  "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+  "PaymentsToAcquireProductiveAssets",
+  "PaymentsToAcquireOtherProductiveAssets",
+  "PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets",
+  "PaymentsToAcquireOilAndGasPropertyAndEquipment",
+  "PaymentsToExploreAndDevelopOilAndGasProperties",
+  "PaymentsToAcquireMachineryAndEquipment",
+  "PaymentsForCapitalImprovements",
+  "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+];
+const SBC_TAGS = [
+  "ShareBasedCompensation",
+  "AllocatedShareBasedCompensationExpense",
+  "ExpenseFromSharebasedPaymentTransactionsInWhichGoodsOrServicesReceivedDidNotQualifyForRecognitionAsAssets",
+];
+const BUYBACK_TAGS = [
+  "PaymentsForRepurchaseOfCommonStock",
+  "PaymentsForRepurchaseOfEquity",
+  "PurchaseOfTreasuryShares",
+];
+
 interface DirectoryCandidate {
   ticker: string;
   cik: string;
   name: string;
   exchange: "NASDAQ" | "NYSE";
+}
+
+async function fetchCompanyFacts(cik: string): Promise<CompanyFactsResponse> {
+  const url = (id: string) => `https://data.sec.gov/api/xbrl/companyfacts/CIK${id}.json`;
+  const current = await fetchSecJson<CompanyFactsResponse>(url(cik));
+  const predecessor = PREDECESSOR_CIK[cik];
+  if (!predecessor) return current;
+
+  await new Promise((resolve) => setTimeout(resolve, SEC_REQUEST_SPACING_MS));
+  const previous = await fetchSecJson<CompanyFactsResponse>(url(predecessor));
+  const facts = current.facts ??= {};
+  for (const taxonomy of ["us-gaap", "ifrs-full", "dei"] as const) {
+    for (const [tag, { units }] of Object.entries(previous.facts?.[taxonomy] ?? {})) {
+      const tags = facts[taxonomy] ??= {};
+      const combined = (tags[tag] ??= {}).units ??= {};
+      for (const [unit, entries] of Object.entries(units ?? {})) {
+        combined[unit] = [...(combined[unit] ?? []), ...entries];
+      }
+    }
+  }
+  return current;
 }
 
 async function fetchSecJson<T>(url: string, retries = 3): Promise<T> {
@@ -215,16 +281,16 @@ interface SecRecentFilings {
   accessionNumber: string[];
 }
 
-async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling): Promise<PeriodicFiling> {
+async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling) {
   // Submissions supplies filing metadata even when usable XBRL facts arrive later.
   await new Promise((resolve) => setTimeout(resolve, SEC_REQUEST_SPACING_MS));
   try {
-    const { filings } = await fetchSecJson<{ filings?: { recent?: SecRecentFilings } }>(
+    const { filings, sic } = await fetchSecJson<{ sic?: string; filings?: { recent?: SecRecentFilings } }>(
       `https://data.sec.gov/submissions/CIK${cik.padStart(10, "0")}.json`,
       1
     );
     const recent = filings?.recent;
-    if (!recent) return fallback;
+    if (!recent) return { filing: fallback, sic: Number(sic) || undefined };
 
     let latest: PeriodicFiling | undefined;
     for (const [index, form] of recent.form.entries()) {
@@ -233,15 +299,16 @@ async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling):
       const periodEnd = recent.reportDate[index];
       const accessionNumber = recent.accessionNumber[index];
       if (!date || !periodEnd || !accessionNumber) continue;
-      if (latest && (date < latest.date || (date === latest.date && periodEnd <= latest.periodEnd))) continue;
-      latest = { type: form.startsWith("10-Q") ? "10-Q" : "10-K", date, periodEnd, accessionNumber };
+      if (latest && (periodEnd < latest.periodEnd || (periodEnd === latest.periodEnd && date <= latest.date))) continue;
+      latest = { type: periodicFilingType(form), date, periodEnd, accessionNumber };
     }
-    return latest && (
-      latest.date > fallback.date ||
-      (latest.date === fallback.date && latest.periodEnd >= fallback.periodEnd)
+    const filing = latest && (
+      latest.periodEnd > fallback.periodEnd ||
+      (latest.periodEnd === fallback.periodEnd && latest.date >= fallback.date)
     ) ? latest : fallback;
+    return { filing, sic: Number(sic) || undefined };
   } catch {
-    return fallback;
+    return { filing: fallback };
   }
 }
 
@@ -297,7 +364,8 @@ export function cleanCompanyName(raw: string): string {
 
 export function normalizeShareCountToMillions(
   rawShares: number,
-  ticker: string
+  ticker: string,
+  decimals = 0
 ): number {
   const ratio = ADR_SHARE_RATIO[ticker] ?? 1;
   if (!Number.isFinite(rawShares) || rawShares <= 0) {
@@ -314,7 +382,7 @@ export function normalizeShareCountToMillions(
     // Raw shares
     millions = rawShares / 1_000_000;
   }
-  return Math.max(1, Math.round(millions / ratio));
+  return Math.max(10 ** -decimals, Number((millions / ratio).toFixed(decimals)));
 }
 
 /**
@@ -354,7 +422,7 @@ function daysBetween(start: string, end: string): number {
   const s = Date.parse(start);
   const e = Date.parse(end);
   if (Number.isNaN(s) || Number.isNaN(e)) return 0;
-  return (e - s) / (1000 * 60 * 60 * 24);
+  return (e - s) / DAY_MS;
 }
 
 function extractAnnualSeries(
@@ -362,14 +430,11 @@ function extractAnnualSeries(
   tagCandidates: string[],
   unit: "USD" | "shares",
   requireDuration = true
-): Map<string, { val: number; end: string; filed: string; accn: string }> {
+): Map<string, XbrlFactUnit> {
   const gaap = facts.facts?.["us-gaap"];
   const ifrs = facts.facts?.["ifrs-full"];
   const dei = facts.facts?.["dei"];
-  const merged = new Map<
-    string,
-    { val: number; end: string; filed: string; accn: string; priority: number }
-  >();
+  const merged = new Map<string, XbrlFactUnit & { priority: number }>();
 
   if (!gaap && !ifrs && !dei) return new Map();
 
@@ -399,69 +464,89 @@ function extractAnnualSeries(
         if (days < 330 || days > 400) continue;
       }
 
-      const endYear = Number(e.end.slice(0, 4));
-      const key = String(endYear);
-
-      const existing = merged.get(key);
+      const existing = merged.get(e.end);
       if (
         !existing ||
         priority < existing.priority ||
         (priority === existing.priority && e.filed > existing.filed)
       ) {
-        merged.set(key, {
-          val: e.val,
-          end: e.end,
-          filed: e.filed,
-          accn: e.accn,
-          priority,
-        });
+        merged.set(e.end, { ...e, priority });
       }
     }
   });
 
-  const out = new Map<
-    string,
-    { val: number; end: string; filed: string; accn: string }
-  >();
-  for (const [k, v] of merged.entries()) {
-    out.set(k, { val: v.val, end: v.end, filed: v.filed, accn: v.accn });
-  }
-  return out;
+  return merged;
 }
 
-function extractLatestInstant(
+function instantSeries(
   facts: CompanyFactsResponse,
   tagCandidates: string[],
   unit: "USD" | "shares"
-): number {
-  const gaap = facts.facts?.["us-gaap"];
-  const ifrs = facts.facts?.["ifrs-full"];
-  const dei = facts.facts?.["dei"];
-
+): Map<string, XbrlFactUnit> {
+  const byEnd = new Map<string, XbrlFactUnit>();
   for (const tag of tagCandidates) {
-    const entries =
-      gaap?.[tag]?.units?.[unit] ??
-      ifrs?.[tag]?.units?.[unit] ??
-      dei?.[tag]?.units?.[unit] ??
-      [];
-    if (!entries.length) continue;
-
-    const sorted = [...entries]
-      .filter(
-        (e) =>
-          (e.form === "10-K" ||
-            e.form === "10-Q" ||
-            e.form === "20-F" ||
-            e.form === "40-F") &&
-          e.end >= "2023-01-01"
-      )
-      .sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed));
-
-    if (sorted.length > 0 && Number.isFinite(sorted[0].val)) {
-      return sorted[0].val;
+    const byTag = new Map<string, XbrlFactUnit>();
+    for (const taxonomy of ["us-gaap", "ifrs-full", "dei"] as const) {
+      for (const entry of facts.facts?.[taxonomy]?.[tag]?.units?.[unit] ?? []) {
+        if (entry.start || !/^(10-[KQ]|20-F|40-F)(\/A)?$/.test(entry.form) ||
+            !Number.isFinite(entry.val) || entry.val < 0) continue;
+        const saved = byTag.get(entry.end);
+        if (!saved || entry.filed > saved.filed) byTag.set(entry.end, entry);
+      }
+    }
+    for (const [end, entry] of byTag) {
+      if (!byEnd.has(end)) byEnd.set(end, entry);
     }
   }
-  return 0;
+  return byEnd;
+}
+
+function balanceSheetByPeriod(facts: CompanyFactsResponse) {
+  const series = (tags: string[]) => instantSeries(facts, tags, "USD");
+  const combinedCash = series(["CashCashEquivalentsAndShortTermInvestments"]);
+  const cash = series(["CashAndCashEquivalentsAtCarryingValue", "CashAndCashEquivalents"]);
+  const investments = series([
+    "MarketableSecuritiesCurrent",
+    "ShortTermInvestments",
+    "ShortTermInvestmentsAndMarketableSecurities",
+    "DebtSecuritiesCurrent",
+    "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+  ]);
+  const allDebt = series(["DebtAndCapitalLeaseObligations"]);
+  const longTerm = series(["LongTermDebt"]);
+  const noncurrent = series(["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations", "ConvertibleDebtNoncurrent"]);
+  const due = series(["LongTermDebtCurrent", "ConvertibleDebtCurrent"]);
+  const borrowings = series(["ShortTermBorrowings", "CommercialPaper"]);
+  const current = series(["DebtCurrent"]);
+  const cashPeriods = [...combinedCash.keys(), ...cash.keys()];
+  const periods = cashPeriods.length > 0 ? cashPeriods : [
+    ...allDebt.keys(), ...longTerm.keys(), ...noncurrent.keys(),
+    ...due.keys(), ...borrowings.keys(), ...current.keys(),
+  ];
+
+  return {
+    latestPeriod: periods.sort().at(-1),
+    at(end: string) {
+      const cashOnly = cash.get(end)?.val;
+      const cashAndInvestments = combinedCash.get(end)?.val ??
+        (cashOnly === undefined ? null : cashOnly + (investments.get(end)?.val ?? 0));
+      const totalLongTerm = longTerm.get(end)?.val;
+      const noncurrentDebt = noncurrent.get(end)?.val;
+      const maturities = due.get(end)?.val;
+      const shortTerm = borrowings.get(end)?.val;
+      const totalCurrent = current.get(end)?.val;
+      const currentDebt = Math.max(totalCurrent ?? 0, (maturities ?? 0) + (shortTerm ?? 0));
+      const debt = allDebt.get(end)?.val ?? (totalLongTerm !== undefined
+        ? totalLongTerm + Math.max(shortTerm ?? 0, currentDebt - (maturities ?? currentDebt))
+        : noncurrentDebt !== undefined || totalCurrent !== undefined || maturities !== undefined || shortTerm !== undefined
+          ? (noncurrentDebt ?? 0) + currentDebt
+          : null);
+      return {
+        cashAndEquiv: cashAndInvestments === null ? null : Math.round(cashAndInvestments / 1e6),
+        totalDebt: debt === null ? null : Math.round(debt / 1e6),
+      };
+    },
+  };
 }
 
 interface YtdWindow {
@@ -488,11 +573,12 @@ function extract10QYtdPair(
   const gaap = facts.facts?.["us-gaap"];
   if (!gaap) return null;
 
+  let best: YtdPair | null = null;
   for (const tag of tagCandidates) {
     const entries = gaap[tag]?.units?.USD;
     if (!entries?.length) continue;
 
-    const current = entries.filter((fact): fact is XbrlFactUnit & { start: string } =>
+    const candidates = entries.filter((fact): fact is XbrlFactUnit & { start: string } =>
       (fact.form === "10-Q" || fact.form === "10-Q/A") &&
       !!fact.start &&
       (window
@@ -500,31 +586,34 @@ function extract10QYtdPair(
         : daysBetween(latestFyEnd, fact.start) === 1 &&
           daysBetween(fact.start, fact.end) >= 70 &&
           daysBetween(fact.start, fact.end) <= 300)
-    ).sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))[0];
-    if (!current) continue;
+    ).sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed));
+    for (const current of candidates) {
+      if (best && current.end <= best.window.end) break;
+      const span = daysBetween(current.start, current.end);
+      const prior = entries.filter((fact): fact is XbrlFactUnit & { start: string } => {
+        if (!fact.start) return false;
+        if (window) return fact.start === window.priorStart && fact.end === window.priorEnd;
+        const endDelta = daysBetween(fact.end, current.end);
+        return endDelta >= 345 && endDelta <= 385 &&
+          Math.abs(daysBetween(fact.start, fact.end) - span) <= 15;
+      }).sort((a, b) =>
+        Number(b.accn === current.accn) - Number(a.accn === current.accn) ||
+        b.filed.localeCompare(a.filed)
+      )[0];
+      if (!prior) continue;
 
-    const span = daysBetween(current.start, current.end);
-    const prior = entries.filter((fact): fact is XbrlFactUnit & { start: string } => {
-      if (!fact.start) return false;
-      if (window) return fact.start === window.priorStart && fact.end === window.priorEnd;
-      const endDelta = daysBetween(fact.end, current.end);
-      return endDelta >= 345 && endDelta <= 385 &&
-        Math.abs(daysBetween(fact.start, fact.end) - span) <= 15;
-    }).sort((a, b) =>
-      Number(b.accn === current.accn) - Number(a.accn === current.accn) ||
-      b.filed.localeCompare(a.filed)
-    )[0];
-    if (!prior) continue;
-
-    return {
-      window: { start: current.start, end: current.end, priorStart: prior.start, priorEnd: prior.end },
-      currentVal: current.val,
-      priorVal: prior.val,
-      filing: { type: "10-Q", date: current.filed, periodEnd: current.end, accessionNumber: current.accn },
-    };
+      best = {
+        window: { start: current.start, end: current.end, priorStart: prior.start, priorEnd: prior.end },
+        currentVal: current.val,
+        priorVal: prior.val,
+        filing: { type: "10-Q", date: current.filed, periodEnd: current.end, accessionNumber: current.accn },
+      };
+      break;
+    }
+    if (best && window) break;
   }
 
-  return null;
+  return best;
 }
 
 const EXCLUDED_FINANCIAL_ENTITY_RE =
@@ -552,7 +641,7 @@ const ALLOWLISTED_FINTECH = new Set([
   "KKR",
 ]);
 
-const BANK_EARNINGS_OCF_TICKERS = new Set(["JPM", "GS", "MS", "BAC", "WFC"]);
+const BANK_TICKERS = new Set(["JPM", "GS", "MS", "BAC", "WFC"]);
 
 export function inferSector(name: string, ticker = ""): string {
   const meta = CURATED_META[ticker];
@@ -599,11 +688,12 @@ function generateDeterministicDiffs(
   const latest = series[series.length - 1];
   const prev = series.length >= 2 ? series[series.length - 2] : null;
   const dilutionCagr = computeNetDilutionCagr(company.annuals);
+  const fcfBurden = latest.sbcPctReportedFcf;
 
   const sbcMateriality: FilingDiffItem["materiality"] =
-    latest.sbcPctReportedFcf >= 35 || latest.trueFcf < 0
+    (fcfBurden ?? 0) >= 35 || latest.trueFcf < 0
       ? "High"
-      : latest.sbcPctReportedFcf >= 15
+      : (fcfBurden ?? 0) >= 15
         ? "Medium"
         : "Watch";
 
@@ -620,12 +710,12 @@ function generateDeterministicDiffs(
       category: "Executive Comp",
       materiality: sbcMateriality,
       headline:
-        latest.trueFcf < 0
-          ? `SBC ($${(latest.sbc / 1000).toFixed(2)}B) exceeded Reported FCF, leaving True FCF negative`
-          : `SBC consumed ${latest.sbcPctReportedFcf.toFixed(1)}% of Reported FCF (${latest.sbcPctRevenue.toFixed(1)}% of revenue)`,
+        fcfBurden === null
+          ? `SBC was ${latest.sbcPctRevenue.toFixed(1)}% of revenue during a period of nonpositive Reported FCF`
+          : `SBC consumed ${fcfBurden.toFixed(1)}% of Reported FCF (${latest.sbcPctRevenue.toFixed(1)}% of revenue)`,
       summary: `In ${latest.fiscalYear}, ${company.name} generated $${(latest.reportedFcf / 1000).toFixed(2)}B in Reported FCF against $${(latest.sbc / 1000).toFixed(2)}B in Stock-Based Compensation, yielding $${(latest.trueFcf / 1000).toFixed(2)}B in True FCF (${latest.trueFcfMargin.toFixed(1)}% margin).`,
       priorExcerpt: prev
-        ? `${prev.fiscalYear} SEC 10-K: Reported FCF $${(prev.reportedFcf / 1000).toFixed(2)}B | SBC $${(prev.sbc / 1000).toFixed(2)}B (${prev.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(prev.trueFcf / 1000).toFixed(2)}B.`
+        ? `${prev.fiscalYear} SEC filing: Reported FCF $${(prev.reportedFcf / 1000).toFixed(2)}B | SBC $${(prev.sbc / 1000).toFixed(2)}B (${prev.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(prev.trueFcf / 1000).toFixed(2)}B.`
         : "Prior fiscal year baseline unavailable in XBRL window.",
       currentExcerpt: `${latest.fiscalYear} SEC ${financialFiling.type}: Reported FCF $${(latest.reportedFcf / 1000).toFixed(2)}B | SBC $${(latest.sbc / 1000).toFixed(2)}B (${latest.sbcPctRevenue.toFixed(1)}% of rev) | True FCF $${(latest.trueFcf / 1000).toFixed(2)}B.`,
       signalNote:
@@ -648,7 +738,7 @@ function generateDeterministicDiffs(
             ? `Diluted shares expanded +${dilutionCagr.toFixed(1)}%/yr despite cash generation`
             : `Diluted share count held flat (${dilutionCagr >= 0 ? "+" : ""}${dilutionCagr.toFixed(1)}%/yr)`,
       summary: `Weighted-average diluted shares moved from ${company.annuals[0].dilutedShares.toLocaleString()}M in ${company.annuals[0].fiscalYear} to ${latest.dilutedShares.toLocaleString()}M in ${latest.fiscalYear}, with $${(latest.buybacks / 1000).toFixed(2)}B deployed into share repurchases in the latest fiscal year.`,
-      priorExcerpt: `${company.annuals[0].fiscalYear} 10-K: ${company.annuals[0].dilutedShares.toLocaleString()}M diluted shares | CapEx $${(company.annuals[0].capex / 1000).toFixed(2)}B.`,
+      priorExcerpt: `${company.annuals[0].fiscalYear} SEC filing: ${company.annuals[0].dilutedShares.toLocaleString()}M diluted shares | CapEx $${(company.annuals[0].capex / 1000).toFixed(2)}B.`,
       currentExcerpt: `${latest.fiscalYear} 10-K: ${latest.dilutedShares.toLocaleString()}M diluted shares | CapEx $${(latest.capex / 1000).toFixed(2)}B | Buybacks $${(latest.buybacks / 1000).toFixed(2)}B.`,
       signalNote:
         dilutionCagr < -0.5
@@ -660,25 +750,20 @@ function generateDeterministicDiffs(
   ];
 }
 
-async function resolveCandidates(): Promise<DirectoryCandidate[]> {
-  console.log("[amber-ingest] Fetching official SEC EDGAR ticker directory...");
-  const dir = await fetchSecJson<SecDirectoryResponse>(
-    "https://www.sec.gov/files/company_tickers_exchange.json"
-  );
-
+export function selectCoverageCandidates(
+  directory: SecDirectoryResponse["data"],
+  limit: number,
+  existingTickers: string[] = []
+): DirectoryCandidate[] {
   const byTicker = new Map<string, DirectoryCandidate>();
-  const orderedAll: DirectoryCandidate[] = [];
 
-  for (const [cikNum, rawName, rawTicker, rawExch] of dir.data) {
+  for (const [cikNum, rawName, rawTicker, rawExch] of directory) {
     if (!rawTicker || !rawExch) continue;
     if (rawExch !== "Nasdaq" && rawExch !== "NYSE") continue;
     const ticker = rawTicker.toUpperCase();
-    // Skip preferred shares, warrants, units
-    if (/[-/]|W$|U$|R$/.test(ticker) && !ticker.includes(".")) continue;
-    if (byTicker.has(ticker)) continue;
-
-    // Skip pure banks/insurers/REITs where GAAP OCF mixes customer deposits & loans
+    if (!/^[A-Z][A-Z0-9]{0,4}(\.[A-Z])?$/.test(ticker) || byTicker.has(ticker)) continue;
     if (
+      /\b(?:ETF|acquisition corp(?:oration)?|special purpose acquisition)\b/i.test(rawName) ||
       !ALLOWLISTED_FINTECH.has(ticker) &&
       EXCLUDED_FINANCIAL_ENTITY_RE.test(rawName)
     ) {
@@ -687,34 +772,25 @@ async function resolveCandidates(): Promise<DirectoryCandidate[]> {
 
     const candidate: DirectoryCandidate = {
       ticker,
-      cik: CIK_OVERRIDES[ticker] ?? String(cikNum).padStart(10, "0"),
+      cik: String(cikNum).padStart(10, "0"),
       name: cleanCompanyName(rawName),
       exchange: rawExch === "NYSE" ? "NYSE" : "NASDAQ",
     };
     byTicker.set(ticker, candidate);
-    orderedAll.push(candidate);
   }
 
   const selected: DirectoryCandidate[] = [];
-  const seen = new Set<string>();
-
-  for (const t of PRIORITY_TICKERS) {
-    const found = byTicker.get(t);
-    if (found && !seen.has(found.ticker)) {
-      selected.push(found);
-      seen.add(found.ticker);
-    }
+  const seenIssuers = new Set<string>();
+  for (const ticker of [...PRIORITY_TICKERS, ...existingTickers, ...byTicker.keys()]) {
+    if (selected.length >= limit) break;
+    const candidate = byTicker.get(ticker);
+    if (!candidate || seenIssuers.has(candidate.cik)) continue;
+    // The directory places the ordinary listing before its same-issuer units and warrants.
+    selected.push(candidate);
+    seenIssuers.add(candidate.cik);
   }
 
-  for (const c of orderedAll) {
-    if (selected.length >= UNIVERSE_LIMIT) break;
-    if (!seen.has(c.ticker)) {
-      selected.push(c);
-      seen.add(c.ticker);
-    }
-  }
-
-  return selected.slice(0, UNIVERSE_LIMIT);
+  return selected;
 }
 
 export function extractSingleQuarterMap(
@@ -726,16 +802,17 @@ export function extractSingleQuarterMap(
   const gaap = facts.facts?.["us-gaap"];
   if (!gaap) return quarters;
 
-  const dayMs = 86_400_000;
   for (const tag of tags) {
     const entries = gaap[tag]?.units?.[unit] ?? [];
     const standalone = new Map<string, XbrlFactUnit>();
     const byStart = new Map<string, Map<string, XbrlFactUnit>>();
 
     for (const entry of entries) {
-      if ((entry.form !== "10-Q" && entry.form !== "10-Q/A") || !entry.start) continue;
-      const days = (Date.parse(entry.end) - Date.parse(entry.start)) / dayMs;
-      if (!Number.isFinite(entry.val) || !(days >= 70 && days <= 300)) continue;
+      if (!entry.start || !Number.isFinite(entry.val)) continue;
+      const days = daysBetween(entry.start, entry.end);
+      const isQuarterlyFiling = /^10-Q(\/A)?$/.test(entry.form);
+      const isFullYear = /^10-K(\/A)?$/.test(entry.form) && days >= 330 && days <= 400;
+      if (!isFullYear && !(isQuarterlyFiling && days >= 70 && days <= 300)) continue;
 
       if (days <= 110) {
         const previous = standalone.get(entry.end);
@@ -758,7 +835,7 @@ export function extractSingleQuarterMap(
         const previous = periods[i - 1];
         const current = periods[i];
         if (forTag.has(current.end)) continue;
-        const quarterDays = (Date.parse(current.end) - Date.parse(previous.end)) / dayMs;
+        const quarterDays = daysBetween(previous.end, current.end);
         if (quarterDays >= 65 && quarterDays <= 115) {
           forTag.set(current.end, current.val - previous.val);
         }
@@ -786,45 +863,13 @@ function extractQuarterlySeries(
   fallbackShares: number,
   ticker: string
 ): AnnualFinancials[] {
-  const revMap = extractSingleQuarterMap(
-    facts,
-    [
-      "RevenueFromContractWithCustomerExcludingAssessedTax",
-      "Revenues",
-      "SalesRevenueNet",
-      "RevenueFromContractWithCustomerIncludingAssessedTax",
-    ],
-    "USD"
-  );
+  const revMap = extractSingleQuarterMap(facts, REVENUE_TAGS, "USD");
   if (revMap.size < 4) return [];
 
-  const ocfMap = extractSingleQuarterMap(
-    facts,
-    [
-      "NetCashProvidedByUsedInOperatingActivities",
-      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-    ],
-    "USD"
-  );
-  const capexMap = extractSingleQuarterMap(
-    facts,
-    [
-      "PaymentsToAcquirePropertyPlantAndEquipment",
-      "PaymentsToAcquireProductiveAssets",
-      "CapitalExpendituresIncurredButNotYetPaid",
-    ],
-    "USD"
-  );
-  const sbcMap = extractSingleQuarterMap(
-    facts,
-    ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
-    "USD"
-  );
-  const buybackMap = extractSingleQuarterMap(
-    facts,
-    ["PaymentsForRepurchaseOfCommonStock"],
-    "USD"
-  );
+  const ocfMap = extractSingleQuarterMap(facts, OPERATING_CASH_FLOW_TAGS, "USD");
+  const capexMap = extractSingleQuarterMap(facts, CAPEX_TAGS, "USD");
+  const sbcMap = extractSingleQuarterMap(facts, SBC_TAGS, "USD");
+  const buybackMap = extractSingleQuarterMap(facts, BUYBACK_TAGS, "USD");
   const shareMap = extractSingleQuarterMap(
     facts,
     ["WeightedAverageNumberOfDilutedSharesOutstanding"],
@@ -853,76 +898,35 @@ function extractQuarterlySeries(
   return normalizeStockSplits(rawQuarters);
 }
 
+export function hasNewCoverageInputs(snapshot: EdgarSnapshot, now = Date.now()): boolean {
+  const latestAnnual = snapshot.annuals.findLast((row) => row.fiscalYear !== "TTM");
+  const sic = snapshot.sic;
+  // Banks, insurers, REITs, and oil & gas producers require different financial inputs.
+  if (!sic || (sic >= 6000 && sic < 6800) || sic === 1311) return false;
+  if (snapshot.edgarFallback || !latestAnnual?.periodEndDate || snapshot.cashAndEquiv <= 0) return false;
+  const age = now - Date.parse(latestAnnual.periodEndDate);
+  return age >= 0 && age <= 550 * DAY_MS &&
+    latestAnnual.capex > 0 && (snapshot.marketCapShares ?? 0) > 0;
+}
+
 export async function ingestCandidate(
   candidate: DirectoryCandidate,
   curatedMap: Map<string, CompanySnapshot>,
-  existingMap: Map<string, CompanySnapshot>
+  existingMap: Map<string, EdgarSnapshot>
 ): Promise<EdgarSnapshot | null> {
   const curated = curatedMap.get(candidate.ticker);
   const existing = existingMap.get(candidate.ticker);
   const meta = CURATED_META[candidate.ticker];
-  const url = `https://data.sec.gov/api/xbrl/companyfacts/CIK${candidate.cik}.json`;
 
   try {
-    const facts = await fetchSecJson<CompanyFactsResponse>(url);
+    const facts = await fetchCompanyFacts(candidate.cik);
+    const supplements = FILING_SUPPLEMENTS[candidate.cik];
 
-    const revMap = extractAnnualSeries(
-      facts,
-      [
-        "RevenueFromContractWithCustomerExcludingAssessedTax",
-        "Revenues",
-        "RevenuesNetOfInterestExpense",
-        "SalesRevenueNet",
-        "RevenueFromContractWithCustomerIncludingAssessedTax",
-        "RegulatedAndUnregulatedOperatingRevenue",
-        "OperatingRevenues",
-        "Revenue",
-      ],
-      "USD"
-    );
-    const ocfMap = extractAnnualSeries(
-      facts,
-      [
-        "NetCashProvidedByUsedInOperatingActivities",
-        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-        "CashFlowsFromUsedInOperatingActivities",
-      ],
-      "USD"
-    );
-    const capexMap = extractAnnualSeries(
-      facts,
-      [
-        "PaymentsToAcquirePropertyPlantAndEquipment",
-        "PaymentsToAcquireOtherPropertyPlantAndEquipment",
-        "PaymentsToAcquireProductiveAssets",
-        "PaymentsToAcquireOtherProductiveAssets",
-        "PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets",
-        "PaymentsToAcquireOilAndGasPropertyAndEquipment",
-        "PaymentsToExploreAndDevelopOilAndGasProperties",
-        "PaymentsToAcquireMachineryAndEquipment",
-        "PaymentsForCapitalImprovements",
-        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
-      ],
-      "USD"
-    );
-    const sbcMap = extractAnnualSeries(
-      facts,
-      [
-        "ShareBasedCompensation",
-        "AllocatedShareBasedCompensationExpense",
-        "ExpenseFromSharebasedPaymentTransactionsInWhichGoodsOrServicesReceivedDidNotQualifyForRecognitionAsAssets",
-      ],
-      "USD"
-    );
-    const buybackMap = extractAnnualSeries(
-      facts,
-      [
-        "PaymentsForRepurchaseOfCommonStock",
-        "PaymentsForRepurchaseOfEquity",
-        "PurchaseOfTreasuryShares",
-      ],
-      "USD"
-    );
+    const revMap = extractAnnualSeries(facts, REVENUE_TAGS, "USD");
+    const ocfMap = extractAnnualSeries(facts, OPERATING_CASH_FLOW_TAGS, "USD");
+    const capexMap = extractAnnualSeries(facts, CAPEX_TAGS, "USD");
+    const sbcMap = extractAnnualSeries(facts, SBC_TAGS, "USD");
+    const buybackMap = extractAnnualSeries(facts, BUYBACK_TAGS, "USD");
     const sharesMap = extractAnnualSeries(
       facts,
       [
@@ -994,169 +998,110 @@ export async function ingestCandidate(
       "USD",
       false
     );
-    const annualCashMap = extractAnnualSeries(
-      facts,
-      [
-        "CashCashEquivalentsAndShortTermInvestments",
-        "CashAndCashEquivalentsAtCarryingValue",
-      ],
-      "USD",
-      false
+    const balanceSheet = balanceSheetByPeriod(facts);
+    const latestEndByYear = new Map(
+      [...revMap.keys()].filter((end) => ocfMap.has(end)).sort()
+        .map((end) => [end.slice(0, 4), end])
     );
-    const annualDebtMap = extractAnnualSeries(
+    const periods = [...latestEndByYear.values()].slice(-5);
+    if (periods.length < 3) return fallbackSnapshot(existing, curated);
+
+    const reportedShares = instantSeries(
       facts,
-      [
-        "LongTermDebtAndCapitalLeaseObligations",
-        "DebtAndCapitalLeaseObligations",
-        "LongTermDebt",
-        "LongTermDebtNoncurrent",
-      ],
-      "USD",
-      false
+      ADR_SHARE_RATIO[candidate.ticker]
+        ? ["CommonStockSharesOutstanding", "NumberOfSharesOutstanding"]
+        : ["EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding", "NumberOfSharesOutstanding"],
+      "shares"
     );
+    const latestAnnualEnd = periods[periods.length - 1];
+    const latestReportedShares = [...reportedShares.values()]
+      .filter((entry) => entry.end >= latestAnnualEnd && entry.val > 0)
+      .sort((a, b) => b.end.localeCompare(a.end))[0];
+    const latestDilutedShares = facts.facts?.["us-gaap"]?.WeightedAverageNumberOfDilutedSharesOutstanding?.units?.shares
+      ?.filter((entry) => (entry.form === "10-Q" || entry.form === "10-K") &&
+        entry.end >= latestAnnualEnd && entry.val > 0)
+      .sort((a, b) => b.end.localeCompare(a.end) ||
+        daysBetween(a.start ?? a.end, a.end) - daysBetween(b.start ?? b.end, b.end) ||
+        b.filed.localeCompare(a.filed))[0];
+    const latestShares = latestDilutedShares?.val ?? latestReportedShares?.val ?? 0;
 
-    const years = [...revMap.keys()]
-      .filter((y) => ocfMap.has(y))
-      .sort()
-      .slice(-5);
-
-    if (years.length < 3) {
-      return curated ? fallbackSnapshot(existing, curated) : null;
-    }
-
-    // Only accept recent (>=2024) instant share counts so stale 2010 DEI tags never overwrite modern diluted shares
-    const gaapShares =
-      facts.facts?.["us-gaap"]?.["WeightedAverageNumberOfDilutedSharesOutstanding"]?.units?.shares
-        ?.filter((e) => (e.form === "10-Q" || e.form === "10-K") && e.end >= "2024-01-01")
-        ?.sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))?.[0]?.val ?? 0;
-
-    const recentDeiShares =
-      facts.facts?.["dei"]?.["EntityCommonStockSharesOutstanding"]?.units?.shares
-        ?.filter((e) => e.end >= "2024-01-01" && e.val > 0)
-        ?.sort((a, b) => b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed))?.[0]?.val ?? 0;
-
-    const latestSharesInstant =
-      gaapShares > 0
-        ? gaapShares
-        : recentDeiShares > 0
-          ? recentDeiShares
-          : extractLatestInstant(
-              facts,
-              [
-                "CommonStockSharesOutstanding",
-                "NumberOfSharesOutstanding",
-                "LimitedPartnersCapitalAccountUnitsOutstanding",
-              ],
-              "shares"
-            );
-
-    const isBankEarningsOcf = BANK_EARNINGS_OCF_TICKERS.has(candidate.ticker);
-
-    const annuals: AnnualFinancials[] = years.map((yr) => {
-      const rev = (revMap.get(yr)?.val ?? 0) / 1e6;
-      const rawOcf = (ocfMap.get(yr)?.val ?? 0) / 1e6;
-      const capex = Math.abs(capexMap.get(yr)?.val ?? 0) / 1e6;
-      const sbc = Math.abs(sbcMap.get(yr)?.val ?? 0) / 1e6;
-      const buybacks = Math.abs(buybackMap.get(yr)?.val ?? 0) / 1e6;
+    const annuals: AnnualFinancials[] = periods.map((end) => {
+      const rev = (revMap.get(end)?.val ?? 0) / 1e6;
+      const ocf = (ocfMap.get(end)?.val ?? 0) / 1e6;
+      const supplement = supplements?.[end];
+      const capex = supplement?.capex ?? Math.abs(capexMap.get(end)?.val ?? 0) / 1e6;
+      const sbc = Math.abs(sbcMap.get(end)?.val ?? 0) / 1e6;
+      const buybacks = Math.abs(buybackMap.get(end)?.val ?? 0) / 1e6;
       const rawShares =
-        sharesMap.get(yr)?.val ??
-        instantSharesAnnualMap.get(yr)?.val ??
-        (latestSharesInstant > 0 ? latestSharesInstant : 0);
+        sharesMap.get(end)?.val ??
+        instantSharesAnnualMap.get(end)?.val ??
+        latestShares;
 
-      const rawGpVal = grossProfitMap.get(yr)?.val;
-      const corVal = costOfRevMap.get(yr)?.val;
+      const rawGpVal = grossProfitMap.get(end)?.val;
+      const corVal = costOfRevMap.get(end)?.val;
       const gpVal =
         rawGpVal !== undefined
           ? rawGpVal
-          : corVal !== undefined && revMap.get(yr)?.val !== undefined
-            ? revMap.get(yr)!.val - Math.abs(corVal)
+          : corVal !== undefined && revMap.get(end)?.val !== undefined
+            ? revMap.get(end)!.val - Math.abs(corVal)
             : undefined;
-      const rdVal = rdMap.get(yr)?.val;
-      const sgaVal = sgaMap.get(yr)?.val;
-      const opVal = opIncMap.get(yr)?.val;
-      const niVal = netIncMap.get(yr)?.val;
-      const eqVal = equityMap.get(yr)?.val;
-      const cashYrVal = annualCashMap.get(yr)?.val;
-      const debtYrVal = annualDebtMap.get(yr)?.val;
-      const periodEndDate = revMap.get(yr)?.end ?? ocfMap.get(yr)?.end ?? null;
-
-      // For bank holding companies where GAAP OCF mixes customer loan/trading inventory changes,
-      // normalize operating cash flow to Distributable Cash Earnings (Net Income + SBC + CapEx).
-      const ocf =
-        isBankEarningsOcf && niVal !== undefined
-          ? niVal / 1e6 + sbc + capex
-          : rawOcf;
-
+      const rdVal = rdMap.get(end)?.val;
+      const sgaVal = sgaMap.get(end)?.val;
+      const opVal = opIncMap.get(end)?.val;
+      const niVal = netIncMap.get(end)?.val;
+      const eqVal = equityMap.get(end)?.val;
+      const balance = balanceSheet.at(end);
       return {
-        fiscalYear: `FY${yr.slice(2)}`,
+        fiscalYear: `FY${end.slice(2, 4)}`,
         revenue: Math.round(rev),
         operatingCashFlow: Math.round(ocf),
         capex: Math.round(capex),
         sbc: Math.round(sbc),
         buybacks: Math.round(buybacks),
-        dilutedShares: normalizeShareCountToMillions(rawShares, candidate.ticker),
+        dilutedShares: supplement?.dilutedShares ?? normalizeShareCountToMillions(rawShares, candidate.ticker),
         grossProfit: gpVal !== undefined ? Math.round(gpVal / 1e6) : null,
         rdExpense: rdVal !== undefined ? Math.round(Math.abs(rdVal) / 1e6) : null,
         sgaExpense: sgaVal !== undefined ? Math.round(Math.abs(sgaVal) / 1e6) : null,
         operatingIncome: opVal !== undefined ? Math.round(opVal / 1e6) : null,
         netIncome: niVal !== undefined ? Math.round(niVal / 1e6) : null,
         stockholdersEquity: eqVal !== undefined ? Math.round(eqVal / 1e6) : null,
-        periodEndDate,
-        cashAndEquiv: cashYrVal !== undefined ? Math.round(cashYrVal / 1e6) : null,
-        totalDebt: debtYrVal !== undefined ? Math.round(debtYrVal / 1e6) : null,
+        periodEndDate: end,
+        cashAndEquiv: supplement?.cashAndEquiv ?? balance.cashAndEquiv,
+        totalDebt: supplement?.totalDebt ?? balance.totalDebt,
       };
     });
 
     const latestAnnual = annuals[annuals.length - 1];
-    if (latestAnnual.revenue <= 0) return curated ? fallbackSnapshot(existing, curated) : null;
+    if (latestAnnual.revenue <= 0) return fallbackSnapshot(existing, curated);
 
-    const latestYearKey = years[years.length - 1];
-    const latestMeta = revMap.get(latestYearKey) ?? ocfMap.get(latestYearKey)!;
+    const latestMeta = revMap.get(latestAnnualEnd)!;
 
     // Reject stale USD filings where the latest annual period ended prior to 2023
     if (latestMeta.end < "2023-01-01") {
-      return curated ? fallbackSnapshot(existing, curated) : null;
+      return fallbackSnapshot(existing, curated);
     }
 
     let financialFiling: PeriodicFiling = {
-      type: "10-K",
+      type: periodicFilingType(latestMeta.form),
       date: latestMeta.filed,
       periodEnd: latestMeta.end,
       accessionNumber: latestMeta.accn,
     };
 
-    const revQ = extract10QYtdPair(
-      facts,
-      [
-        "RevenueFromContractWithCustomerExcludingAssessedTax",
-        "Revenues",
-        "SalesRevenueNet",
-        "RevenueFromContractWithCustomerIncludingAssessedTax",
-      ],
-      latestMeta.end
-    );
+    const revQ = extract10QYtdPair(facts, REVENUE_TAGS, latestMeta.end);
 
-    if (revQ && !isBankEarningsOcf) {
+    if (revQ) {
       const getQuarterPair = (tags: string[]) =>
         extract10QYtdPair(facts, tags, latestMeta.end, revQ.window);
-      const ocfQ = getQuarterPair([
-        "NetCashProvidedByUsedInOperatingActivities",
-        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-      ]);
+      const ocfQ = getQuarterPair(OPERATING_CASH_FLOW_TAGS);
       const ttmRev = Math.round(
         latestAnnual.revenue + (revQ.currentVal - revQ.priorVal) / 1e6
       );
 
       if (ttmRev > 0 && ocfQ) {
-        const capexQ = getQuarterPair([
-          "PaymentsToAcquirePropertyPlantAndEquipment",
-          "PaymentsToAcquireOtherPropertyPlantAndEquipment",
-          "PaymentsToAcquireProductiveAssets",
-          "PaymentsToAcquireOilAndGasProperties",
-          "PaymentsToExploreAndDevelopOilAndGasProperties",
-        ]);
-        const sbcQ = getQuarterPair(["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"]);
-        const buybackQ = getQuarterPair(["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"]);
+        const capexQ = getQuarterPair(CAPEX_TAGS);
+        const sbcQ = getQuarterPair(SBC_TAGS);
+        const buybackQ = getQuarterPair(BUYBACK_TAGS);
         const ttmOcf = Math.round(
           latestAnnual.operatingCashFlow + (ocfQ.currentVal - ocfQ.priorVal) / 1e6
         );
@@ -1236,8 +1181,8 @@ export async function ingestCandidate(
           sbc: ttmSbc,
           buybacks: ttmBuybacks,
           dilutedShares:
-            latestSharesInstant > 0
-              ? normalizeShareCountToMillions(latestSharesInstant, candidate.ticker)
+            latestDilutedShares?.end === revQ.window.end
+              ? normalizeShareCountToMillions(latestDilutedShares.val, candidate.ticker)
               : latestAnnual.dilutedShares,
           grossProfit: ttmGp,
           rdExpense: ttmRd,
@@ -1249,49 +1194,9 @@ export async function ingestCandidate(
       }
     }
 
-    // Avoid double-counting short-term investments when using the combined cash+ST-investments tag
-    const cashOnly = extractLatestInstant(
-      facts,
-      ["CashAndCashEquivalentsAtCarryingValue"],
-      "USD"
-    );
-    const cashCombined = extractLatestInstant(
-      facts,
-      ["CashCashEquivalentsAndShortTermInvestments"],
-      "USD"
-    );
-    const stInvestments = extractLatestInstant(
-      facts,
-      ["MarketableSecuritiesCurrent", "ShortTermInvestments"],
-      "USD"
-    );
-    const cashRaw =
-      cashCombined > 0
-        ? Math.max(cashCombined, cashOnly + stInvestments)
-        : cashOnly + stInvestments;
-
-    // Avoid double-counting current debt when using a combined total-debt tag
-    const longTermNonCurrent = extractLatestInstant(
-      facts,
-      ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
-      "USD"
-    );
-    const totalDebtCombined = extractLatestInstant(
-      facts,
-      ["DebtAndCapitalLeaseObligations", "LongTermDebt"],
-      "USD"
-    );
-    const currentDebt = extractLatestInstant(
-      facts,
-      ["LongTermDebtCurrent", "ShortTermBorrowings", "DebtCurrent"],
-      "USD"
-    );
-    const debtRaw =
-      longTermNonCurrent > 0
-        ? longTermNonCurrent + currentDebt
-        : totalDebtCombined > 0
-          ? totalDebtCombined
-          : currentDebt;
+    const balancePeriod = balanceSheet.latestPeriod ?? latestAnnualEnd;
+    const balance = balanceSheet.at(balancePeriod);
+    const balanceSupplement = supplements?.[balancePeriod];
 
     // Normalize stock splits retroactively so Dilution (4Y) is never distorted by 5:1 / 10:1 / 50:1 splits
     const normalizedAnnuals = normalizeStockSplits(annuals);
@@ -1301,7 +1206,7 @@ export async function ingestCandidate(
 
     // Strict XBRL sanity guardrail: reject anomalous unit mismatches unless curated
     if (
-      !curated &&
+      !curated && !BANK_TICKERS.has(candidate.ticker) &&
       (latestComputed.revenue < 200 ||
         latestComputed.trueFcfMargin > 80 ||
         latestComputed.trueFcfMargin < -120 ||
@@ -1312,16 +1217,19 @@ export async function ingestCandidate(
 
     const dilutionCagr = computeNetDilutionCagr(normalizedAnnuals);
 
-    // Never invent a synthetic $100 price; leave 0 for sync-prices.ts to populate
-    const price = existing?.price ?? meta?.fallbackPrice ?? 0;
-    const marketCap = price > 0 ? Math.round(price * latestComputed.dilutedShares) : 0;
+    // New companies require a successful price sync before seeding.
+    const price = existing?.price ?? 0;
+    const marketCapShares = supplements?.[latestAnnualEnd]?.marketCapShares ?? (latestReportedShares
+      ? normalizeShareCountToMillions(latestReportedShares.val, candidate.ticker, 3)
+      : undefined);
+    const marketCap = price > 0 ? Math.round(price * (marketCapShares ?? latestComputed.dilutedShares)) : 0;
 
     const defaultDcf =
       curated?.defaultDcf ?? computeGroundedDefaultDcf(normalizedAnnuals);
 
-    const lastFiling = await fetchLatestPeriodicFiling(candidate.cik, revQ?.filing ?? financialFiling);
+    const { filing: lastFiling, sic } = await fetchLatestPeriodicFiling(candidate.cik, revQ?.filing ?? financialFiling);
 
-    const baseSnapshot: Omit<CompanySnapshot, "filingDiffs"> = {
+    const baseSnapshot: Omit<EdgarSnapshot, "filingDiffs"> = {
       ticker: candidate.ticker,
       cik: candidate.cik,
       name: cleanCompanyName(curated?.name ?? candidate.name),
@@ -1337,8 +1245,10 @@ export async function ingestCandidate(
         ),
       price,
       marketCap,
-      cashAndEquiv: Math.round(cashRaw / 1e6),
-      totalDebt: Math.round(debtRaw / 1e6),
+      marketCapShares,
+      sic,
+      cashAndEquiv: balanceSupplement?.cashAndEquiv ?? balance.cashAndEquiv ?? 0,
+      totalDebt: balanceSupplement?.totalDebt ?? balance.totalDebt ?? 0,
       lastFiling,
       annuals: normalizedAnnuals,
       quarterlyFinancials: extractQuarterlySeries(
@@ -1370,32 +1280,42 @@ export async function ingestCandidate(
 }
 
 async function run() {
+  if (!Number.isSafeInteger(UNIVERSE_LIMIT) || UNIVERSE_LIMIT <= 0) {
+    throw new Error("UNIVERSE_LIMIT must be a positive integer.");
+  }
   const outDir = path.resolve(process.cwd(), "src/data/generated");
   fs.mkdirSync(outDir, { recursive: true });
   const companiesPath = path.join(outDir, "companies.json");
 
-  const existingList: CompanySnapshot[] = fs.existsSync(companiesPath)
-    ? (JSON.parse(fs.readFileSync(companiesPath, "utf8")) as CompanySnapshot[])
+  const existingList: EdgarSnapshot[] = fs.existsSync(companiesPath)
+    ? (JSON.parse(fs.readFileSync(companiesPath, "utf8")) as EdgarSnapshot[])
     : [];
   const existingMap = new Map(existingList.map((c) => [c.ticker, c]));
   const curatedMap = new Map(PILOT_TICKERS.map((c) => [c.ticker, c]));
 
-  const candidates = await resolveCandidates();
+  console.log("[amber-ingest] Fetching official SEC EDGAR ticker directory...");
+  const directory = await fetchSecJson<SecDirectoryResponse>("https://www.sec.gov/files/company_tickers_exchange.json");
+  const candidates = selectCoverageCandidates(directory.data, UNIVERSE_LIMIT, [...existingMap.keys()]);
   console.log(
     `[amber-ingest] Ingesting live SEC EDGAR 10-K XBRL for ${candidates.length} candidates...`
   );
 
   const companies: EdgarSnapshot[] = [];
+  let incompleteNewCoverage = 0;
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
     const snap = await ingestCandidate(c, curatedMap, existingMap);
     if (snap) {
-      companies.push(snap);
-      if (companies.length % 20 === 0 || i === candidates.length - 1) {
-        console.log(
-          `[amber-ingest] Progress: ${i + 1}/${candidates.length} checked | ${companies.length} SEC-verified companies`
-        );
+      if (existingMap.has(c.ticker) || curatedMap.has(c.ticker) || hasNewCoverageInputs(snap)) {
+        companies.push(snap);
+      } else {
+        incompleteNewCoverage++;
       }
+    }
+    if ((i + 1) % 25 === 0 || i === candidates.length - 1) {
+      console.log(
+        `[amber-ingest] Progress: ${i + 1}/${candidates.length} checked | ${companies.length} snapshots`
+      );
     }
     // Respect SEC EDGAR fair-access limit (<10 req/sec)
     await new Promise((r) => setTimeout(r, SEC_REQUEST_SPACING_MS));
@@ -1409,13 +1329,7 @@ async function run() {
     }
   }
 
-  const searchIndex = companies.map(buildSearchIndexEntry);
-
-  fs.writeFileSync(companiesPath, JSON.stringify(companies, null, 2) + "\n");
-  fs.writeFileSync(
-    path.join(outDir, "search-index.json"),
-    JSON.stringify(searchIndex, null, 2) + "\n"
-  );
+  writeCompanyData(outDir, companies);
 
   const universePath = process.env.AMBER_INGEST_UNIVERSE_PATH;
   if (universePath) {
@@ -1427,7 +1341,7 @@ async function run() {
   }
 
   console.log(
-    `[amber-ingest] ✓ Wrote ${companies.length} SEC-verified companies to src/data/generated/.`
+    `[amber-ingest] ✓ Wrote ${companies.length} snapshots to src/data/generated/. Skipped ${incompleteNewCoverage} potential additions with incomplete or stale inputs.`
   );
 }
 

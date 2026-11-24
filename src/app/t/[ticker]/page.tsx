@@ -55,11 +55,11 @@ export default async function TickerPage({ params }: TickerPageProps) {
     notFound();
   }
 
-  const [insiderTrades, sectorBenchmark, searchIndex] = await Promise.all([
+  const [insiderTrades, searchIndex] = await Promise.all([
     getInsiderTrades(company.ticker),
-    getSectorBenchmark(company.sector),
     getSearchIndex(),
   ]);
+  const sectorBenchmark = getSectorBenchmark(company.sector, searchIndex);
 
   const sectorPeers = searchIndex
     .filter((c) => c.sector === company.sector && c.ticker !== company.ticker)

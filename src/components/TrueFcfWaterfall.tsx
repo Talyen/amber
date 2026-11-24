@@ -48,7 +48,9 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
     },
     {
       label: "Stock-Based Compensation",
-      sub: `${formatPct(period.sbcPctRevenue)} of rev, ${formatPct(period.sbcPctReportedFcf, false, 0)} of FCF`,
+      sub: period.sbcPctReportedFcf === null
+        ? `${formatPct(period.sbcPctRevenue)} of rev`
+        : `${formatPct(period.sbcPctRevenue)} of rev, ${formatPct(period.sbcPctReportedFcf, false, 0)} of FCF`,
       value: -period.sbc,
       sign: "−",
       color: "var(--sbc)",

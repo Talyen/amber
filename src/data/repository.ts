@@ -17,7 +17,7 @@ import {
 } from "@/data/universe";
 import { buildSearchIndexEntry } from "@/data/search-index";
 import { queryInsiderBuySummaries, queryMaterialEventSummaries } from "@/data/filing-summaries";
-import type { CompanySnapshot, FilingDiffItem } from "@/lib/finance";
+import { periodicFilingType, type CompanySnapshot, type FilingDiffItem } from "@/lib/finance";
 
 export type { InsiderBuySummary, MaterialEventSummary } from "@/data/filing-summaries";
 
@@ -63,7 +63,7 @@ async function queryCompanyFromDb(
       cashAndEquiv: row.cashAndEquiv,
       totalDebt: row.totalDebt,
       lastFiling: {
-        type: row.lastFilingType === "10-Q" ? "10-Q" : "10-K",
+        type: periodicFilingType(row.lastFilingType),
         date: row.lastFilingDate,
         periodEnd: row.lastFilingPeriodEnd,
         accessionNumber: row.lastFilingAccession,
@@ -329,10 +329,10 @@ function median(values: number[]): number {
     : sorted[mid];
 }
 
-export async function getSectorBenchmark(
-  sector: string
-): Promise<SectorBenchmark | null> {
-  const index = await getSearchIndex();
+export function getSectorBenchmark(
+  sector: string,
+  index: SearchIndexEntry[]
+): SectorBenchmark | null {
   const peers = index.filter((c) => c.sector === sector);
   if (peers.length < 3) return null;
 

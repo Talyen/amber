@@ -56,7 +56,9 @@ export default async function OpenGraphImage({
     {
       label: "SBC BURDEN",
       value: formatPct(latest.sbcPctRevenue),
-      sub: `${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctReportedFcf, false, 0)} of FCF)`,
+      sub: latest.sbcPctReportedFcf === null
+        ? formatCurrencyCompact(latest.sbc)
+        : `${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctReportedFcf, false, 0)} of FCF)`,
       accent: "#D97745",
     },
     {

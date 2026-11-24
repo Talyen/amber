@@ -12,8 +12,10 @@ export const SEARCH_INDEX: SearchIndexEntry[] =
   searchIndexJson as unknown as SearchIndexEntry[];
 
 export const FEATURED_TICKERS = ["PLTR", "NVDA", "MSFT", "SNOW", "SHOP", "COST"];
+let companiesByTicker: Map<string, CompanySnapshot> | undefined;
 
 export function getCompany(ticker: string): CompanySnapshot | undefined {
+  companiesByTicker ??= new Map(ALL_COMPANIES.map((company) => [company.ticker, company]));
   const normalized = ticker.trim().toUpperCase();
-  return ALL_COMPANIES.find((c) => c.ticker === normalized);
+  return companiesByTicker.get(normalized);
 }

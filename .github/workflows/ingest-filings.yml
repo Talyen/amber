@@ -13,6 +13,8 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    env:
+      UNIVERSE_LIMIT: "900"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,7 +35,6 @@ jobs:
       - name: Sync SEC EDGAR XBRL Financials
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
-          UNIVERSE_LIMIT: "750"
           AMBER_INGEST_UNIVERSE_PATH: ${{ runner.temp }}/amber-ingest-universe.json
         run: pnpm ingest:edgar
 
@@ -67,6 +68,7 @@ jobs:
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_8K_TICKERS: ${{ env.UNIVERSE_LIMIT }}
         run: pnpm ingest:8k
 
       - name: Sync SEC Form 4 Open-Market Insider Activity

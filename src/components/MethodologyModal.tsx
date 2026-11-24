@@ -70,6 +70,9 @@ export function MethodologyModal() {
             <p className="mt-1">
               Standard screeners treat SBC as a non-cash add-back. Because employee equity grants dilute owners (or require cash buybacks to offset), Amber deducts SBC directly to approximate economic cash flow.
             </p>
+            <p className="mt-1">
+              Bank operating cash flow includes movements in loans and trading assets. Cash-flow multiples and Reverse DCF are less comparable for banks.
+            </p>
           </div>
 
           <div>

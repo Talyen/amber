@@ -23,9 +23,16 @@ export interface AnnualPricePoint {
   price: number; // $
 }
 
+export type PeriodicFilingType = "10-K" | "10-Q" | "20-F" | "40-F";
+
+export function periodicFilingType(form: string): PeriodicFilingType {
+  const type = form.replace(/\/A$/, "");
+  return type === "10-Q" || type === "20-F" || type === "40-F" ? type : "10-K";
+}
+
 export interface FilingDiffItem {
   id: string;
-  filingType: "10-K" | "10-Q" | "8-K" | "DEF 14A" | "Form 4";
+  filingType: PeriodicFilingType | "8-K" | "DEF 14A" | "Form 4";
   filingDate: string;
   accessionNumber: string;
   section: string;
@@ -54,7 +61,7 @@ export interface CompanySnapshot {
   cashAndEquiv: number; // $M
   totalDebt: number; // $M
   lastFiling: {
-    type: "10-K" | "10-Q";
+    type: PeriodicFilingType;
     date: string;
     periodEnd: string;
     accessionNumber: string;
@@ -77,7 +84,7 @@ export interface ComputedAnnual extends AnnualFinancials {
   reportedFcfMargin: number; // %
   trueFcfMargin: number; // %
   sbcPctRevenue: number; // %
-  sbcPctReportedFcf: number; // %
+  sbcPctReportedFcf: number | null; // % when reported FCF is positive
   yoyShareChangePct: number | null; // %
 }
 
@@ -91,15 +98,10 @@ export function computeAnnualMetrics(
     const reportedFcfMargin = safeRev > 0 ? (reportedFcf / safeRev) * 100 : 0;
     const trueFcfMargin = safeRev > 0 ? (trueFcf / safeRev) * 100 : 0;
     const sbcPctRevenue = safeRev > 0 ? (row.sbc / safeRev) * 100 : 0;
-    const sbcPctReportedFcf =
-      reportedFcf > 0
-        ? (row.sbc / reportedFcf) * 100
-        : row.sbc > 0
-          ? 100
-          : 0;
+    const sbcPctReportedFcf = reportedFcf > 0 ? (row.sbc / reportedFcf) * 100 : null;
     const prev = idx > 0 ? annuals[idx - 1] : null;
     const yoyShareChangePct =
-      prev && prev.dilutedShares > 0 && (fiscalYearsBetween(prev, row) ?? 1) === 1
+      prev && prev.dilutedShares > 0 && row.dilutedShares > 0 && fiscalYearsBetween(prev, row) === 1
         ? ((row.dilutedShares - prev.dilutedShares) / prev.dilutedShares) * 100
         : null;
 
@@ -420,7 +422,9 @@ export function solveReverseDcf(inputs: ReverseDcfInputs): ReverseDcfResult {
   const solvedCagr = (lo + hi) / 2;
   const final = presentValueForGrowth(solvedCagr, inputs);
   const clamped: ReverseDcfResult["clamped"] =
-    solvedCagr <= -0.249 ? "low" : solvedCagr >= 0.849 ? "high" : null;
+    inputs.enterpriseValue < presentValueForGrowth(-0.25, inputs).pv ? "low"
+      : inputs.enterpriseValue > presentValueForGrowth(0.85, inputs).pv ? "high"
+      : null;
 
   return {
     impliedRevenueCagrPct: solvedCagr * 100,

@@ -169,11 +169,13 @@ async function run() {
       continue;
     }
 
-    const olderFiling = sql`excluded.last_filing_date < ${companies.lastFilingDate}`;
+    const olderFiling = sql`(excluded.last_filing_period_end, excluded.last_filing_date) <
+      (${companies.lastFilingPeriodEnd}, ${companies.lastFilingDate})`;
     await db.batch([
       insertCompanies.onConflictDoUpdate({
         target: companies.ticker,
         set: {
+          cik: sql`excluded.cik`,
           name: sql`excluded.name`,
           exchange: sql`excluded.exchange`,
           sector: sql`excluded.sector`,
@@ -181,7 +183,7 @@ async function run() {
           cashAndEquiv: sql`excluded.cash_and_equiv`,
           totalDebt: sql`excluded.total_debt`,
           lastFilingType: sql`case when ${olderFiling} then ${companies.lastFilingType} else excluded.last_filing_type end`,
-          lastFilingDate: sql`greatest(${companies.lastFilingDate}, excluded.last_filing_date)`,
+          lastFilingDate: sql`case when ${olderFiling} then ${companies.lastFilingDate} else excluded.last_filing_date end`,
           lastFilingPeriodEnd: sql`case when ${olderFiling} then ${companies.lastFilingPeriodEnd} else excluded.last_filing_period_end end`,
           lastFilingAccession: sql`case when ${olderFiling} then ${companies.lastFilingAccession} else excluded.last_filing_accession end`,
           defaultDcf: sql`excluded.default_dcf`,

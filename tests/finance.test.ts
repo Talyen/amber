@@ -87,7 +87,7 @@ describe("Amber finance engine", () => {
 
     assert.equal(metrics[0].reportedFcf, -150);
     assert.equal(metrics[0].trueFcf, -150);
-    assert.equal(metrics[0].sbcPctReportedFcf, 0);
+    assert.equal(metrics[0].sbcPctReportedFcf, null);
     assert.equal(metrics[1].trueFcfMargin, 0);
     assert.equal(Number.isFinite(metrics[1].sbcPctRevenue), true);
   });
@@ -99,6 +99,7 @@ describe("Amber finance engine", () => {
     );
     assert.equal(withTtm, fyOnly);
     assert.ok(withTtm < -1.9 && withTtm > -2.2);
+    assert.equal(computeAnnualMetrics(sampleAnnuals).at(-1)?.yoyShareChangePct, null);
   });
 
   it("annualizes changes across missing fiscal years", () => {
@@ -126,6 +127,20 @@ describe("Amber finance engine", () => {
     });
     assert.equal(targetTrueFcfMarginPct, 2);
     assert.ok(Math.abs(result.year10TrueFcf / result.year10Revenue * 100 - targetTrueFcfMarginPct) < 1e-10);
+  });
+
+  it("reports a growth clamp only when enterprise value falls outside the solved range", () => {
+    const inputs = {
+      baseRevenue: 100,
+      waccPct: 10,
+      terminalMultiple: 20,
+      targetTrueFcfMarginPct: 15,
+      currentTrueFcfMarginPct: 15,
+      horizonYears: 1,
+    };
+    const high = 100 * 1.8495 * 0.15 * 21 / 1.1;
+    assert.equal(solveReverseDcf({ ...inputs, enterpriseValue: high }).clamped, null);
+    assert.equal(solveReverseDcf({ ...inputs, enterpriseValue: high + 1 }).clamped, "high");
   });
 
   it("handles negative EV cleanly in solveReverseDcf without crashing or clamping to -25%", () => {

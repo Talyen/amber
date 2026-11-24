@@ -46,7 +46,7 @@ export const companies = pgTable("companies", {
   marketCap: doublePrecision("market_cap").notNull(), // $M
   cashAndEquiv: doublePrecision("cash_and_equiv").notNull(), // $M
   totalDebt: doublePrecision("total_debt").notNull(), // $M
-  lastFilingType: text("last_filing_type").notNull(), // "10-K" | "10-Q"
+  lastFilingType: text("last_filing_type").notNull(), // "10-K" | "10-Q" | "20-F" | "40-F"
   lastFilingDate: text("last_filing_date").notNull(),
   lastFilingPeriodEnd: text("last_filing_period_end").notNull(),
   lastFilingAccession: text("last_filing_accession").notNull(),

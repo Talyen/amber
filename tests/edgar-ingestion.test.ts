@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { ingestCandidate } from "../scripts/ingest-edgar.ts";
+import { hasNewCoverageInputs, ingestCandidate, selectCoverageCandidates } from "../scripts/ingest-edgar.ts";
 import { selectFinancialSnapshots } from "../scripts/seed-neon.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 
@@ -9,7 +9,7 @@ const priorQuarterAccession = "0000000100-25-000001";
 const quarterAccession = "0000000100-26-000002";
 const annualAccession = "0000000100-26-000001";
 
-function fact(start: string, end: string, value: number, form: string, filed: string, accn: string) {
+function fact(start: string | undefined, end: string, value: number, form: string, filed: string, accn: string) {
   return { start, end, val: value * 1e6, form, filed, accn };
 }
 
@@ -114,4 +114,91 @@ test("the latest periodic filing advances before XBRL can produce TTM", async (t
   });
   assert.equal(result.annuals.at(-1)?.fiscalYear, "FY25");
   assert.equal(result.filingDiffs[0]?.accessionNumber, annualAccession);
+});
+
+test("the coverage selector keeps ordinary symbols ending in W, U and R", () => {
+  const selected = selectCoverageCandidates([
+    [1, "Snowflake", "SNOW", "NYSE"],
+    [2, "Micron", "MU", "Nasdaq"],
+    [3, "Palantir", "PLTR", "Nasdaq"],
+    [4, "Example Inc.", "ABCD", "Nasdaq"],
+    [4, "Example Inc.", "ABCDW", "Nasdaq"],
+    [4, "Example Inc.", "ABCDU", "Nasdaq"],
+    [4, "Example Inc.", "ABCDR", "Nasdaq"],
+    [5, "Example Bank", "BANK", "NYSE"],
+    [6, "Example ETF Trust", "ETF", "NYSE"],
+    [7, "Other Inc.", "OTHER", "NYSE"],
+  ], 4, ["ABCD"]);
+
+  assert.deepEqual(selected.map(({ ticker }) => ticker), ["PLTR", "SNOW", "MU", "ABCD"]);
+});
+
+test("expansion requires a recent annual report and avoids guessed valuation inputs", () => {
+  const pilot = PILOT_TICKERS[0];
+  const financials = { ...pilot.annuals[0], periodEndDate: "2025-12-31" };
+  const snapshot = { ...pilot, annuals: [financials], marketCapShares: 123, sic: 7372 };
+  const now = Date.parse("2026-08-01");
+
+  assert.equal(hasNewCoverageInputs(snapshot, now), true);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, marketCapShares: undefined }, now), false);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, edgarFallback: true }, now), false);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 6798 }, now), false);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 1311 }, now), false);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, annuals: [{ ...financials, capex: 0 }] }, now), false);
+  assert.equal(hasNewCoverageInputs(snapshot, Date.parse("2027-10-01")), false);
+});
+
+test("cash and debt use facts from the same period and count commercial paper once", async (t) => {
+  const instant = (end: string, val: number) =>
+    fact(undefined, end, val, "10-Q", "2026-08-01", quarterAccession);
+  const yearEnd = "2025-12-31";
+  const quarterEnd = "2026-06-30";
+  mockSec(t, {
+    Revenues: usd(...annual(1000), ...ytd(500, 550)),
+    NetCashProvidedByUsedInOperatingActivities: usd(...annual(200), ...ytd(90, 100)),
+    CashAndCashEquivalentsAtCarryingValue: usd(instant(yearEnd, 30), instant(quarterEnd, 20)),
+    CashCashEquivalentsAndShortTermInvestments: usd(instant(yearEnd, 130)),
+    MarketableSecuritiesCurrent: usd(instant(yearEnd, 100)),
+    ShortTermInvestments: usd(instant(quarterEnd, 10)),
+    LongTermDebt: usd(instant(yearEnd, 125), instant(quarterEnd, 50)),
+    LongTermDebtNoncurrent: usd(instant(quarterEnd, 40)),
+    LongTermDebtCurrent: usd(instant(quarterEnd, 10)),
+    DebtCurrent: usd(instant(quarterEnd, 15)),
+    CommercialPaper: usd(instant(quarterEnd, 5)),
+    CommonStockSharesOutstanding: { units: { shares: [instant(quarterEnd, 40.125)] } },
+    WeightedAverageNumberOfDilutedSharesOutstanding: { units: { shares: annual(50) } },
+  });
+
+  const snapshot = await ingestCandidate(candidate, new Map(), new Map());
+  assert.equal(snapshot?.cashAndEquiv, 30);
+  assert.equal(snapshot.totalDebt, 55);
+  assert.equal(snapshot.marketCapShares, 40.125);
+  assert.equal(snapshot.annuals.at(-2)?.cashAndEquiv, 130);
+  assert.equal(snapshot.annuals.at(-2)?.totalDebt, 125);
+  assert.equal(snapshot.annuals.at(-2)?.dilutedShares, 50);
+});
+
+test("TTM uses newer YTD revenue when the company changes tags", async (t) => {
+  mockSec(t, {
+    Revenues: usd(...annual(1000), ...ytd(200, 240, "03-31")),
+    RevenueFromContractWithCustomerExcludingAssessedTax: usd(...ytd(500, 550)),
+    NetCashProvidedByUsedInOperatingActivities: usd(...annual(200), ...ytd(90, 100)),
+    PaymentsToAcquireOtherProductiveAssets: usd(...annual(100), ...ytd(40, 55)),
+  });
+  const snapshot = await ingestCandidate(candidate, new Map(), new Map());
+  const row = snapshot?.annuals.at(-1);
+  assert.equal(row?.periodEndDate, "2026-06-30");
+  assert.equal(row.revenue, 1050);
+  assert.equal(row.capex, 115);
+});
+
+test("the ledger retains reported operating cash flow for banks", async (t) => {
+  mockSec(t, {
+    Revenues: usd(...annual(180_000)),
+    NetCashProvidedByUsedInOperatingActivities: usd(...annual(-148_000)),
+    NetIncomeLoss: usd(...annual(57_000)),
+    ShareBasedCompensation: usd(...annual(3600)),
+  });
+  const snapshot = await ingestCandidate({ ...candidate, ticker: "JPM" }, new Map(), new Map());
+  assert.equal(snapshot?.annuals.at(-1)?.operatingCashFlow, -148_000);
 });

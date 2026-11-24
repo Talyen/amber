@@ -26,6 +26,18 @@ Open [http://localhost:3000](http://localhost:3000) to explore Amber locally.
 
 Run `pnpm lint`, `pnpm typecheck`, and `pnpm test` to match the pull request checks.
 
+## Company Coverage
+
+The nightly job screens up to 900 Nasdaq and NYSE issuers from the SEC ticker
+directory. It prioritizes tracked companies and uses one listing per issuer.
+New coverage requires recent USD financials, identifiable cash CapEx and
+shares outstanding, and a valid closing price. Expansion defers companies in the
+SEC's finance, insurance, and real estate classification and crude oil and gas
+producers pending reliable sector-specific inputs.
+Issuer-specific filing values missing from SEC Company Facts are recorded in
+[`scripts/filing-supplements.ts`](scripts/filing-supplements.ts) with their source
+and reporting period.
+
 ## Production Releases
 
 `pnpm release` applies and verifies the reviewed SQL migrations using the linked

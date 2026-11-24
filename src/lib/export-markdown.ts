@@ -18,13 +18,17 @@ export function buildTickerMarkdown(
   const latest = series[series.length - 1];
   const ev = computeEnterpriseValue(company);
   const dilution = computeNetDilutionCagr(company.annuals);
+  const sbcRatios = [`${formatPct(latest.sbcPctRevenue)} of rev`];
+  if (latest.sbcPctReportedFcf !== null) {
+    sbcRatios.push(`${formatPct(latest.sbcPctReportedFcf, false, 0)} of Reported FCF`);
+  }
 
   const lines = [
     `### ${company.name} (${company.ticker}): Fundamental Snapshot`,
     "",
     `- **Price / Market Cap / EV:** $${company.price.toFixed(2)} | ${formatCurrencyCompact(company.marketCap)} Mkt Cap | ${formatCurrencyCompact(ev)} EV`,
     `- **True Free Cash Flow (${latest.fiscalYear}):** **${formatCurrencyCompact(latest.trueFcf)}** (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
-    `- **Stock-Based Comp (SBC):** ${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctRevenue)} of rev | ${formatPct(latest.sbcPctReportedFcf, false, 0)} of Reported FCF)`,
+    `- **Stock-Based Comp (SBC):** ${formatCurrencyCompact(latest.sbc)} (${sbcRatios.join(" | ")})`,
     `- **Net Share Dilution (4Y CAGR):** ${formatPct(dilution, true)} (${latest.dilutedShares.toLocaleString()}M diluted shares)`,
     `- **Market-Implied 10Y Revenue CAGR:** ${formatPct(impliedCagr)}/yr`,
     "",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { CompanySnapshot, ComputedAnnual } from "@/lib/finance";
+import { computeEnterpriseValue, type CompanySnapshot, type ComputedAnnual } from "@/lib/finance";
 
 interface HistoricalValuationBandsProps {
   company: CompanySnapshot;
@@ -46,8 +46,8 @@ export function HistoricalValuationBands({
 
     for (const row of series) {
       const fyKey = row.fiscalYear.toUpperCase();
-      const isTtm = fyKey === "TTM";
-      const price = isTtm ? company.price : priceByFy.get(fyKey) ?? null;
+      if (fyKey === "TTM") continue;
+      const price = priceByFy.get(fyKey);
       if (!price || price <= 0) continue;
 
       const rowNetDebt =
@@ -65,16 +65,21 @@ export function HistoricalValuationBands({
 
     if (points.length < 3) return null;
 
+    const current = series[series.length - 1];
+    const currentDenominator = useFcf ? current.trueFcf : current.revenue;
+    const currentMultiple = computeEnterpriseValue(company) / currentDenominator;
+    if (currentDenominator <= 0 || !Number.isFinite(currentMultiple) || currentMultiple <= 0 || currentMultiple > 150) return null;
+
     const med = Number(median(points.map((p) => p.multiple)).toFixed(1));
-    const latest = points[points.length - 1];
+    const latest = { label: "Now", multiple: Number(currentMultiple.toFixed(1)) };
     const diffPct = med > 0 ? ((latest.multiple - med) / med) * 100 : 0;
 
-    return { points, med, latest, diffPct, metricLabel };
+    return { points: [...points, latest], historicalCount: points.length, med, latest, diffPct, metricLabel };
   }, [company, series]);
 
   if (!result) return null;
 
-  const { points, med, latest, diffPct, metricLabel } = result;
+  const { points, historicalCount, med, latest, diffPct, metricLabel } = result;
   const width = 760;
   const height = 220;
   const pad = { top: 24, right: 56, bottom: 32, left: 44 };
@@ -123,7 +128,7 @@ export function HistoricalValuationBands({
             Historical Valuation Bands ({metricLabel})
           </h2>
           <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Current multiple ({latest.multiple.toFixed(1)}x) vs. {points.length}-period median ({med.toFixed(1)}x) with a ±20% fair band.
+            Current multiple ({latest.multiple.toFixed(1)}x) vs. {historicalCount}-period median ({med.toFixed(1)}x) with a ±20% fair band.
           </p>
         </div>
         <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${badge.cls}`}>

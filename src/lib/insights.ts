@@ -187,7 +187,7 @@ export function buildCompanyBriefing(
       id: "sbc-drag",
       tag: "Hidden Cost",
       title:
-        latest.reportedFcf > 0
+        latest.sbcPctReportedFcf !== null
           ? `Employee stock comp absorbs ${formatPct(latest.sbcPctReportedFcf, false, 0)} of headline Free Cash Flow`
           : `Stock-based comp (${formatCurrencyCompact(latest.sbc)}) compounds negative headline FCF`,
       detail: `Standard screeners highlight ${formatCurrencyCompact(latest.reportedFcf)} in FCF, but ${company.ticker} issued ${formatCurrencyCompact(latest.sbc)} in stock compensation (${formatPct(latest.sbcPctRevenue)} of revenue).`,
@@ -276,8 +276,10 @@ export function buildCompanyBriefing(
     secondaryClause = `, with a high-signal ${highDiff.filingType} change in ${highDiff.category}.`;
   } else if (dilutionCagr <= -1.5) {
     secondaryClause = `, backed by buybacks shrinking share count ${Math.abs(dilutionCagr).toFixed(1)}%/yr.`;
-  } else if (latest.sbcPctRevenue >= 12) {
+  } else if (latest.sbcPctRevenue >= 12 && latest.sbcPctReportedFcf !== null) {
     secondaryClause = `, while stock comp absorbs ${formatPct(latest.sbcPctReportedFcf, false, 0)} of headline FCF.`;
+  } else if (latest.sbcPctRevenue >= 12) {
+    secondaryClause = `, while stock comp costs ${formatPct(latest.sbcPctRevenue)} of revenue.`;
   } else if (dilutionCagr >= 2.2) {
     secondaryClause = `, while diluted shares expanded +${dilutionCagr.toFixed(1)}%/yr.`;
   } else {
