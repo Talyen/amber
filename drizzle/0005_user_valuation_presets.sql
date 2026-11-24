@@ -1,16 +1,20 @@
-create table if not exists user_valuation_presets (
-  id text primary key,
-  user_id text not null references "user"(id) on delete cascade,
-  ticker text not null references companies(ticker) on delete cascade,
-  lens text not null default 'fcf',
-  rev_growth double precision not null,
-  target_margin double precision not null,
-  exit_multiple double precision not null,
-  updated_at timestamptz not null default now()
-);
+DO $migration$
+BEGIN
+  CREATE TABLE IF NOT EXISTS public.user_valuation_presets (
+    id text PRIMARY KEY,
+    user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+    ticker text NOT NULL REFERENCES public.companies(ticker) ON DELETE CASCADE,
+    lens text NOT NULL DEFAULT 'fcf',
+    rev_growth double precision NOT NULL,
+    target_margin double precision NOT NULL,
+    exit_multiple double precision NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
 
-create unique index if not exists user_valuation_presets_user_ticker_idx
-  on user_valuation_presets (user_id, ticker);
+  CREATE UNIQUE INDEX IF NOT EXISTS user_valuation_presets_user_ticker_idx
+    ON public.user_valuation_presets (user_id, ticker);
 
-create index if not exists user_valuation_presets_user_idx
-  on user_valuation_presets (user_id);
+  CREATE INDEX IF NOT EXISTS user_valuation_presets_user_idx
+    ON public.user_valuation_presets (user_id);
+END;
+$migration$;
