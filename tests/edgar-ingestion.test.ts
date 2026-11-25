@@ -144,7 +144,8 @@ test("expansion requires a recent annual report and avoids guessed valuation inp
   assert.equal(hasNewCoverageInputs({ ...snapshot, edgarFallback: true }, now), false);
   assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 6798, annuals: [{ ...financials, stockholdersEquity: null, netIncome: null }] }, now), false);
   assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 6798, annuals: [{ ...financials, capex: 0, stockholdersEquity: 12000, netIncome: 1500 }] }, now), true);
-  assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 1311 }, now), false);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 1311, annuals: [{ ...financials, operatingCashFlow: 5000, capex: 2000 }] }, now), true);
+  assert.equal(hasNewCoverageInputs({ ...snapshot, sic: 1311, annuals: [{ ...financials, operatingCashFlow: 0, capex: 2000 }] }, now), false);
   assert.equal(hasNewCoverageInputs({ ...snapshot, annuals: [{ ...financials, capex: 0 }] }, now), false);
   assert.equal(hasNewCoverageInputs(snapshot, Date.parse("2027-10-01")), false);
 });

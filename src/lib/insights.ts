@@ -6,6 +6,7 @@ import {
   computeRevenueCagr,
   formatCurrencyCompact,
   formatPct,
+  isFinancialInstitution,
 } from "@/lib/finance";
 import type { InsiderTradeItem } from "@/components/InsiderRadar";
 import type { SearchIndexEntry } from "@/data/search-index";
@@ -345,6 +346,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     defaultSortKey: "trueFcf",
     defaultSortDir: "desc",
     filter: (c) =>
+      !isFinancialInstitution(c) &&
       c.revenue >= 500 &&
       c.trueFcfMargin >= 22 &&
       c.trueFcfMargin <= 75 &&
@@ -394,6 +396,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     defaultSortKey: "ruleOf40",
     defaultSortDir: "desc",
     filter: (c) =>
+      !isFinancialInstitution(c) &&
       c.revenue >= 500 &&
       typeof c.revenueCagr === "number" &&
       c.revenueCagr >= 8 &&

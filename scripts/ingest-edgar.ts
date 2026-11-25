@@ -897,7 +897,7 @@ function extractQuarterlySeries(
 export function hasNewCoverageInputs(snapshot: EdgarSnapshot, now = Date.now()): boolean {
   const latestAnnual = snapshot.annuals.findLast((row) => row.fiscalYear !== "TTM");
   const sic = snapshot.sic;
-  if (!sic || sic === 1311) return false;
+  if (!sic) return false;
   if (snapshot.edgarFallback || !latestAnnual?.periodEndDate) return false;
   const age = now - Date.parse(latestAnnual.periodEndDate);
   if (age < 0 || age > 550 * DAY_MS || (snapshot.marketCapShares ?? 0) <= 0) return false;
@@ -908,6 +908,15 @@ export function hasNewCoverageInputs(snapshot: EdgarSnapshot, now = Date.now()):
       typeof latestAnnual.stockholdersEquity === "number" &&
       latestAnnual.stockholdersEquity > 0 &&
       typeof latestAnnual.netIncome === "number"
+    );
+  }
+
+  // Crude oil & gas E&P producers require positive OCF and identifiable E&P capital spending.
+  if (sic === 1311) {
+    return (
+      snapshot.cashAndEquiv > 0 &&
+      latestAnnual.capex > 0 &&
+      latestAnnual.operatingCashFlow > 0
     );
   }
 
@@ -992,6 +1001,19 @@ export async function ingestCandidate(
       "StockholdersEquity",
       "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
     ];
+    const DA_TAGS = [
+      "DepreciationDepletionAndAmortization",
+      "DepreciationAndAmortization",
+      "RealEstateDepreciationAndAmortization",
+      "DepreciationAmortizationAndAccretionNet",
+      "Depreciation",
+    ];
+    const GOODWILL_TAGS = ["Goodwill"];
+    const INTANGIBLES_EXCL_GOODWILL_TAGS = [
+      "IntangibleAssetsNetExcludingGoodwill",
+      "FiniteLivedIntangibleAssetsNet",
+    ];
+    const GOODWILL_AND_INTANGIBLES_TAGS = ["GoodwillAndIntangibleAssetsNet"];
 
     const grossProfitMap = extractAnnualSeries(
       facts,
@@ -1029,7 +1051,14 @@ export async function ingestCandidate(
       "USD",
       false
     );
+    const daMap = extractAnnualSeries(facts, DA_TAGS, "USD");
+    const goodwillMap = extractAnnualSeries(facts, GOODWILL_TAGS, "USD", false);
+    const intangiblesMap = extractAnnualSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, "USD", false);
+    const goodwillAndIntangiblesMap = extractAnnualSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, "USD", false);
     const equityInstantSeries = instantSeries(facts, EQUITY_TAGS, "USD");
+    const goodwillInstantSeries = instantSeries(facts, GOODWILL_TAGS, "USD");
+    const intangiblesInstantSeries = instantSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, "USD");
+    const goodwillAndIntangiblesInstantSeries = instantSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, "USD");
     const balanceSheet = balanceSheetByPeriod(facts);
     const latestEndByYear = new Map(
       [...revMap.keys()].filter((end) => ocfMap.has(end)).sort()
@@ -1082,6 +1111,16 @@ export async function ingestCandidate(
       const opVal = opIncMap.get(end)?.val;
       const niVal = netIncMap.get(end)?.val;
       const eqVal = equityMap.get(end)?.val;
+      const daVal = daMap.get(end)?.val;
+      const gwVal = goodwillMap.get(end)?.val;
+      const intangVal = intangiblesMap.get(end)?.val;
+      const combinedGwVal = goodwillAndIntangiblesMap.get(end)?.val;
+      const goodwillIntangiblesVal =
+        gwVal !== undefined || intangVal !== undefined
+          ? Math.max(0, gwVal ?? 0) + Math.max(0, intangVal ?? 0)
+          : combinedGwVal !== undefined
+            ? Math.max(0, combinedGwVal)
+            : undefined;
       const balance = balanceSheet.at(end);
       return {
         fiscalYear: `FY${end.slice(2, 4)}`,
@@ -1097,6 +1136,9 @@ export async function ingestCandidate(
         operatingIncome: opVal !== undefined ? Math.round(opVal / 1e6) : null,
         netIncome: niVal !== undefined ? Math.round(niVal / 1e6) : null,
         stockholdersEquity: eqVal !== undefined ? Math.round(eqVal / 1e6) : null,
+        depreciationAmortization: daVal !== undefined ? Math.round(Math.abs(daVal) / 1e6) : null,
+        goodwillIntangibles:
+          goodwillIntangiblesVal !== undefined ? Math.round(goodwillIntangiblesVal / 1e6) : null,
         periodEndDate: end,
         cashAndEquiv: supplement?.cashAndEquiv ?? balance.cashAndEquiv,
         totalDebt: supplement?.totalDebt ?? balance.totalDebt,
@@ -1228,6 +1270,17 @@ export async function ingestCandidate(
             ttmEquityEntry !== undefined
               ? Math.round(ttmEquityEntry.val / 1e6)
               : latestAnnual.stockholdersEquity ?? null,
+          depreciationAmortization: latestAnnual.depreciationAmortization ?? null,
+          goodwillIntangibles: (() => {
+            const gw = goodwillInstantSeries.get(revQ.window.end)?.val;
+            const intang = intangiblesInstantSeries.get(revQ.window.end)?.val;
+            const combined = goodwillAndIntangiblesInstantSeries.get(revQ.window.end)?.val;
+            if (gw !== undefined || intang !== undefined) {
+              return Math.round((Math.max(0, gw ?? 0) + Math.max(0, intang ?? 0)) / 1e6);
+            }
+            if (combined !== undefined) return Math.round(Math.max(0, combined) / 1e6);
+            return latestAnnual.goodwillIntangibles ?? null;
+          })(),
           cashAndEquiv: ttmSupplement?.cashAndEquiv ?? ttmBalance.cashAndEquiv,
           totalDebt: ttmSupplement?.totalDebt ?? ttmBalance.totalDebt,
         });

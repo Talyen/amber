@@ -83,6 +83,8 @@ async function queryCompanyFromDb(
         operatingIncome: a.operatingIncome,
         netIncome: a.netIncome,
         stockholdersEquity: a.stockholdersEquity,
+        depreciationAmortization: a.depreciationAmortization,
+        goodwillIntangibles: a.goodwillIntangibles,
         periodEndDate: a.periodEndDate,
         cashAndEquiv: a.cashAndEquiv,
         totalDebt: a.totalDebt,

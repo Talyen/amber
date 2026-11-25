@@ -13,6 +13,8 @@ export interface AnnualFinancials {
   operatingIncome?: number | null;
   netIncome?: number | null;
   stockholdersEquity?: number | null;
+  depreciationAmortization?: number | null; // $M (optional, for REIT FFO & EBITDA)
+  goodwillIntangibles?: number | null; // $M (optional, for Bank TBV / ROTCE)
   periodEndDate?: string | null; // e.g. "2025-09-27"
   cashAndEquiv?: number | null; // $M historical cash
   totalDebt?: number | null; // $M historical debt
@@ -625,6 +627,10 @@ export function isFinancialInstitution(
   );
 }
 
+export function isReit(company: Pick<CompanySnapshot, "sector">): boolean {
+  return company.sector === "Real Estate & REITs";
+}
+
 export interface FinancialSectorMetrics {
   priceToBook: number | null;
   roePct: number | null;
@@ -632,6 +638,13 @@ export interface FinancialSectorMetrics {
   bookValuePerShare: number | null;
   equityCagrPct: number | null;
   stockholdersEquity: number | null;
+  tangibleBookValue: number | null;
+  tangibleBookPerShare: number | null;
+  priceToTbv: number | null;
+  rotcePct: number | null;
+  ffo: number | null;
+  ffoPerShare: number | null;
+  priceToFfo: number | null;
 }
 
 export function computeFinancialSectorMetrics(
@@ -644,6 +657,10 @@ export function computeFinancialSectorMetrics(
   const latestWithNetIncome =
     [...company.annuals].reverse().find((a) => typeof a.netIncome === "number") ??
     null;
+  const latestWithDa =
+    [...company.annuals].reverse().find(
+      (a) => typeof a.netIncome === "number" && typeof a.depreciationAmortization === "number" && a.depreciationAmortization >= 0
+    ) ?? null;
 
   const equity = latestWithEquity?.stockholdersEquity ?? null;
   const netIncome = latestWithNetIncome?.netIncome ?? null;
@@ -663,6 +680,34 @@ export function computeFinancialSectorMetrics(
       : null;
   const bookValuePerShare =
     equity && equity > 0 && shares > 0 ? equity / shares : null;
+
+  const goodwillIntangibles = latestWithEquity?.goodwillIntangibles ?? null;
+  const tangibleBookValue =
+    equity !== null && goodwillIntangibles !== null && equity - goodwillIntangibles > 0
+      ? equity - goodwillIntangibles
+      : null;
+  const tangibleBookPerShare =
+    tangibleBookValue !== null && shares > 0 ? tangibleBookValue / shares : null;
+  const priceToTbv =
+    tangibleBookValue !== null && tangibleBookValue > 0 && company.marketCap > 0
+      ? company.marketCap / tangibleBookValue
+      : null;
+  const rotcePct =
+    tangibleBookValue !== null && tangibleBookValue > 0 && netIncome !== null
+      ? (netIncome / tangibleBookValue) * 100
+      : null;
+
+  const ffo =
+    latestWithDa && typeof latestWithDa.netIncome === "number" && typeof latestWithDa.depreciationAmortization === "number"
+      ? latestWithDa.netIncome + latestWithDa.depreciationAmortization
+      : null;
+  const ffoShares = latestWithDa?.dilutedShares ?? shares;
+  const ffoPerShare =
+    ffo !== null && ffoShares > 0 ? ffo / ffoShares : null;
+  const priceToFfo =
+    ffo !== null && ffo > 0 && company.marketCap > 0
+      ? company.marketCap / ffo
+      : null;
 
   const equityFy = fyOnly.filter(
     (a) => typeof a.stockholdersEquity === "number" && a.stockholdersEquity > 0
@@ -685,5 +730,12 @@ export function computeFinancialSectorMetrics(
     bookValuePerShare,
     equityCagrPct,
     stockholdersEquity: equity,
+    tangibleBookValue,
+    tangibleBookPerShare,
+    priceToTbv,
+    rotcePct,
+    ffo,
+    ffoPerShare,
+    priceToFfo,
   };
 }

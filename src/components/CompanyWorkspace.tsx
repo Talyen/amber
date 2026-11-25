@@ -26,6 +26,7 @@ import {
   formatCurrencyCompact,
   formatPct,
   isFinancialInstitution as checkFinancialInstitution,
+  isReit as checkIsReit,
 } from "@/lib/finance";
 import {
   buildTickerAiContext,
@@ -179,6 +180,7 @@ export function CompanyWorkspace({
     return fy[fy.length - 1] ?? latest;
   }, [series, latest]);
   const isFinancialInstitution = checkFinancialInstitution(company);
+  const isReitCompany = checkIsReit(company);
   const financialMetrics = useMemo(
     () => (isFinancialInstitution ? computeFinancialSectorMetrics(company) : null),
     [company, isFinancialInstitution]
@@ -489,9 +491,11 @@ export function CompanyWorkspace({
           <div className="mt-5 space-y-3">
             <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2.5 text-xs text-[var(--text-secondary)]">
               <strong className="font-semibold text-[var(--amber)]">
-                Financial Institution &amp; REIT Note:
+                {isReitCompany ? "REIT Valuation Note:" : "Financial Institution Note:"}
               </strong>{" "}
-              For banks, insurers, asset managers, and REITs, standard Free Cash Flow and Enterprise Value are distorted by deposits, loan books, or property debt. Use Book Value, ROE, the{" "}
+              {isReitCompany
+                ? "For REITs, GAAP Net Income is depressed by real estate depreciation and standard Enterprise Value includes property-level debt. Use Price / FFO, Book Value, and Filing Diffs alongside the "
+                : "For banks, insurers, and asset managers, standard Free Cash Flow and Enterprise Value are distorted by deposits and loan books. Use Tangible Book Value, ROTCE / ROE, the "}
               <button
                 type="button"
                 onClick={() => {
@@ -507,40 +511,102 @@ export function CompanyWorkspace({
             {financialMetrics &&
               (financialMetrics.priceToBook !== null ||
                 financialMetrics.roePct !== null ||
-                financialMetrics.peRatio !== null) && (
+                financialMetrics.peRatio !== null ||
+                financialMetrics.priceToFfo !== null) && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
-                    <div className="text-[11px] text-[var(--text-muted)]">Price / Book</div>
-                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
-                      {financialMetrics.priceToBook !== null
-                        ? `${financialMetrics.priceToBook.toFixed(2)}×`
-                        : "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
-                    <div className="text-[11px] text-[var(--text-muted)]">Return on Equity (ROE)</div>
-                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
-                      {financialMetrics.roePct !== null
-                        ? formatPct(financialMetrics.roePct)
-                        : "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
-                    <div className="text-[11px] text-[var(--text-muted)]">P/E Multiple</div>
-                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
-                      {financialMetrics.peRatio !== null
-                        ? `${financialMetrics.peRatio.toFixed(1)}×`
-                        : "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
-                    <div className="text-[11px] text-[var(--text-muted)]">Book Value / Share</div>
-                    <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
-                      {financialMetrics.bookValuePerShare !== null
-                        ? `$${financialMetrics.bookValuePerShare.toFixed(2)}`
-                        : "—"}
-                    </div>
-                  </div>
+                  {isReitCompany ? (
+                    <>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">Price / FFO</div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.priceToFfo !== null
+                            ? `${financialMetrics.priceToFfo.toFixed(1)}×`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">FFO / Share</div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.ffoPerShare !== null
+                            ? `$${financialMetrics.ffoPerShare.toFixed(2)}`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">Price / Book</div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.priceToBook !== null
+                            ? `${financialMetrics.priceToBook.toFixed(2)}×`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">Book Value / Share</div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.bookValuePerShare !== null
+                            ? `$${financialMetrics.bookValuePerShare.toFixed(2)}`
+                            : "—"}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          {financialMetrics.priceToTbv !== null ? "Price / Tangible Book" : "Price / Book"}
+                        </div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.priceToTbv !== null
+                            ? `${financialMetrics.priceToTbv.toFixed(2)}×`
+                            : financialMetrics.priceToBook !== null
+                              ? `${financialMetrics.priceToBook.toFixed(2)}×`
+                              : "—"}
+                        </div>
+                        {financialMetrics.priceToTbv !== null && financialMetrics.priceToBook !== null && (
+                          <div className="font-mono-num text-[10px] text-[var(--text-muted)]">
+                            P/B {financialMetrics.priceToBook.toFixed(2)}×
+                          </div>
+                        )}
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          {financialMetrics.rotcePct !== null ? "ROTCE" : "Return on Equity (ROE)"}
+                        </div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.rotcePct !== null
+                            ? formatPct(financialMetrics.rotcePct)
+                            : financialMetrics.roePct !== null
+                              ? formatPct(financialMetrics.roePct)
+                              : "—"}
+                        </div>
+                        {financialMetrics.rotcePct !== null && financialMetrics.roePct !== null && (
+                          <div className="font-mono-num text-[10px] text-[var(--text-muted)]">
+                            ROE {formatPct(financialMetrics.roePct)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">P/E Multiple</div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.peRatio !== null
+                            ? `${financialMetrics.peRatio.toFixed(1)}×`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          {financialMetrics.tangibleBookPerShare !== null ? "TBV / Share" : "Book Value / Share"}
+                        </div>
+                        <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
+                          {financialMetrics.tangibleBookPerShare !== null
+                            ? `$${financialMetrics.tangibleBookPerShare.toFixed(2)}`
+                            : financialMetrics.bookValuePerShare !== null
+                              ? `$${financialMetrics.bookValuePerShare.toFixed(2)}`
+                              : "—"}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
           </div>
