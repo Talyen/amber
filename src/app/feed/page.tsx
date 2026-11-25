@@ -4,9 +4,10 @@ import {
   getRecentMarketInsiders,
   getSearchIndex,
 } from "@/data/repository";
+import { getCachedMarketNews } from "@/lib/market-news";
 import { SignalFeed } from "@/components/SignalFeed";
 
-export const revalidate = 3600;
+export const revalidate = 900;
 
 export const metadata: Metadata = {
   title: "Feed | SEC Filings, 8-K Events & Insider Trades",
@@ -15,10 +16,19 @@ export const metadata: Metadata = {
 };
 
 export default async function FeedPage() {
-  const [entries, insiders, diffs] = await Promise.all([
+  const [entries, insiders, diffs, marketNews] = await Promise.all([
     getSearchIndex(),
     getRecentMarketInsiders(),
     getRecentFilingDiffs(160),
+    getCachedMarketNews(),
   ]);
-  return <SignalFeed entries={entries} insiders={insiders} diffs={diffs} />;
+  return (
+    <SignalFeed
+      entries={entries}
+      insiders={insiders}
+      diffs={diffs}
+      initialTrending={marketNews.trending}
+      initialHeadlines={marketNews.items}
+    />
+  );
 }
