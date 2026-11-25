@@ -9,6 +9,20 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: amber
+          POSTGRES_PASSWORD: amber_test_password
+          POSTGRES_DB: amber_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,8 +31,13 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 11
+      - name: Install Postgres client for DB concurrency tests
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      - name: Run unit and Postgres concurrency tests
+        env:
+          AMBER_TEST_POSTGRES_URL: postgres://amber:amber_test_password@127.0.0.1:5432/amber_test
+        run: pnpm test
       - run: pnpm build
