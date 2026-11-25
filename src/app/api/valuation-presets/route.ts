@@ -1,21 +1,56 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { companies, userValuationPresets } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { normalizeValuationPresetInput } from "@/lib/valuation-presets";
 
+function serializePreset(row: typeof userValuationPresets.$inferSelect) {
+  return {
+    ticker: row.ticker,
+    lens: row.lens,
+    revGrowth: row.revGrowth,
+    targetMargin: row.targetMargin,
+    exitMultiple: row.exitMultiple,
+    thesisNote: row.thesisNote ?? null,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 export async function GET(request: Request) {
   const db = getDb();
-  if (!db) return NextResponse.json({ preset: null, authenticated: false });
+  const { searchParams } = new URL(request.url);
+  const rawTicker = searchParams.get("ticker");
+  const isBatch = rawTicker === null || rawTicker.trim() === "";
+
+  if (!db) {
+    return NextResponse.json(
+      isBatch ? { presets: [], authenticated: false } : { preset: null, authenticated: false }
+    );
+  }
 
   try {
     const session = await getAuth().api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
-    if (!userId) return NextResponse.json({ preset: null, authenticated: false });
+    if (!userId) {
+      return NextResponse.json(
+        isBatch ? { presets: [], authenticated: false } : { preset: null, authenticated: false }
+      );
+    }
 
-    const { searchParams } = new URL(request.url);
-    const ticker = String(searchParams.get("ticker") ?? "").trim().toUpperCase();
+    if (isBatch) {
+      const rows = await db
+        .select()
+        .from(userValuationPresets)
+        .where(eq(userValuationPresets.userId, userId))
+        .orderBy(desc(userValuationPresets.updatedAt));
+      return NextResponse.json({
+        authenticated: true,
+        presets: rows.map(serializePreset),
+      });
+    }
+
+    const ticker = rawTicker.trim().toUpperCase();
     if (!/^[A-Z0-9.-]{1,10}$/.test(ticker)) {
       return NextResponse.json({ error: "Invalid ticker." }, { status: 400 });
     }
@@ -33,19 +68,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       authenticated: true,
-      preset: row
-        ? {
-            ticker: row.ticker,
-            lens: row.lens,
-            revGrowth: row.revGrowth,
-            targetMargin: row.targetMargin,
-            exitMultiple: row.exitMultiple,
-            updatedAt: row.updatedAt.toISOString(),
-          }
-        : null,
+      preset: row ? serializePreset(row) : null,
     });
   } catch {
-    return NextResponse.json({ preset: null, authenticated: false });
+    return NextResponse.json(
+      isBatch ? { presets: [], authenticated: false } : { preset: null, authenticated: false }
+    );
   }
 }
 
@@ -93,6 +121,7 @@ export async function PUT(request: Request) {
       revGrowth: normalized.revGrowth,
       targetMargin: normalized.targetMargin,
       exitMultiple: normalized.exitMultiple,
+      thesisNote: normalized.thesisNote ?? null,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -102,6 +131,7 @@ export async function PUT(request: Request) {
         revGrowth: normalized.revGrowth,
         targetMargin: normalized.targetMargin,
         exitMultiple: normalized.exitMultiple,
+        thesisNote: normalized.thesisNote ?? null,
         updatedAt: now,
       },
     });

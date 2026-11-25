@@ -80,6 +80,8 @@ export const annualFinancials = pgTable(
     operatingIncome: doublePrecision("operating_income"), // $M (optional)
     netIncome: doublePrecision("net_income"), // $M (optional)
     stockholdersEquity: doublePrecision("stockholders_equity"), // $M (optional, for ROIC)
+    depreciationAmortization: doublePrecision("depreciation_amortization"), // $M (optional, for REIT FFO & EBITDA)
+    goodwillIntangibles: doublePrecision("goodwill_intangibles"), // $M (optional, for Bank TBV / ROTCE)
     periodEndDate: text("period_end_date"), // e.g. "2025-09-27"
     cashAndEquiv: doublePrecision("cash_and_equiv"), // $M historical cash
     totalDebt: doublePrecision("total_debt"), // $M historical debt
@@ -330,6 +332,7 @@ export const userValuationPresets = pgTable(
     revGrowth: doublePrecision("rev_growth").notNull(),
     targetMargin: doublePrecision("target_margin").notNull(),
     exitMultiple: doublePrecision("exit_multiple").notNull(),
+    thesisNote: text("thesis_note"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

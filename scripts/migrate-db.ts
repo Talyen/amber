@@ -41,6 +41,8 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0003_arena_handle_ownership.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0004_filing_alert_confirmation.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0005_user_valuation_presets.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0006_valuation_preset_notes.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0007_sector_financial_inputs.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -122,16 +124,36 @@ async function migrate() {
     select
       to_regclass('public.user_valuation_presets') is not null as table_exists,
       exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'user_valuation_presets'
+          and column_name = 'thesis_note'
+          and udt_name = 'text'
+      ) as has_thesis_note,
+      exists (
         select 1 from pg_index
         where indexrelid = to_regclass('public.user_valuation_presets_user_ticker_idx')
           and indrelid = 'public.user_valuation_presets'::regclass
           and indisunique and indisvalid and indnkeyatts = 2
       ) as unique_user_ticker
   `;
-  if (!presetSchema?.table_exists || !presetSchema.unique_user_ticker) {
+  if (!presetSchema?.table_exists || !presetSchema.has_thesis_note || !presetSchema.unique_user_ticker) {
     throw new Error("Could not verify the user_valuation_presets schema.");
   }
   console.log("[amber-migrate] Verified user_valuation_presets.");
+
+  const [sectorSchema] = await sql`
+    select count(*)::int as columns
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'annual_financials'
+      and column_name in ('depreciation_amortization', 'goodwill_intangibles')
+      and udt_name = 'float8'
+  `;
+  if (sectorSchema?.columns !== 2) {
+    throw new Error("Could not verify annual_financials sector columns.");
+  }
+  console.log("[amber-migrate] Verified annual_financials sector inputs.");
 }
 
 await migrate();

@@ -119,6 +119,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const [revGrowth, setRevGrowth] = useState(histGrowth);
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
+  const [thesisNote, setThesisNote] = useState("");
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
   const [fromSharedLink, setFromSharedLink] = useState(false);
   const [restoredThesis, setRestoredThesis] = useState(false);
@@ -133,6 +134,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     setRevGrowth(preset.revGrowth);
     setTargetMargin(preset.targetMargin);
     setExitMultiple(preset.exitMultiple);
+    setThesisNote(preset.thesisNote ?? "");
     setActivePreset("custom");
   }, [hasEbit, hasPe]);
 
@@ -209,12 +211,14 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
 
   async function handleSaveThesis() {
     editedThesis.current = true;
+    const trimmedNote = thesisNote.replace(/\s+/g, " ").trim();
     const payload: SavedValuationPreset = {
       ticker: company.ticker,
       lens,
       revGrowth,
       targetMargin,
       exitMultiple,
+      thesisNote: trimmedNote ? trimmedNote.slice(0, 240) : null,
       updatedAt: new Date().toISOString(),
     };
     const storedLocally = writeLocalValuationPreset({ ...payload, owner: userId });
@@ -447,6 +451,21 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               : "Could not save your thesis. Please try again."}
           </p>
         )}
+
+        <div className="mt-3">
+          <input
+            type="text"
+            value={thesisNote}
+            maxLength={240}
+            onChange={(e) => {
+              editedThesis.current = true;
+              setThesisNote(e.target.value);
+            }}
+            placeholder="Optional 1-line thesis note (shown in Portfolio & Watchlist)…"
+            aria-label="Optional thesis note"
+            className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+        </div>
 
         {/* Valuation Methodology Selector */}
         {(hasEbit || hasPe) && (

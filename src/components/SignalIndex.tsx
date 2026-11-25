@@ -26,6 +26,11 @@ import type {
   MaterialEventSummary,
 } from "@/data/repository";
 import { useWatchlist } from "@/lib/watchlist";
+import { authClient } from "@/lib/auth-client";
+import {
+  readAllLocalValuationPresets,
+  type SavedValuationPreset,
+} from "@/lib/valuation-presets";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
 import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
@@ -255,6 +260,44 @@ export function SignalIndex({
   const [minMarketCapB, setMinMarketCapB] = useState("");
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
+  const { data: session } = authClient.useSession();
+  const sessionUserId = session?.user?.id ?? null;
+  const [savedTheses, setSavedTheses] = useState<Record<string, SavedValuationPreset>>({});
+
+  useEffect(() => {
+    let active = true;
+    const local = readAllLocalValuationPresets(sessionUserId);
+    queueMicrotask(() => {
+      if (active) setSavedTheses(local);
+    });
+    if (!sessionUserId) {
+      return () => {
+        active = false;
+      };
+    }
+    const controller = new AbortController();
+    fetch("/api/valuation-presets", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { presets?: SavedValuationPreset[] } | null) => {
+        if (!active || !data?.presets) return;
+        const merged: Record<string, SavedValuationPreset> = { ...local };
+        for (const preset of data.presets) {
+          const existing = merged[preset.ticker];
+          if (
+            !existing ||
+            Date.parse(preset.updatedAt) >= Date.parse(existing.updatedAt)
+          ) {
+            merged[preset.ticker] = preset;
+          }
+        }
+        setSavedTheses(merged);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [sessionUserId]);
 
   const sectors = useMemo(() => {
     const counts = new Map<string, number>();
@@ -552,6 +595,18 @@ export function SignalIndex({
                 {c.name}
               </span>
             </Link>
+            {watchlistOnly && savedTheses[c.ticker] && (
+              <Link
+                href={`/t/${c.ticker}?tab=dcf&model=scenario`}
+                title={
+                  savedTheses[c.ticker].thesisNote ??
+                  `Saved ${savedTheses[c.ticker].lens.toUpperCase()} thesis`
+                }
+                className="rounded border border-[var(--amber-border)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] hover:opacity-90"
+              >
+                Thesis
+              </Link>
+            )}
           </div>
         </th>
         <td data-label="Mkt Cap" className="font-mono-num">

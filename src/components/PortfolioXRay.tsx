@@ -22,6 +22,11 @@ import { LockPortfolioModal } from "@/components/LockPortfolioModal";
 import { formatPct } from "@/lib/finance";
 import { exportPortfolioXRayCard } from "@/lib/export-card";
 import { parsePortfolioHoldings, serializePortfolioHoldings } from "@/lib/portfolio-link";
+import {
+  computePortfolioThesisSummary,
+  readAllLocalValuationPresets,
+  type SavedValuationPreset,
+} from "@/lib/valuation-presets";
 
 const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "META"];
 
@@ -59,6 +64,43 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       ? myArenaState.portfolio
       : null;
   const [initialLocation, setInitialLocation] = useState<{ addTicker?: string } | null>(null);
+  const [savedPresets, setSavedPresets] = useState<Record<string, SavedValuationPreset>>({});
+
+  // Hydrate saved valuation presets (localStorage + account sync when signed in)
+  useEffect(() => {
+    let active = true;
+    const local = readAllLocalValuationPresets(sessionUserId);
+    queueMicrotask(() => {
+      if (active) setSavedPresets(local);
+    });
+    if (!sessionUserId) {
+      return () => {
+        active = false;
+      };
+    }
+    const controller = new AbortController();
+    fetch("/api/valuation-presets", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { presets?: SavedValuationPreset[] } | null) => {
+        if (!active || !data?.presets) return;
+        const merged: Record<string, SavedValuationPreset> = { ...local };
+        for (const preset of data.presets) {
+          const existing = merged[preset.ticker];
+          if (
+            !existing ||
+            Date.parse(preset.updatedAt) >= Date.parse(existing.updatedAt)
+          ) {
+            merged[preset.ticker] = preset;
+          }
+        }
+        setSavedPresets(merged);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [sessionUserId]);
 
   // Fetch signed-in user's Arena status banner
   useEffect(() => {
@@ -233,6 +275,11 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       flags,
     };
   }, [holdings, normalizedWeights]);
+
+  const thesisSummary = useMemo(
+    () => computePortfolioThesisSummary(holdings, normalizedWeights, savedPresets),
+    [holdings, normalizedWeights, savedPresets]
+  );
 
   const suggestions = useMemo(() => {
     const q = addQuery.trim().toLowerCase();
@@ -507,6 +554,39 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
           </div>
         </section>
 
+        {/* Saved Theses Summary Strip */}
+        {hasAllocation && thesisSummary.coveredCount > 0 && thesisSummary.weightedIrrPct !== null && (
+          <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-3 text-xs">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+              <div>
+                <span className="text-[var(--text-muted)]">Saved Theses Est. 5Y CAGR: </span>
+                <strong
+                  className={`font-mono-num text-sm ${
+                    thesisSummary.weightedIrrPct >= 12
+                      ? "text-[var(--positive)]"
+                      : thesisSummary.weightedIrrPct >= 8
+                        ? "text-[var(--amber)]"
+                        : "text-[var(--negative)]"
+                  }`}
+                >
+                  {formatPct(thesisSummary.weightedIrrPct, true)}/yr
+                </strong>
+              </div>
+              {thesisSummary.weightedUpsidePct !== null && (
+                <div>
+                  <span className="text-[var(--text-muted)]">Weighted Upside: </span>
+                  <strong className="font-mono-num text-[var(--text-primary)]">
+                    {formatPct(thesisSummary.weightedUpsidePct, true)}
+                  </strong>
+                </div>
+              )}
+            </div>
+            <span className="text-[11px] text-[var(--text-secondary)]">
+              Based on {thesisSummary.coveredCount} of {thesisSummary.totalAllocatedCount} holdings ({thesisSummary.coveredWeightPct}% of weight)
+            </span>
+          </section>
+        )}
+
         {/* Reality Check Flags + Sector Exposure */}
         {hasAllocation && <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-12">
           <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-6">
@@ -616,6 +696,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                   <th scope="col">SBC / Rev</th>
                   <th scope="col">Dilution (4Y)</th>
                   <th scope="col">Implied 10Y</th>
+                  <th scope="col">Saved Thesis</th>
                   {!usingStarter && (
                     <th scope="col" className="w-10">
                       <span className="sr-only">Remove</span>
@@ -626,11 +707,12 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               <tbody>
                 {holdings.length === 0 && (
                   <tr>
-                    <td colSpan={7}>Add a ticker or paste holdings to analyze a portfolio.</td>
+                    <td colSpan={8}>Add a ticker or paste holdings to analyze a portfolio.</td>
                   </tr>
                 )}
                 {holdings.map((h) => {
                   const pct = (normalizedWeights.get(h.ticker) ?? 0) * 100;
+                  const thesis = thesisSummary.byTicker[h.ticker];
                   return (
                     <tr key={h.ticker}>
                       <th scope="row">
@@ -712,6 +794,37 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                         className="font-mono-num font-semibold"
                       >
                         {formatPct(h.impliedCagr)}
+                      </td>
+                      <td data-label="Saved Thesis" className="font-mono-num">
+                        {thesis ? (
+                          <Link
+                            href={`/t/${h.ticker}?tab=dcf&model=scenario`}
+                            title={thesis.thesisNote ?? `${thesis.lens.toUpperCase()} thesis — Fair value $${thesis.fairValueToday.toFixed(2)}`}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold hover:border-[var(--amber-border)]"
+                          >
+                            <span
+                              className={
+                                thesis.irrPct >= 12
+                                  ? "text-[var(--positive)]"
+                                  : thesis.irrPct >= 8
+                                    ? "text-[var(--amber)]"
+                                    : "text-[var(--negative)]"
+                              }
+                            >
+                              {formatPct(thesis.irrPct, true)}/yr
+                            </span>
+                            <span className="text-[10px] uppercase text-[var(--text-muted)]">
+                              {thesis.lens}
+                            </span>
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/t/${h.ticker}?tab=dcf&model=scenario`}
+                            className="text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--amber)]"
+                          >
+                            + Thesis
+                          </Link>
+                        )}
                       </td>
                       {!usingStarter && (
                         <td data-label="Remove">
