@@ -21,7 +21,7 @@ export const SCREENER_PRESETS: ScreenerPreset[] = [
   {
     id: "garp-compounders",
     label: "GARP Compounders",
-    description: "True FCF >= 20%, SBC <= 4%, Implied 10Y <= 10%",
+    description: "True FCF >= 20%, Stock Comp <= 4%, Priced-In Growth <= 10%",
     values: { fcf: "20", sbc: "4", imp: "10", dil: "", cap: "", sector: "All" },
   },
   {
@@ -33,13 +33,13 @@ export const SCREENER_PRESETS: ScreenerPreset[] = [
   {
     id: "large-cap-value",
     label: "Large-Cap Value",
-    description: "Mkt Cap >= $50B, True FCF >= 15%, Implied 10Y <= 8%",
+    description: "Mkt Cap >= $50B, True FCF >= 15%, Priced-In Growth <= 8%",
     values: { fcf: "15", sbc: "", imp: "8", dil: "", cap: "50", sector: "All" },
   },
   {
     id: "disciplined-saas",
     label: "Disciplined Software",
-    description: "Cloud & Software, True FCF >= 15%, SBC <= 10%",
+    description: "Cloud & Software, True FCF >= 15%, Stock Comp <= 10%",
     values: { fcf: "15", sbc: "10", imp: "", dil: "", cap: "", sector: "Cloud & Software" },
   },
 ];
@@ -95,13 +95,13 @@ export function ExploreScreenerDrawer({
     activeChips.push({ label: `True FCF >= ${minFcfMargin}%`, onClear: () => onChangeMinFcf("") });
   }
   if (maxSbcPct.trim()) {
-    activeChips.push({ label: `SBC/Rev <= ${maxSbcPct}%`, onClear: () => onChangeMaxSbc("") });
+    activeChips.push({ label: `Stock Comp <= ${maxSbcPct}%`, onClear: () => onChangeMaxSbc("") });
   }
   if (maxImplied.trim()) {
-    activeChips.push({ label: `Implied 10Y <= ${maxImplied}%`, onClear: () => onChangeMaxImplied("") });
+    activeChips.push({ label: `Priced-In Growth <= ${maxImplied}%`, onClear: () => onChangeMaxImplied("") });
   }
   if (maxDilution.trim()) {
-    activeChips.push({ label: `Dilution <= ${maxDilution}%`, onClear: () => onChangeMaxDilution("") });
+    activeChips.push({ label: `Share Chg <= ${maxDilution}%`, onClear: () => onChangeMaxDilution("") });
   }
   if (minMarketCapB.trim()) {
     activeChips.push({ label: `Mkt Cap >= $${minMarketCapB}B`, onClear: () => onChangeMinCapB("") });
@@ -171,7 +171,7 @@ export function ExploreScreenerDrawer({
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max SBC / Rev %
+            Max Stock Comp %
           </span>
           <input
             type="number"
@@ -185,7 +185,7 @@ export function ExploreScreenerDrawer({
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max Implied 10Y %
+            Max Priced-In Growth %
           </span>
           <input
             type="number"
@@ -199,7 +199,7 @@ export function ExploreScreenerDrawer({
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max Dilution %
+            Max Share Chg %
           </span>
           <input
             type="number"

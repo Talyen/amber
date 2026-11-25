@@ -16,6 +16,7 @@ import {
   type SearchIndexEntry,
 } from "@/data/universe";
 import { buildSearchIndexEntry } from "@/data/search-index";
+import { normalizeCompanyName } from "@/lib/company-name";
 import { queryInsiderBuySummaries, queryMaterialEventSummaries } from "@/data/filing-summaries";
 import { periodicFilingType, type CompanySnapshot, type FilingDiffItem } from "@/lib/finance";
 
@@ -54,7 +55,7 @@ async function queryCompanyFromDb(
     return {
       ticker: row.ticker,
       cik: row.cik,
-      name: row.name,
+      name: normalizeCompanyName(row.name),
       exchange: row.exchange === "NYSE" ? "NYSE" : "NASDAQ",
       sector: row.sector,
       tagline: row.tagline,
@@ -173,6 +174,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
           name: companies.name,
           exchange: companies.exchange,
           sector: companies.sector,
+          price: companies.price,
           marketCap: companies.marketCap,
           cashAndEquiv: companies.cashAndEquiv,
           totalDebt: companies.totalDebt,
@@ -191,6 +193,8 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
           sbc: annualFinancials.sbc,
           buybacks: annualFinancials.buybacks,
           dilutedShares: annualFinancials.dilutedShares,
+          operatingIncome: annualFinancials.operatingIncome,
+          netIncome: annualFinancials.netIncome,
         })
         .from(annualFinancials)
         .innerJoin(companies, eq(annualFinancials.ticker, companies.ticker))
@@ -215,7 +219,11 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
       index.push(buildSearchIndexEntry({
         ...c,
         exchange: c.exchange === "NYSE" ? "NYSE" : "NASDAQ",
-        annuals,
+        annuals: annuals.map((a) => ({
+          ...a,
+          operatingIncome: a.operatingIncome ?? undefined,
+          netIncome: a.netIncome ?? undefined,
+        })),
         lastFiling: { date: c.lastFilingDate },
       }));
     }
@@ -240,7 +248,7 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
       }
       return res;
     },
-    ["amber-search-index-v3"],
+    ["amber-search-index-v4"],
     {
       revalidate: 3600,
       tags: ["companies"],
@@ -499,6 +507,7 @@ export async function getRecentFilingDiffs(
 
       return rows.map((r) => ({
         ...r,
+        companyName: normalizeCompanyName(r.companyName),
         materiality: (r.materiality === "High" || r.materiality === "Medium"
           ? r.materiality
           : "Watch") as MarketFilingDiffItem["materiality"],
@@ -568,6 +577,7 @@ export async function getFilingDiffsForTickers(
 
       return rows.map((r) => ({
         ...r,
+        companyName: normalizeCompanyName(r.companyName),
         materiality: (r.materiality === "High" || r.materiality === "Medium"
           ? r.materiality
           : "Watch") as MarketFilingDiffItem["materiality"],

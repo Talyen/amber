@@ -14,6 +14,7 @@ import {
   Landmark,
   SlidersHorizontal,
   Star,
+  TrendingUp,
   UserCheck,
   X,
 } from "lucide-react";
@@ -29,9 +30,14 @@ import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
 import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
 import { ExploreSignalStrip } from "@/components/ExploreSignalStrip";
+import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { MethodologyModal } from "@/components/MethodologyModal";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
-import { DISCOVERY_LENSES, type IndexSortKey } from "@/lib/insights";
+import {
+  computeRuleOf40Score,
+  DISCOVERY_LENSES,
+  type IndexSortKey,
+} from "@/lib/insights";
 
 import { readExploreLink, writeExploreLink } from "@/lib/explore-link";
 
@@ -53,6 +59,10 @@ const LENS_STYLES: Record<
     icon: Compass,
     badge: "bg-teal-500/12 text-teal-600 ring-teal-500/25 dark:text-teal-400",
   },
+  "rule-of-40": {
+    icon: TrendingUp,
+    badge: "bg-indigo-500/12 text-indigo-600 ring-indigo-500/25 dark:text-indigo-400",
+  },
   "hidden-dilution": {
     icon: AlertTriangle,
     badge: "bg-rose-500/12 text-rose-600 ring-rose-500/25 dark:text-rose-400",
@@ -70,6 +80,8 @@ const LENS_STYLES: Record<
 function getSortColumns(lensId: string | null) {
   const isInsiderLens = lensId === "insider-buys";
   const isEventLens = lensId === "material-events";
+  const isUnderpricedLens = lensId === "underpriced";
+  const isRuleOf40Lens = lensId === "rule-of-40";
 
   const columns: Array<{
     key?: SortKey;
@@ -90,11 +102,11 @@ function getSortColumns(lensId: string | null) {
           label: "Filed",
           tip: "Most recent Form 4 open-market buy date",
         },
-        { key: "trueFcfMargin", label: "True Margin", tip: "True FCF as % of Revenue" },
+        { key: "trueFcfMargin", label: "True FCF %", tip: "True Free Cash Flow as % of Revenue" },
         {
           key: "impliedCagr",
-          label: "Implied 10Y",
-          tip: "10-year annual revenue growth rate priced into today's stock price",
+          label: "Priced-In Growth",
+          tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
         },
       ]
     : isEventLens
@@ -108,39 +120,92 @@ function getSortColumns(lensId: string | null) {
             tip: "Most recent high-signal Form 8-K filing date",
           },
           {
-            key: "impliedCagr",
-            label: "Implied 10Y",
-            tip: "10-year annual revenue growth rate priced into today's stock price",
-          },
-        ]
-      : [
-          { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
-          {
             key: "trueFcf",
             label: "True FCF",
             tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
           },
-          {
-            key: "trueFcfMargin",
-            label: "True Margin",
-            tip: "True Free Cash Flow as a percentage of Revenue",
-          },
-          {
-            key: "sbcPctRevenue",
-            label: "SBC / Rev",
-            tip: "Employee stock-based compensation as a % of Revenue",
-          },
-          {
-            key: "netDilutionCagr",
-            label: "Dilution (4Y)",
-            tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
-          },
-          {
-            key: "impliedCagr",
-            label: "Implied 10Y",
-            tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
-          },
-        ];
+        ]
+      : isUnderpricedLens
+        ? [
+            { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+            { label: "Price", tip: "Latest share price" },
+            {
+              label: "Fair Value",
+              tip: "Amber's 5-year Base Case DCF fair value per share (10% hurdle rate)",
+            },
+            {
+              key: "fairValueUpsidePct",
+              label: "Est. Upside",
+              tip: "Estimated upside/downside vs. Amber's 5-year Base Case DCF fair value",
+            },
+            {
+              key: "trueFcfMargin",
+              label: "True FCF %",
+              tip: "True Free Cash Flow as a percentage of Revenue",
+            },
+            {
+              key: "impliedCagr",
+              label: "Priced-In Growth",
+              tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
+            },
+          ]
+        : isRuleOf40Lens
+          ? [
+              { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+              {
+                key: "ruleOf40",
+                label: "Rule of 40",
+                tip: "Annualized revenue growth % + True FCF % (after stock-based compensation)",
+              },
+              {
+                key: "revenueCagr",
+                label: "Rev Growth",
+                tip: "Annualized multi-year revenue growth rate",
+              },
+              {
+                key: "trueFcfMargin",
+                label: "True FCF %",
+                tip: "True Free Cash Flow as a percentage of Revenue",
+              },
+              {
+                key: "sbcPctRevenue",
+                label: "Stock Comp %",
+                tip: "Employee stock-based compensation as a % of Revenue",
+              },
+              {
+                key: "impliedCagr",
+                label: "Priced-In Growth",
+                tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
+              },
+            ]
+          : [
+            { key: "marketCap", label: "Mkt Cap", tip: "Latest market capitalization" },
+            {
+              key: "trueFcf",
+              label: "True FCF",
+              tip: "Free Cash Flow minus Stock-Based Compensation (real cash after equity dilution)",
+            },
+            {
+              key: "trueFcfMargin",
+              label: "True FCF %",
+              tip: "True Free Cash Flow as a percentage of Revenue",
+            },
+            {
+              key: "sbcPctRevenue",
+              label: "Stock Comp %",
+              tip: "Employee stock-based compensation as a % of Revenue",
+            },
+            {
+              key: "netDilutionCagr",
+              label: "Share Chg (4Y)",
+              tip: "Annualized 4-year change in diluted share count (negative = buyback shrinkage)",
+            },
+            {
+              key: "impliedCagr",
+              label: "Priced-In Growth",
+              tip: "10-year annual revenue growth rate already priced into today's stock price (Reverse DCF)",
+            },
+          ];
 
   return columns;
 }
@@ -387,6 +452,12 @@ export function SignalIndex({
         const da = materialEventSummaries[a.ticker]?.filingDate ?? "";
         const db = materialEventSummaries[b.ticker]?.filingDate ?? "";
         diff = da.localeCompare(db) || a.marketCap - b.marketCap;
+      } else if (sortKey === "fairValueUpsidePct") {
+        diff = (a.fairValueUpsidePct ?? -999) - (b.fairValueUpsidePct ?? -999);
+      } else if (sortKey === "revenueCagr") {
+        diff = (a.revenueCagr ?? -999) - (b.revenueCagr ?? -999);
+      } else if (sortKey === "ruleOf40") {
+        diff = computeRuleOf40Score(a) - computeRuleOf40Score(b);
       } else {
         diff = a[sortKey] - b[sortKey];
       }
@@ -427,6 +498,8 @@ export function SignalIndex({
 
   const isInsiderLens = activeLensId === "insider-buys";
   const isEventLens = activeLensId === "material-events";
+  const isUnderpricedLens = activeLensId === "underpriced";
+  const isRuleOf40Lens = activeLensId === "rule-of-40";
 
   const sortColumns = getSortColumns(activeLensId);
 
@@ -438,7 +511,9 @@ export function SignalIndex({
       ? `/t/${c.ticker}?tab=insiders`
       : isEventLens
         ? `/t/${c.ticker}?tab=diffs`
-        : `/t/${c.ticker}`;
+        : isUnderpricedLens
+          ? `/t/${c.ticker}?tab=dcf`
+          : `/t/${c.ticker}`;
     const buyInfo = insiderBuySummaries[c.ticker];
     const eventInfo = materialEventSummaries[c.ticker];
 
@@ -448,13 +523,14 @@ export function SignalIndex({
           <div className="inline-flex items-center gap-2">
             <button
               type="button"
+              disabled={!watchlist.canEdit}
               onClick={() => watchlist.toggle(c.ticker)}
               aria-label={
                 starred
                   ? `Remove ${c.ticker} from watchlist`
                   : `Add ${c.ticker} to watchlist`
               }
-              className={`transition-colors cursor-pointer ${
+              className={`transition-colors cursor-pointer disabled:cursor-wait ${
                 starred
                   ? "text-[var(--amber)]"
                   : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
@@ -508,10 +584,10 @@ export function SignalIndex({
             <td data-label="Filed" className="font-mono-num text-[var(--text-secondary)]">
               {buyInfo?.latestDate ?? "—"}
             </td>
-            <td data-label="True Margin" className="font-mono-num">
+            <td data-label="True FCF %" className="font-mono-num">
               {formatPct(c.trueFcfMargin)}
             </td>
-            <td data-label="Implied 10Y" className="font-mono-num font-medium">
+            <td data-label="Priced-In Growth" className="font-mono-num font-medium">
               {formatPct(c.impliedCagr)}
             </td>
           </>
@@ -536,7 +612,73 @@ export function SignalIndex({
             <td data-label="Filed" className="font-mono-num text-[var(--text-secondary)]">
               {eventInfo?.filingDate ?? "—"}
             </td>
-            <td data-label="Implied 10Y" className="font-mono-num font-medium">
+            <td
+              data-label="True FCF"
+              className={`font-mono-num font-semibold ${
+                c.trueFcf >= 0
+                  ? "text-[var(--amber)]"
+                  : "text-[var(--negative)]"
+              }`}
+            >
+              {formatCurrencyCompact(c.trueFcf)}
+            </td>
+          </>
+        ) : isUnderpricedLens ? (
+          <>
+            <td data-label="Price" className="font-mono-num text-[var(--text-secondary)]">
+              {typeof c.price === "number" ? `$${c.price.toFixed(2)}` : "—"}
+            </td>
+            <td data-label="Fair Value" className="font-mono-num font-medium text-[var(--text-primary)]">
+              {typeof c.fairValue === "number" ? `$${c.fairValue.toFixed(2)}` : "—"}
+            </td>
+            <td
+              data-label="Est. Upside"
+              className={`font-mono-num font-semibold ${
+                (c.fairValueUpsidePct ?? 0) >= 0
+                  ? "text-[var(--positive)]"
+                  : "text-[var(--negative)]"
+              }`}
+            >
+              {typeof c.fairValueUpsidePct === "number"
+                ? formatPct(c.fairValueUpsidePct, true)
+                : "—"}
+            </td>
+            <td data-label="True FCF %" className="font-mono-num">
+              {formatPct(c.trueFcfMargin)}
+            </td>
+            <td data-label="Priced-In Growth" className="font-mono-num font-medium">
+              {formatPct(c.impliedCagr)}
+            </td>
+          </>
+        ) : isRuleOf40Lens ? (
+          <>
+            <td
+              data-label="Rule of 40"
+              className="font-mono-num font-semibold text-[var(--amber)]"
+            >
+              {computeRuleOf40Score(c).toFixed(1)}
+            </td>
+            <td
+              data-label="Rev Growth"
+              className="font-mono-num text-[var(--positive)]"
+            >
+              {typeof c.revenueCagr === "number"
+                ? formatPct(c.revenueCagr, true)
+                : "—"}
+            </td>
+            <td data-label="True FCF %" className="font-mono-num">
+              {formatPct(c.trueFcfMargin)}
+            </td>
+            <td
+              data-label="Stock Comp %"
+              className="font-mono-num text-[var(--sbc)]"
+            >
+              {formatPct(c.sbcPctRevenue)}
+            </td>
+            <td
+              data-label="Priced-In Growth"
+              className="font-mono-num font-medium"
+            >
               {formatPct(c.impliedCagr)}
             </td>
           </>
@@ -552,17 +694,17 @@ export function SignalIndex({
             >
               {formatCurrencyCompact(c.trueFcf)}
             </td>
-            <td data-label="True Margin" className="font-mono-num">
+            <td data-label="True FCF %" className="font-mono-num">
               {formatPct(c.trueFcfMargin)}
             </td>
             <td
-              data-label="SBC / Rev"
+              data-label="Stock Comp %"
               className="font-mono-num text-[var(--sbc)]"
             >
               {formatPct(c.sbcPctRevenue)}
             </td>
             <td
-              data-label="Dilution (4Y)"
+              data-label="Share Chg (4Y)"
               className={`font-mono-num ${
                 c.netDilutionCagr > 1.5
                   ? "text-[var(--negative)]"
@@ -574,7 +716,7 @@ export function SignalIndex({
               {formatPct(c.netDilutionCagr, true)}
             </td>
             <td
-              data-label="Implied 10Y"
+              data-label="Priced-In Growth"
               className="font-mono-num font-medium"
             >
               {formatPct(c.impliedCagr)}
@@ -585,69 +727,16 @@ export function SignalIndex({
     );
   }
 
-  const trendingRank = useMemo(
-    () => new Map(trendingTickers.map((t, idx) => [t, idx])),
-    [trendingTickers]
+  const { featuredDiffs, featuredInsiderBuy } = useMemo(
+    () =>
+      selectFeaturedSignals({
+        diffs: recentDiffs,
+        insiders: recentInsiders,
+        entries,
+        trendingTickers,
+      }),
+    [recentDiffs, recentInsiders, entries, trendingTickers]
   );
-
-  const featuredDiff = useMemo(() => {
-    const trendingDiffs = recentDiffs
-      .filter((d) => trendingRank.has(d.ticker))
-      .sort(
-        (a, b) =>
-          (trendingRank.get(a.ticker) ?? 99) - (trendingRank.get(b.ticker) ?? 99) ||
-          b.filingDate.localeCompare(a.filingDate)
-      );
-    return (
-      trendingDiffs.find((d) => d.materiality === "High") ??
-      trendingDiffs[0] ??
-      recentDiffs.find((d) => d.materiality === "High") ??
-      recentDiffs[0] ??
-      null
-    );
-  }, [recentDiffs, trendingRank]);
-
-  const featuredInsiderBuy = useMemo(() => {
-    const buys = recentInsiders.filter((i) => i.transactionType === "Buy");
-    const trendingBuys = buys
-      .filter((b) => trendingRank.has(b.ticker))
-      .sort(
-        (a, b) =>
-          (trendingRank.get(a.ticker) ?? 99) - (trendingRank.get(b.ticker) ?? 99) ||
-          b.totalValue - a.totalValue
-      );
-    return (
-      trendingBuys[0] ??
-      [...buys].sort((a, b) => b.totalValue - a.totalValue)[0] ??
-      null
-    );
-  }, [recentInsiders, trendingRank]);
-
-  const featuredExpectation = useMemo(() => {
-    const usedTickers = new Set([
-      featuredDiff?.ticker,
-      featuredInsiderBuy?.ticker,
-    ]);
-    const trendingCandidates = leaderboardEligible
-      .filter(
-        (c) =>
-          trendingRank.has(c.ticker) &&
-          !usedTickers.has(c.ticker) &&
-          c.impliedCagr > 0 &&
-          c.impliedCagr < 60
-      )
-      .sort(
-        (a, b) =>
-          (trendingRank.get(a.ticker) ?? 99) - (trendingRank.get(b.ticker) ?? 99)
-      );
-    return (
-      trendingCandidates[0] ??
-      [...leaderboardEligible]
-        .filter((c) => c.marketCap >= 50_000 && c.impliedCagr > 0 && c.impliedCagr < 60)
-        .sort((a, b) => b.impliedCagr - a.impliedCagr)[0] ??
-      null
-    );
-  }, [leaderboardEligible, trendingRank, featuredDiff, featuredInsiderBuy]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
@@ -679,9 +768,8 @@ export function SignalIndex({
         {!initialLensId && (
           <ExploreSignalStrip
             entries={entries}
-            featuredDiff={featuredDiff}
+            featuredDiffs={featuredDiffs}
             featuredInsiderBuy={featuredInsiderBuy}
-            featuredExpectation={featuredExpectation}
             hasInWatchlist={watchlist.has}
             onToggleWatchlist={watchlist.toggle}
           />

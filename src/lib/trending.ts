@@ -1,52 +1,26 @@
 import { unstable_cache } from "next/cache";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { arenaPositions, insiderTrades, userWatchlists } from "@/db/schema";
 import { getSearchIndex } from "@/data/repository";
 import type { SearchIndexEntry } from "@/data/search-index";
+import {
+  INSIDER_BUY_LOOKBACK_DAYS,
+  MIN_ARENA_POSITIONS,
+  MIN_INSIDER_BUY_VALUE_M,
+  MIN_WATCHLIST_USERS,
+  rankTrendingTickers,
+  type TrendingTickerItem,
+} from "@/lib/trending-ranking";
 
-export interface TrendingTickerItem {
-  ticker: string;
-  name: string;
-  reason: "Trending" | "Insider Buy" | "Most Watched";
-}
-
-const FALLBACK_BELLWETHERS = [
-  "NVDA",
-  "AAPL",
-  "MSFT",
-  "AMZN",
-  "TSLA",
-  "META",
-  "PLTR",
-  "GOOGL",
-  "AMD",
-  "AVGO",
-  "JPM",
-  "NFLX",
-];
+export { rankTrendingTickers, type TrendingTickerItem };
 
 async function computeTrendingTickers(
   entries: SearchIndexEntry[]
 ): Promise<TrendingTickerItem[]> {
-  const byTicker = new Map(entries.map((e) => [e.ticker, e]));
-  const trending: TrendingTickerItem[] = [];
-  const seen = new Set<string>();
-
-  const pushIfValid = (
-    rawSym: string,
-    reason: TrendingTickerItem["reason"]
-  ) => {
-    const sym = rawSym === "GOOG" ? "GOOGL" : rawSym.toUpperCase();
-    const entry = byTicker.get(sym);
-    if (!entry || seen.has(sym)) return;
-    seen.add(sym);
-    trending.push({
-      ticker: sym,
-      name: entry.name,
-      reason,
-    });
-  };
+  const yahooSymbols: string[] = [];
+  const recentBuyTickers: string[] = [];
+  const communityTickers: string[] = [];
 
   // 1. Live Yahoo Finance US Market Trending Tickers (headline / news-driven momentum)
   try {
@@ -63,8 +37,7 @@ async function computeTrendingTickers(
       };
       const quotes = data.finance?.result?.[0]?.quotes ?? [];
       for (const q of quotes) {
-        if (q.symbol) pushIfValid(q.symbol, "Trending");
-        if (trending.length >= 6) break;
+        if (q.symbol) yahooSymbols.push(q.symbol);
       }
     }
   } catch {
@@ -75,53 +48,63 @@ async function computeTrendingTickers(
   const db = getDb();
   if (db) {
     try {
+      const cutoffDate = new Date(
+        Date.now() - INSIDER_BUY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
+      )
+        .toISOString()
+        .slice(0, 10);
+
       const [recentBuys, topWatched, topArena] = await Promise.all([
         db
           .select({ ticker: insiderTrades.ticker })
           .from(insiderTrades)
-          .where(eq(insiderTrades.transactionType, "Buy"))
-          .orderBy(desc(insiderTrades.filingDate), desc(insiderTrades.totalValue))
-          .limit(12),
+          .where(
+            and(
+              eq(insiderTrades.transactionType, "Buy"),
+              gte(insiderTrades.filingDate, cutoffDate),
+              gte(insiderTrades.totalValue, MIN_INSIDER_BUY_VALUE_M)
+            )
+          )
+          .orderBy(desc(insiderTrades.totalValue), desc(insiderTrades.filingDate))
+          .limit(15),
         db
           .select({
             ticker: userWatchlists.ticker,
-            cnt: sql<number>`count(*)`,
+            cnt: sql<number>`count(*)::int`,
           })
           .from(userWatchlists)
           .groupBy(userWatchlists.ticker)
+          .having(sql`count(*) >= ${MIN_WATCHLIST_USERS}`)
           .orderBy(desc(sql`count(*)`))
           .limit(6),
         db
           .select({
             ticker: arenaPositions.ticker,
-            cnt: sql<number>`count(*)`,
+            cnt: sql<number>`count(*)::int`,
           })
           .from(arenaPositions)
           .groupBy(arenaPositions.ticker)
+          .having(sql`count(*) >= ${MIN_ARENA_POSITIONS}`)
           .orderBy(desc(sql`count(*)`))
           .limit(6),
       ]);
 
       for (const b of recentBuys) {
-        if (trending.length >= 9) break;
-        pushIfValid(b.ticker, "Insider Buy");
+        recentBuyTickers.push(b.ticker);
       }
       for (const w of [...topWatched, ...topArena]) {
-        if (trending.length >= 11) break;
-        pushIfValid(w.ticker, "Most Watched");
+        communityTickers.push(w.ticker);
       }
     } catch {
       // Fallback gracefully
     }
   }
 
-  // 3. Guarantee at least 10 trending items using bellwethers
-  for (const f of FALLBACK_BELLWETHERS) {
-    if (trending.length >= 10) break;
-    pushIfValid(f, "Trending");
-  }
-
-  return trending.slice(0, 10);
+  return rankTrendingTickers(entries, {
+    yahooSymbols,
+    recentBuyTickers,
+    communityTickers,
+  });
 }
 
 const getCachedTrendingTickers = unstable_cache(
@@ -129,7 +112,7 @@ const getCachedTrendingTickers = unstable_cache(
     const entries = await getSearchIndex();
     return computeTrendingTickers(entries);
   },
-  ["amber-trending-tickers-v1"],
+  ["amber-trending-tickers-v2"],
   { revalidate: 900, tags: ["trending", "companies"] }
 );
 

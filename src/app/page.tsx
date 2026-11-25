@@ -26,17 +26,19 @@ export default async function HomePage() {
     await Promise.all([
       getFilingDiffsForTickers(trendingSyms, 30),
       getInsiderTradesForTickers(trendingSyms, 40),
-      getRecentFilingDiffs(20),
+      getRecentFilingDiffs(40),
       getRecentMarketInsiders(),
     ]);
 
-  const recentDiffs =
-    trendingDiffs.length > 0 ? trendingDiffs : fallbackDiffs;
+  const seenDiffIds = new Set(trendingDiffs.map((d) => d.id));
+  const recentDiffs = [
+    ...trendingDiffs,
+    ...fallbackDiffs.filter((fd) => !seenDiffIds.has(fd.id)),
+  ];
+  const seenInsiderIds = new Set(trendingInsiders.map((ti) => ti.id));
   const recentInsiders = [
     ...trendingInsiders,
-    ...fallbackInsiders.filter(
-      (fi) => !trendingInsiders.some((ti) => ti.id === fi.id)
-    ),
+    ...fallbackInsiders.filter((fi) => !seenInsiderIds.has(fi.id)),
   ];
 
   return (

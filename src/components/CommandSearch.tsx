@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/search-index";
+import { searchCompanies } from "@/lib/company-search";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
 let cachedSearchIndex: SearchIndexEntry[] | null = null;
@@ -43,64 +44,33 @@ export function CommandSearch({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const lightDismiss = useDialogLightDismiss(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [entries, setEntries] = useState<SearchIndexEntry[]>(() => {
-    if (initialEntries && initialEntries.length > 0) {
-      cachedSearchIndex = initialEntries;
-      return initialEntries;
-    }
-    return cachedSearchIndex ?? [];
-  });
-  const [loading, setLoading] = useState(false);
+  const listboxId = useId();
+  const [loadedEntries, setLoadedEntries] = useState<SearchIndexEntry[]>([]);
+  const entries = initialEntries?.length ? initialEntries : loadedEntries;
+  const [loadStatus, setLoadStatus] = useState<"idle" | "loading" | "failed">("idle");
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // Hydrate latest edge-cached search index from /api/search-index once on open
-  const hasFetchedRef = useRef(false);
-
-  const results = useMemo<SearchIndexEntry[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) {
-      return [...entries]
-        .sort((a, b) => b.marketCap - a.marketCap)
-        .slice(0, 12);
-    }
-    return entries
-      .filter(
-        (item) =>
-          item.ticker.toLowerCase().includes(q) ||
-          item.name.toLowerCase().includes(q) ||
-          item.sector.toLowerCase().includes(q)
-      )
-      .sort((a, b) => {
-        const aExact = a.ticker.toLowerCase().startsWith(q) ? 1 : 0;
-        const bExact = b.ticker.toLowerCase().startsWith(q) ? 1 : 0;
-        if (aExact !== bExact) return bExact - aExact;
-        return b.marketCap - a.marketCap;
-      })
-      .slice(0, 12);
-  }, [entries, query]);
+  const results = useMemo(() => searchCompanies(entries, query, 12), [entries, query]);
+  const activeTicker = results[activeIdx]?.ticker;
 
   const openDialog = useCallback(() => {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
 
-    if (!hasFetchedRef.current) {
-      hasFetchedRef.current = true;
-      if (!cachedSearchIndex) setLoading(true);
-      loadSearchIndex()
-        .then((data) => {
-          if (data && data.length > 0) {
-            setEntries(data);
-          }
-        })
-        .finally(() => setLoading(false));
+    if (entries.length === 0) {
+      if (!cachedSearchIndex) setLoadStatus("loading");
+      loadSearchIndex().then((data) => {
+        if (data) setLoadedEntries(data);
+        setLoadStatus(data ? "idle" : "failed");
+      });
     }
 
     dialog.showModal();
     setQuery("");
     setActiveIdx(0);
     window.requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
+  }, [entries.length]);
 
   const closeDialog = useCallback(() => {
     const dialog = dialogRef.current;
@@ -153,6 +123,7 @@ export function CommandSearch({
       {variant === "nav" ? (
         <button
           type="button"
+          aria-label="Search tickers"
           onClick={openDialog}
           className="inline-flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
         >
@@ -195,11 +166,10 @@ export function CommandSearch({
             ref={inputRef}
             type="search"
             role="combobox"
+            aria-label="Search companies"
             aria-expanded={results.length > 0}
-            aria-controls="command-search-listbox"
-            aria-activedescendant={
-              results[activeIdx] ? `cmd-opt-${results[activeIdx].ticker}` : undefined
-            }
+            aria-controls={results.length > 0 ? listboxId : undefined}
+            aria-activedescendant={activeTicker ? `${listboxId}-${activeTicker}` : undefined}
             aria-autocomplete="list"
             value={query}
             onChange={(e) => {
@@ -222,9 +192,13 @@ export function CommandSearch({
         </div>
 
         <div className="max-h-[380px] overflow-y-auto p-2">
-          {loading && results.length === 0 ? (
+          {entries.length === 0 && loadStatus === "loading" ? (
             <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
               Loading SEC-indexed companies…
+            </div>
+          ) : entries.length === 0 && loadStatus === "failed" ? (
+            <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+              Could not load companies. Reopen search to try again.
             </div>
           ) : results.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
@@ -232,7 +206,7 @@ export function CommandSearch({
             </div>
           ) : (
             <ul
-              id="command-search-listbox"
+              id={listboxId}
               role="listbox"
               aria-label="Matching companies"
               className="space-y-0.5"
@@ -242,7 +216,7 @@ export function CommandSearch({
                 return (
                   <li key={item.ticker} role="none">
                     <button
-                      id={`cmd-opt-${item.ticker}`}
+                      id={`${listboxId}-${item.ticker}`}
                       type="button"
                       role="option"
                       aria-selected={isSelected}
