@@ -20,7 +20,13 @@ import { pathToFileURL } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { desc, inArray, sql } from "drizzle-orm";
-import { companies as companiesTable, filingDiffNoChanges, filingDiffs } from "../src/db/schema.ts";
+import {
+  alertSubscriptions,
+  companies as companiesTable,
+  filingDiffNoChanges,
+  filingDiffs,
+  userWatchlists,
+} from "../src/db/schema.ts";
 import type { CompanySnapshot, FilingDiffItem } from "../src/lib/finance.ts";
 
 const SEC_USER_AGENT =
@@ -57,11 +63,78 @@ interface DiffCache {
   };
 }
 
-interface TargetCompany {
+export interface TargetCompany {
   ticker: string;
   cik: string;
   name: string;
   marketCap: number;
+  lastFilingType?: string | null;
+  lastFilingDate?: string | null;
+  lastFilingAccession?: string | null;
+}
+
+const FRESH_FILING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+export function isPreprocessedPeriodicAccession(
+  company: Pick<TargetCompany, "ticker" | "lastFilingType" | "lastFilingAccession">,
+  processedByTicker: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  if (!company.lastFilingAccession) return false;
+  if (company.lastFilingType && company.lastFilingType !== "10-K" && company.lastFilingType !== "10-Q") {
+    return false;
+  }
+  return processedByTicker.get(company.ticker)?.has(company.lastFilingAccession) ?? false;
+}
+
+export function prioritizeDiffTargets<T extends TargetCompany>(
+  companies: readonly T[],
+  {
+    priorityTickers,
+    processedByTicker,
+    nowMs = Date.now(),
+  }: {
+    priorityTickers: ReadonlySet<string>;
+    processedByTicker: ReadonlyMap<string, ReadonlySet<string>>;
+    nowMs?: number;
+  }
+): { ordered: T[]; preSkipped: number } {
+  const tier1: T[] = [];
+  const tier2: T[] = [];
+  const tier3: T[] = [];
+  let preSkipped = 0;
+
+  for (const company of companies) {
+    if (isPreprocessedPeriodicAccession(company, processedByTicker)) {
+      preSkipped++;
+      continue;
+    }
+    const filingMs = company.lastFilingDate ? Date.parse(company.lastFilingDate) : NaN;
+    const isFresh =
+      Number.isFinite(filingMs) &&
+      filingMs <= nowMs + 24 * 60 * 60 * 1000 &&
+      nowMs - filingMs <= FRESH_FILING_WINDOW_MS;
+
+    if (priorityTickers.has(company.ticker)) {
+      tier1.push(company);
+    } else if (isFresh) {
+      tier2.push(company);
+    } else {
+      tier3.push(company);
+    }
+  }
+
+  const byDateThenCap = (a: T, b: T) => {
+    const dateCmp = (b.lastFilingDate ?? "").localeCompare(a.lastFilingDate ?? "");
+    if (dateCmp !== 0) return dateCmp;
+    return b.marketCap - a.marketCap;
+  };
+  const byCapDesc = (a: T, b: T) => b.marketCap - a.marketCap;
+
+  tier1.sort(byDateThenCap);
+  tier2.sort(byDateThenCap);
+  tier3.sort(byCapDesc);
+
+  return { ordered: [...tier1, ...tier2, ...tier3], preSkipped };
 }
 
 async function fetchSecText(url: string, retries = 2): Promise<string> {
@@ -431,18 +504,22 @@ export async function extractFilingDiffs({
     ? (JSON.parse(fs.readFileSync(cachePath, "utf8")) as DiffCache)
     : {};
 
-  // Build target list ordered by Market Cap DESC (preferring Neon universe when available)
+  // Build prioritized target list: Tier 1 (alerted/watchlisted) > Tier 2 (fresh 14d filings) > Tier 3 (market cap backfill)
   let targets: TargetCompany[] = [];
   const dbProcessedAccessions = new Map<string, Set<string>>();
+  const priorityTickers = new Set<string>();
 
   if (db) {
-    const [compRows, existingProseRows, noChangeRows] = await Promise.all([
+    const [compRows, existingProseRows, noChangeRows, alertRows, watchlistRows] = await Promise.all([
       db
         .select({
           ticker: companiesTable.ticker,
           cik: companiesTable.cik,
           name: companiesTable.name,
           marketCap: companiesTable.marketCap,
+          lastFilingType: companiesTable.lastFilingType,
+          lastFilingDate: companiesTable.lastFilingDate,
+          lastFilingAccession: companiesTable.lastFilingAccession,
         })
         .from(companiesTable)
         .orderBy(desc(companiesTable.marketCap)),
@@ -454,6 +531,8 @@ export async function extractFilingDiffs({
         .from(filingDiffs)
         .where(inArray(filingDiffs.source, ["llm", "text-diff"])),
       db.select().from(filingDiffNoChanges),
+      db.select({ ticker: alertSubscriptions.ticker }).from(alertSubscriptions),
+      db.select({ ticker: userWatchlists.ticker }).from(userWatchlists),
     ]);
 
     targets = compRows;
@@ -461,6 +540,9 @@ export async function extractFilingDiffs({
       const set = dbProcessedAccessions.get(row.ticker) ?? new Set<string>();
       set.add(row.accessionNumber);
       dbProcessedAccessions.set(row.ticker, set);
+    }
+    for (const row of [...alertRows, ...watchlistRows]) {
+      priorityTickers.add(row.ticker);
     }
   } else {
     targets = [...localCompanies]
@@ -470,6 +552,9 @@ export async function extractFilingDiffs({
         cik: c.cik,
         name: c.name,
         marketCap: c.marketCap,
+        lastFilingType: c.lastFiling?.type,
+        lastFilingDate: c.lastFiling?.date,
+        lastFilingAccession: c.lastFiling?.accessionNumber,
       }));
   }
 
@@ -479,8 +564,17 @@ export async function extractFilingDiffs({
       )
     : null;
 
-  let processed = 0;
   let skippedCached = 0;
+  if (!requestedTickers) {
+    const prioritized = prioritizeDiffTargets(targets, {
+      priorityTickers,
+      processedByTicker: dbProcessedAccessions,
+    });
+    targets = prioritized.ordered;
+    skippedCached = prioritized.preSkipped;
+  }
+
+  let processed = 0;
 
   for (const company of targets) {
     if (requestedTickers && !requestedTickers.has(company.ticker)) continue;

@@ -49,12 +49,12 @@ jobs:
           AMBER_INGEST_UNIVERSE_PATH: ${{ runner.temp }}/amber-ingest-universe.json
         run: pnpm db:seed
 
-      - name: Extract Incremental 10-K Prose Diffs (2-Stage Neon-Backed)
+      - name: Extract Incremental 10-K / 10-Q Prose Diffs (2-Stage Neon-Backed)
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MAX_TICKERS: "35"
+          MAX_TICKERS: "75"
         run: pnpm ingest:diffs
 
       - name: Close Prior Period Arena Leaderboards (Idempotent)
