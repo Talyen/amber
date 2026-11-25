@@ -37,20 +37,20 @@ export function BuybackRealityCard({
         }
       : latestNetSpread > latest.sbc * 0.25 && latest.buybacks > 0
       ? {
-          label: "Net Share Reducer",
+          label: "Buybacks Exceed SBC",
           tone: "text-[var(--positive)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
-          detail: `Buybacks exceeded SBC by ${formatCurrencyCompact(latestNetSpread)} in ${latest.fiscalYear}, genuinely shrinking the share base.`,
+          detail: `Buyback spending exceeded reported SBC expense by ${formatCurrencyCompact(latestNetSpread)} in ${latest.fiscalYear}.`,
         }
       : latestNetSpread < -latest.sbc * 0.25
         ? {
-            label: "Net Equity Diluter",
+            label: "SBC Exceeds Buybacks",
             tone: "text-[var(--sbc)] bg-[var(--amber-soft)] ring-[var(--amber-border)]",
-            detail: `SBC outpaced buybacks by ${formatCurrencyCompact(Math.abs(latestNetSpread))} in ${latest.fiscalYear}, so repurchases did not fully offset employee grants.`,
+            detail: `Reported SBC expense exceeded buyback spending by ${formatCurrencyCompact(Math.abs(latestNetSpread))} in ${latest.fiscalYear}.`,
           }
         : {
-            label: "Neutralized Issuance",
+            label: "Buybacks Close to SBC",
             tone: "text-[var(--text-primary)] bg-[var(--surface-subtle)] ring-[var(--border)]",
-            detail: `Share repurchases roughly offset SBC in ${latest.fiscalYear}, keeping dilution flat.`,
+            detail: `Buyback spending was close to reported SBC expense in ${latest.fiscalYear}.`,
           };
 
   return (
@@ -61,7 +61,7 @@ export function BuybackRealityCard({
             Buyback Reality Check (Buybacks − SBC)
           </h3>
           <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Separates genuine capital return from buybacks spent merely mopping up employee stock grants.
+            Compares share repurchase spending with reported stock-based compensation expense.
           </p>
         </div>
 

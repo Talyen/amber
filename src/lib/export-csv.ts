@@ -4,17 +4,14 @@ import type { SearchIndexEntry } from "@/data/search-index";
 function escapeCsv(val: string | number | null | undefined): string {
   if (val === null || val === undefined) return "";
   const str = String(val);
-  if (/[",\n]/.test(str)) {
+  if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
 }
 
 function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number | null>>) {
-  const lines = [
-    headers.map(escapeCsv).join(","),
-    ...rows.map((r) => r.map(escapeCsv).join(",")),
-  ];
+  const lines = [headers, ...rows].map((row) => row.map(escapeCsv).join(","));
   const blob = new Blob([lines.join("\n") + "\n"], {
     type: "text/csv;charset=utf-8;",
   });

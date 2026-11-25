@@ -442,6 +442,109 @@ export function reverseDcfTargetMargin(targetFcfMargin: number, sbcDragPct: numb
   return clampReverseDcfTargetMargin(targetFcfMargin - sbcDragPct);
 }
 
+export interface BaseCaseValuationResult {
+  lens: "fcf" | "ebit" | "pe";
+  fairValue: number;
+  upsidePct: number;
+  revGrowthPct: number;
+  targetMarginPct: number;
+  exitMultiple: number;
+}
+
+/**
+ * Computes Amber's Base Case 5-year DCF valuation using the exact same auto-lens
+ * logic as ScenarioBuilder (P/E for financials, EBIT for heavy growth-CapEx cycles,
+ * True FCF otherwise) so homepage screening and company detail pages always match.
+ */
+export function computeBaseCaseValuation(
+  company: Pick<
+    CompanySnapshot,
+    "sector" | "price" | "cashAndEquiv" | "totalDebt" | "annuals" | "defaultDcf"
+  >
+): BaseCaseValuationResult {
+  const series = computeAnnualMetrics(company.annuals);
+  const latest = series[series.length - 1];
+  const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
+  const latestFy = fyOnly[fyOnly.length - 1] ?? latest;
+
+  const histGrowth = Math.max(
+    1,
+    Math.min(24, Math.round(computeRevenueCagr(company.annuals)))
+  );
+
+  const capexPctRev =
+    latest.revenue > 0 ? (latest.capex / latest.revenue) * 100 : 0;
+  const currentOpMargin =
+    typeof latestFy.operatingIncome === "number" && latestFy.revenue > 0
+      ? (latestFy.operatingIncome / latestFy.revenue) * 100
+      : null;
+  const currentNetMargin =
+    typeof latestFy.netIncome === "number" && latestFy.revenue > 0
+      ? (latestFy.netIncome / latestFy.revenue) * 100
+      : null;
+
+  const hasEbit = currentOpMargin !== null && currentOpMargin > 2;
+  const hasPe = currentNetMargin !== null && currentNetMargin > 2;
+  const isFinancials = /financial|bank|insur/i.test(company.sector);
+  const isHeavyCapexCycle =
+    !isFinancials &&
+    hasEbit &&
+    capexPctRev >= 10 &&
+    currentOpMargin! > Math.max(2, latest.trueFcfMargin * 1.6);
+
+  const lens: "fcf" | "ebit" | "pe" =
+    isFinancials && hasPe ? "pe" : isHeavyCapexCycle ? "ebit" : "fcf";
+
+  let targetMarginPct: number;
+  let exitMultiple: number;
+  let currentMarginPct: number;
+
+  if (lens === "ebit" && hasEbit) {
+    targetMarginPct = Number(
+      Math.max(3, Math.min(55, Math.round(currentOpMargin! * 1.05 * 2) / 2)).toFixed(1)
+    );
+    exitMultiple = histGrowth >= 12 ? 20 : histGrowth >= 7 ? 16 : 13;
+    currentMarginPct = currentOpMargin!;
+  } else if (lens === "pe" && hasPe) {
+    targetMarginPct = Number(
+      Math.max(2, Math.min(50, Math.round(currentNetMargin! * 1.05 * 2) / 2)).toFixed(1)
+    );
+    exitMultiple = histGrowth >= 12 ? 24 : histGrowth >= 7 ? 20 : 15;
+    currentMarginPct = currentNetMargin!;
+  } else {
+    const rawBaseMargin = Math.max(
+      1,
+      company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
+    );
+    targetMarginPct = Number(
+      Math.max(1, Math.min(55, Math.round(rawBaseMargin * 2) / 2)).toFixed(1)
+    );
+    exitMultiple = company.defaultDcf.terminalMultiple;
+    currentMarginPct = latest.trueFcfMargin;
+  }
+
+  const scenario = computeFiveYearScenario({
+    currentPrice: company.price,
+    dilutedShares: latest.dilutedShares,
+    baseRevenue: latest.revenue,
+    currentTrueFcfMarginPct: currentMarginPct,
+    netCash: lens === "pe" ? 0 : company.cashAndEquiv - company.totalDebt,
+    revGrowthPct: histGrowth,
+    targetTrueFcfMarginPct: targetMarginPct,
+    exitMultiple,
+    hurdleRatePct: 10,
+  });
+
+  return {
+    lens,
+    fairValue: Number(scenario.fairValueToday.toFixed(2)),
+    upsidePct: Number(scenario.upsidePct.toFixed(1)),
+    revGrowthPct: histGrowth,
+    targetMarginPct,
+    exitMultiple,
+  };
+}
+
 export function computeCompanyValuation(
   company: EnterpriseValueInputs & Pick<CompanySnapshot, "annuals" | "defaultDcf">
 ) {

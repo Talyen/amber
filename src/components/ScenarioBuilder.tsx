@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Link2 } from "lucide-react";
 import {
   type CompanySnapshot,
@@ -14,6 +14,7 @@ import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
 import {
   readLocalValuationPreset,
   writeLocalValuationPreset,
+  type SavedScenarioLens as ValuationLens,
   type SavedValuationPreset,
 } from "@/lib/valuation-presets";
 import { authClient } from "@/lib/auth-client";
@@ -26,8 +27,6 @@ interface ScenarioBuilderProps {
 function progressPct(value: number, min: number, max: number): string {
   return `${(((value - min) / (max - min)) * 100).toFixed(1)}%`;
 }
-
-type ValuationLens = "fcf" | "ebit" | "pe";
 
 const GROWTH_RANGE = { min: -5, max: 45 };
 const MARGIN_RANGE = { min: 1, max: 55 };
@@ -81,7 +80,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const defaultLens: ValuationLens =
     isFinancials && hasPe ? "pe" : isHeavyCapexCycle ? "ebit" : "fcf";
 
-  function defaultsForLens(lens: ValuationLens) {
+  const defaultsForLens = useCallback((lens: ValuationLens) => {
     if (lens === "ebit" && hasEbit) {
       const m = Number(
         Math.max(3, Math.min(55, Math.round(currentOpMargin! * 1.05 * 2) / 2)).toFixed(1)
@@ -108,7 +107,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       multiple: company.defaultDcf.terminalMultiple,
       currentMargin: latest.trueFcfMargin,
     };
-  }
+  }, [company.defaultDcf, currentNetMargin, currentOpMargin, hasEbit, hasPe, histGrowth, latest.trueFcfMargin]);
 
   const [lens, setLens] = useState<ValuationLens>(defaultLens);
   const lensDefaults = defaultsForLens(lens);
@@ -116,19 +115,34 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const baseMultiple = lensDefaults.multiple;
 
   const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
   const [revGrowth, setRevGrowth] = useState(histGrowth);
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
   const [fromSharedLink, setFromSharedLink] = useState(false);
+  const [restoredThesis, setRestoredThesis] = useState(false);
   const [copiedThesis, setCopiedThesis] = useState(false);
-  const [savedThesis, setSavedThesis] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "failed">("idle");
+  const editedThesis = useRef(false);
+
+  const applySavedThesis = useCallback((preset: SavedValuationPreset) => {
+    if (preset.lens === "fcf" || (preset.lens === "ebit" && hasEbit) || (preset.lens === "pe" && hasPe)) {
+      setLens(preset.lens);
+    }
+    setRevGrowth(preset.revGrowth);
+    setTargetMargin(preset.targetMargin);
+    setExitMultiple(preset.exitMultiple);
+    setActivePreset("custom");
+  }, [hasEbit, hasPe]);
 
   // Hydrate shared thesis query params (?tab=dcf&lens=fcf&rev=15&m=28&exit=22)
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
+      setRestoredThesis(true);
+      if (editedThesis.current) return;
       const params = new URLSearchParams(window.location.search);
       const lensParam = params.get("lens");
       const revParam = readScenarioInput(params, "rev", GROWTH_RANGE);
@@ -163,53 +177,38 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       }
 
       const local = readLocalValuationPreset(company.ticker);
-      if (local) {
-        if (
-          local.lens === "fcf" ||
-          (local.lens === "ebit" && hasEbit) ||
-          (local.lens === "pe" && hasPe)
-        ) {
-          setLens(local.lens);
-        }
-        setRevGrowth(local.revGrowth);
-        setTargetMargin(local.targetMargin);
-        setExitMultiple(local.exitMultiple);
-        setActivePreset("custom");
-      }
+      if (local) applySavedThesis(local);
     });
     return () => {
       active = false;
     };
-  }, [company.ticker, hasEbit, hasPe]);
+  }, [company.ticker, hasEbit, hasPe, applySavedThesis]);
 
   useEffect(() => {
-    if (!session?.user?.id || fromSharedLink) return;
-    let active = true;
-    fetch(`/api/valuation-presets?ticker=${encodeURIComponent(company.ticker)}`)
+    if (!userId || !restoredThesis || fromSharedLink || editedThesis.current) return;
+    const controller = new AbortController();
+    fetch(`/api/valuation-presets?ticker=${encodeURIComponent(company.ticker)}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { preset?: SavedValuationPreset | null } | null) => {
         const preset = data?.preset;
-        if (!active || !preset) return;
-        writeLocalValuationPreset(preset);
-        if (
-          preset.lens === "fcf" ||
-          (preset.lens === "ebit" && hasEbit) ||
-          (preset.lens === "pe" && hasPe)
-        ) {
-          setLens(preset.lens);
-        }
-        setRevGrowth(preset.revGrowth);
-        setTargetMargin(preset.targetMargin);
-        setExitMultiple(preset.exitMultiple);
-        setActivePreset("custom");
+        if (controller.signal.aborted || !preset || editedThesis.current) return;
+        const local = readLocalValuationPreset(company.ticker);
+        if (local?.owner === userId && Date.parse(local.updatedAt) > Date.parse(preset.updatedAt)) return;
+        writeLocalValuationPreset({ ...preset, owner: userId });
+        applySavedThesis(preset);
       })
       .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [session?.user?.id, company.ticker, fromSharedLink, hasEbit, hasPe]);
+    return () => controller.abort();
+  }, [userId, company.ticker, fromSharedLink, restoredThesis, applySavedThesis]);
+
+  useEffect(() => {
+    if (saveStatus !== "saved") return;
+    const timer = window.setTimeout(() => setSaveStatus("idle"), 1800);
+    return () => window.clearTimeout(timer);
+  }, [saveStatus]);
 
   async function handleSaveThesis() {
+    editedThesis.current = true;
     const payload: SavedValuationPreset = {
       ticker: company.ticker,
       lens,
@@ -218,15 +217,24 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       exitMultiple,
       updatedAt: new Date().toISOString(),
     };
-    writeLocalValuationPreset(payload);
-    setSavedThesis(true);
-    window.setTimeout(() => setSavedThesis(false), 1800);
-    if (session?.user?.id) {
-      fetch("/api/valuation-presets", {
+    const storedLocally = writeLocalValuationPreset({ ...payload, owner: userId });
+    if (!userId) {
+      setSaveStatus(storedLocally ? "saved" : "failed");
+      return;
+    }
+
+    setSaveStatus("saving");
+    try {
+      const response = await fetch("/api/valuation-presets", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      }).catch(() => {});
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error("Could not sync thesis.");
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus(storedLocally ? "local" : "failed");
     }
   }
 
@@ -249,6 +257,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   }
 
   function switchLens(nextLens: ValuationLens) {
+    editedThesis.current = true;
     setLens(nextLens);
     const d = defaultsForLens(nextLens);
     setRevGrowth(histGrowth);
@@ -258,6 +267,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   }
 
   function applyPreset(kind: "bear" | "base" | "bull") {
+    editedThesis.current = true;
     setActivePreset(kind);
     if (kind === "bear") {
       setRevGrowth(Math.max(0, Math.round(histGrowth * 0.55)));
@@ -334,8 +344,8 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           upsidePct: res.upsidePct,
         };
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company, latest, hasEbit, hasPe, histGrowth]);
+  }, [company.price, company.cashAndEquiv, company.totalDebt, latest.dilutedShares, latest.revenue,
+    defaultsForLens, hasEbit, hasPe, histGrowth]);
 
   const verdict =
     projection.upsidePct >= 12
@@ -401,16 +411,15 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <button
               type="button"
               onClick={handleSaveThesis}
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+              disabled={saveStatus === "saving"}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer disabled:cursor-wait disabled:opacity-60"
             >
-              {savedThesis ? (
+              {saveStatus === "saved" ? (
                 <>
                   <Check className="h-3 w-3 text-[var(--positive)]" />
                   Saved
                 </>
-              ) : (
-                "Save Thesis"
-              )}
+              ) : saveStatus === "saving" ? "Saving…" : "Save Thesis"}
             </button>
             <button
               type="button"
@@ -431,6 +440,13 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             </button>
           </div>
         </div>
+        {(saveStatus === "local" || saveStatus === "failed") && (
+          <p role="status" className="mt-2 text-xs text-[var(--text-secondary)]">
+            {saveStatus === "local"
+              ? "Saved on this device. Account sync could not be confirmed."
+              : "Could not save your thesis. Please try again."}
+          </p>
+        )}
 
         {/* Valuation Methodology Selector */}
         {(hasEbit || hasPe) && (
@@ -517,6 +533,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               step={1}
               value={revGrowth}
               onChange={(e) => {
+                editedThesis.current = true;
                 setRevGrowth(parseInt(e.target.value, 10));
                 setActivePreset("custom");
               }}
@@ -558,6 +575,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               step={0.5}
               value={targetMargin}
               onChange={(e) => {
+                editedThesis.current = true;
                 setTargetMargin(parseFloat(e.target.value));
                 setActivePreset("custom");
               }}
@@ -599,6 +617,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
               step={1}
               value={exitMultiple}
               onChange={(e) => {
+                editedThesis.current = true;
                 setExitMultiple(parseInt(e.target.value, 10));
                 setActivePreset("custom");
               }}

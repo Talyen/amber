@@ -262,8 +262,9 @@ export function CompanyWorkspace({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                disabled={!watchlist.canEdit}
                 onClick={() => watchlist.toggle(company.ticker)}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer disabled:cursor-wait ${
                   isStarred
                     ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
                     : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"

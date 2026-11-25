@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
   formatPct,
 } from "@/lib/finance";
+import { indexPriceAndFundamentals } from "@/lib/price-fundamentals";
 
 interface PriceVsFundamentalsChartProps {
   company: CompanySnapshot;
@@ -16,51 +17,13 @@ export function PriceVsFundamentalsChart({
   company,
   series,
 }: PriceVsFundamentalsChartProps) {
-  const priceMap = new Map(
-    (company.priceHistory ?? []).map((p) => [p.fiscalYear, p.price])
-  );
+  const chart = useMemo(() => indexPriceAndFundamentals(company, series), [company, series]);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  if (!chart) return null;
 
-  // Align periods that have both fundamentals and a historical closing price
-  const aligned = series
-    .map((row) => {
-      const price =
-        priceMap.get(row.fiscalYear) ??
-        (row === series[series.length - 1] ? company.price : undefined);
-      if (!price || row.dilutedShares <= 0) return null;
-      return {
-        fiscalYear: row.fiscalYear,
-        price,
-        trueFcfPerShare: row.trueFcf / row.dilutedShares,
-        revPerShare: row.revenue / row.dilutedShares,
-      };
-    })
-    .filter((x): x is NonNullable<typeof x> => Boolean(x));
-
-  const [hoveredIdx, setHoveredIdx] = useState(Math.max(0, aligned.length - 1));
-
-  if (aligned.length < 2) {
-    return null;
-  }
-
-  // Use True FCF/share if positive at start; otherwise cleanly fall back to Revenue/share
-  const useFcf = aligned[0].trueFcfPerShare > 0 && aligned[aligned.length - 1].trueFcfPerShare > 0;
-  const fundLabel = useFcf ? "True FCF / Share" : "Revenue / Share";
-  const basePrice = aligned[0].price;
-  const baseFund = useFcf
-    ? aligned[0].trueFcfPerShare
-    : aligned[0].revPerShare;
-
-  const indexed = aligned.map((pt) => {
-    const fundVal = useFcf ? pt.trueFcfPerShare : pt.revPerShare;
-    return {
-      ...pt,
-      fundVal,
-      priceIdx: (pt.price / basePrice) * 100,
-      fundIdx: (fundVal / baseFund) * 100,
-    };
-  });
-
-  const active = indexed[hoveredIdx] ?? indexed[indexed.length - 1];
+  const { indexed, fundLabel } = chart;
+  const activeIndex = hoveredIdx !== null && indexed[hoveredIdx] ? hoveredIdx : indexed.length - 1;
+  const active = indexed[activeIndex];
   const last = indexed[indexed.length - 1];
   const priceChangePct = last.priceIdx - 100;
   const fundChangePct = last.fundIdx - 100;
@@ -95,9 +58,10 @@ export function PriceVsFundamentalsChart({
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
-  const allVals = indexed.flatMap((d) => [d.priceIdx, d.fundIdx, 100]);
+  const allVals = indexed.flatMap((d) => [d.priceIdx, d.fundIdx]);
   const maxVal = Math.max(...allVals) * 1.1;
-  const minVal = Math.min(...allVals) * 0.9;
+  const lowest = Math.min(...allVals);
+  const minVal = lowest - Math.abs(lowest) * 0.1;
   const range = Math.max(1, maxVal - minVal);
 
   const xFor = (i: number) =>
@@ -216,7 +180,7 @@ export function PriceVsFundamentalsChart({
           {/* Interactive points */}
           {indexed.map((d, i) => {
             const cx = xFor(i);
-            const isActive = i === hoveredIdx;
+            const isActive = i === activeIndex;
             return (
               <g
                 key={d.fiscalYear}

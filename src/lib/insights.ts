@@ -306,9 +306,16 @@ export type IndexSortKey =
   | "sbcPctRevenue"
   | "netDilutionCagr"
   | "impliedCagr"
+  | "fairValueUpsidePct"
+  | "revenueCagr"
+  | "ruleOf40"
   | "insiderBuyValue"
   | "insiderBuyDate"
   | "eventDate";
+
+export function computeRuleOf40Score(entry: Pick<SearchIndexEntry, "revenueCagr" | "trueFcfMargin">): number {
+  return Number(((entry.revenueCagr ?? 0) + entry.trueFcfMargin).toFixed(1));
+}
 
 export interface LensFilterContext {
   insiderBuyTickers?: ReadonlySet<string>;
@@ -332,23 +339,23 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     id: "cash-machines",
     title: "Cash Machines",
     subtitle: "High real cash margins, low dilution",
-    criteriaSummary: "True FCF margin >= 22%, SBC <= 8% of revenue, revenue >= $500M",
+    criteriaSummary: "True FCF margin >= 22%, Stock Comp <= 8% of revenue, revenue >= $500M",
     whyItMatters:
       "Businesses that convert >22% of revenue into real cash after stock comp tend to self-fund growth and weather downturns.",
-    defaultSortKey: "trueFcfMargin",
+    defaultSortKey: "trueFcf",
     defaultSortDir: "desc",
     filter: (c) =>
       c.revenue >= 500 &&
       c.trueFcfMargin >= 22 &&
       c.trueFcfMargin <= 75 &&
       c.sbcPctRevenue <= 8,
-    sort: (a, b) => b.trueFcfMargin - a.trueFcfMargin,
+    sort: (a, b) => b.trueFcf - a.trueFcf,
   },
   {
     id: "buyback-cannibals",
     title: "Buybacks",
     subtitle: "Steadily shrinking their share count",
-    criteriaSummary: "Net dilution <= -1.5%/yr, positive True FCF, revenue >= $500M",
+    criteriaSummary: "Share change <= -1.5%/yr, positive True FCF, revenue >= $500M",
     whyItMatters:
       "Companies that retire 2%+ of their shares every year increase your ownership stake automatically, even when revenue grows modestly.",
     defaultSortKey: "netDilutionCagr",
@@ -362,19 +369,38 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
   {
     id: "underpriced",
     title: "Underpriced",
-    subtitle: "Cash-generative companies pricing in modest growth",
-    criteriaSummary: "True FCF margin >= 12%, implied 10Y growth 0% to 9%, revenue >= $1B",
+    subtitle: "Trading below Amber's 5-year Base Case DCF fair value",
+    criteriaSummary: "Base Case DCF upside 15% to 150%, True FCF >= 8%, revenue >= $1B",
     whyItMatters:
-      "Profitable businesses where today's price only implies single-digit long-term growth, leaving room for upside surprises.",
-    defaultSortKey: "impliedCagr",
-    defaultSortDir: "asc",
+      "Cash-generative businesses trading at a discount to our 5-year Base Case valuation (anchored to historical growth and margins at a 10% hurdle rate).",
+    defaultSortKey: "fairValueUpsidePct",
+    defaultSortDir: "desc",
     filter: (c) =>
       c.revenue >= 1000 &&
-      c.trueFcfMargin >= 12 &&
+      c.trueFcfMargin >= 8 &&
       c.trueFcfMargin <= 75 &&
-      c.impliedCagr > 0 &&
-      c.impliedCagr <= 9,
-    sort: (a, b) => a.impliedCagr - b.impliedCagr,
+      typeof c.fairValueUpsidePct === "number" &&
+      c.fairValueUpsidePct >= 15 &&
+      c.fairValueUpsidePct <= 150,
+    sort: (a, b) => (b.fairValueUpsidePct ?? -999) - (a.fairValueUpsidePct ?? -999),
+  },
+  {
+    id: "rule-of-40",
+    title: "Rule of 40",
+    subtitle: "Revenue growth + True FCF margin >= 40%",
+    criteriaSummary: "Rev CAGR + True FCF % >= 40, Rev CAGR >= 8%, True FCF % >= 10%, rev >= $500M",
+    whyItMatters:
+      "The classic growth-plus-profitability benchmark, upgraded to use True FCF after stock-based compensation instead of inflated headline cash flow.",
+    defaultSortKey: "ruleOf40",
+    defaultSortDir: "desc",
+    filter: (c) =>
+      c.revenue >= 500 &&
+      typeof c.revenueCagr === "number" &&
+      c.revenueCagr >= 8 &&
+      c.trueFcfMargin >= 10 &&
+      c.trueFcfMargin <= 75 &&
+      computeRuleOf40Score(c) >= 40,
+    sort: (a, b) => computeRuleOf40Score(b) - computeRuleOf40Score(a),
   },
   {
     id: "hidden-dilution",

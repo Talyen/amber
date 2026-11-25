@@ -6,14 +6,17 @@ import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
 import { CompareHistoryCharts } from "@/components/CompareHistoryCharts";
+import { DEFAULT_COMPARE_TICKERS } from "@/lib/compare";
 import type { CompareCompanyHistory } from "@/lib/compare-history";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { exportComparisonCard } from "@/lib/export-card";
 import { exportComparisonCsv } from "@/lib/export-csv";
 import { buildComparisonMarkdown } from "@/lib/export-markdown";
 
+const MAX_COMPARE_TICKERS = 5;
+
 const PRESETS: Array<{ label: string; tickers: string[] }> = [
-  { label: "AI & Cloud", tickers: ["NVDA", "MSFT", "AVGO", "ORCL"] },
+  { label: "Big Tech AI", tickers: ["NVDA", "GOOGL", "AMZN", "MSFT", "META"] },
   { label: "Cloud & Cyber", tickers: ["CRWD", "DDOG", "NET", "PANW"] },
   { label: "Cash Flow Kings", tickers: ["V", "MA", "AAPL", "COST"] },
 ];
@@ -37,7 +40,7 @@ export function CompareStudio({
   const [selectedTickers, setSelectedTickers] = useState<string[]>(
     initialTickers && initialTickers.length > 0
       ? initialTickers
-      : ["NVDA", "MSFT", "AAPL", "COST"]
+      : DEFAULT_COMPARE_TICKERS
   );
   const [addQuery, setAddQuery] = useState("");
   const [copiedMd, setCopiedMd] = useState(false);
@@ -55,7 +58,7 @@ export function CompareStudio({
           .split(",")
           .map((t) => t.trim().toUpperCase())
           .filter((t) => byTicker.has(t));
-        const parsed = [...new Set(matchingTickers)].slice(0, 4);
+        const parsed = [...new Set(matchingTickers)].slice(0, MAX_COMPARE_TICKERS);
         if (parsed.length >= 1) {
           setSelectedTickers(parsed);
         }
@@ -105,7 +108,7 @@ export function CompareStudio({
   }, [addQuery, entries, selectedTickers]);
 
   function addTicker(ticker: string) {
-    if (selectedTickers.length >= 4 || selectedTickers.includes(ticker)) return;
+    if (selectedTickers.length >= MAX_COMPARE_TICKERS || selectedTickers.includes(ticker)) return;
     setSelectedTickers((prev) => [...prev, ticker]);
     setAddQuery("");
   }
@@ -143,7 +146,7 @@ export function CompareStudio({
               Side-by-Side Comparison
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Compare up to 4 stocks on True FCF, dilution, and implied growth.
+              Compare up to {MAX_COMPARE_TICKERS} stocks on True FCF, dilution, and priced-in growth.
             </p>
           </div>
 
@@ -224,7 +227,7 @@ export function CompareStudio({
               </span>
             ))}
 
-            {selectedItems.length < 4 ? (
+            {selectedItems.length < MAX_COMPARE_TICKERS ? (
               <div className="relative">
                 <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
                   <Plus className="h-3.5 w-3.5 text-[var(--text-muted)]" />

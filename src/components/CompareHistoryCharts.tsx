@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { CompareCompanyHistory } from "@/lib/compare-history";
+import { indexCompareHistory, type CompareCompanyHistory } from "@/lib/compare-history";
 
 type MetricKey = "trueFcfMargin" | "indexedShares" | "indexedRevenue" | "sbcPctRevenue";
 
@@ -20,13 +20,13 @@ const METRIC_TABS: Array<{
   {
     key: "indexedShares",
     label: "Share Count (Indexed)",
-    subtitle: "Diluted shares indexed to 100 at start of period (below 100 = buyback shrinkage)",
+    subtitle: "Diluted shares indexed to 100 in each company’s first year with a share count",
     unit: "idx",
   },
   {
     key: "indexedRevenue",
     label: "Revenue Growth (Indexed)",
-    subtitle: "Annual revenue indexed to 100 at start of period",
+    subtitle: "Annual revenue indexed to 100 in each company’s first year with positive revenue",
     unit: "idx",
   },
   {
@@ -42,6 +42,7 @@ const SERIES_COLORS = [
   "#10b981", // emerald
   "#0ea5e9", // sky
   "#8b5cf6", // violet
+  "#f43f5e", // rose
 ];
 
 interface CompareHistoryChartsProps {
@@ -57,64 +58,67 @@ export function CompareHistoryCharts({
   const [historyState, setHistoryState] = useState<{
     key: string;
     series: CompareCompanyHistory[];
+    failed?: boolean;
   }>(() => ({
     key: initialHistory.map((h) => h.ticker).join(","),
     series: initialHistory,
   }));
 
   const tickerKey = tickers.join(",");
+  const historyResolved = historyState.key === tickerKey;
 
   useEffect(() => {
-    if (!tickerKey) return;
-    if (historyState.key === tickerKey && historyState.series.length > 0) return;
+    if (!tickerKey || historyResolved) return;
 
     const controller = new AbortController();
     fetch(`/api/compare-history?tickers=${encodeURIComponent(tickerKey)}`, {
       signal: controller.signal,
     })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { series?: CompareCompanyHistory[] } | null) => {
-        if (!controller.signal.aborted && Array.isArray(data?.series)) {
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not load comparison history.");
+        const data: { series?: CompareCompanyHistory[] } = await res.json();
+        if (!Array.isArray(data?.series)) throw new Error("Invalid comparison history.");
+        if (!controller.signal.aborted) {
           setHistoryState({ key: tickerKey, series: data.series });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!controller.signal.aborted) setHistoryState({ key: tickerKey, series: [], failed: true });
+      });
 
     return () => controller.abort();
-  }, [tickerKey, historyState.key, historyState.series.length]);
+  }, [tickerKey, historyResolved]);
 
   const series = useMemo(() => {
+    if (!historyResolved) return [];
     const byTicker = new Map(historyState.series.map((s) => [s.ticker, s]));
     return tickers
       .map((t) => byTicker.get(t))
       .filter((s): s is CompareCompanyHistory => Boolean(s && s.points.length >= 2));
-  }, [historyState.series, tickers]);
+  }, [historyResolved, historyState.series, tickers]);
 
   const activeTab = METRIC_TABS.find((t) => t.key === metric) ?? METRIC_TABS[0];
 
   const chartData = useMemo(() => {
-    const allYears = [...new Set(series.flatMap((s) => s.points.map((p) => p.fiscalYear)))].sort();
-    const lines = series.map((company, idx) => {
-      const firstRev = company.points[0]?.revenue || 1;
-      const firstShares = company.points[0]?.dilutedShares || 1;
-      const byYear = new Map(company.points.map((p) => [p.fiscalYear, p]));
+    const data = series.map(({ ticker, points }, idx) => {
+      const values = metric === "indexedShares" || metric === "indexedRevenue"
+        ? indexCompareHistory(points, metric === "indexedShares" ? "dilutedShares" : "revenue")
+        : points.map((point) => ({ fiscalYear: point.fiscalYear, value: point[metric] }));
+      return { ticker, values, color: SERIES_COLORS[idx % SERIES_COLORS.length] };
+    }).filter(({ values }) => values.length >= 2);
 
-      const coords = allYears
-        .map((fy, xIdx) => {
-          const p = byYear.get(fy);
-          if (!p) return null;
-          let value = 0;
-          if (metric === "trueFcfMargin") value = p.trueFcfMargin;
-          else if (metric === "sbcPctRevenue") value = p.sbcPctRevenue;
-          else if (metric === "indexedShares") value = (p.dilutedShares / firstShares) * 100;
-          else value = (p.revenue / firstRev) * 100;
-          return { xIdx, fy, value: Number(value.toFixed(1)) };
-        })
-        .filter((c): c is NonNullable<typeof c> => c !== null);
+    const allYears = [...new Set(data.flatMap(({ values }) => values.map((point) => point.fiscalYear)))].sort();
+    const yearIndices = new Map(allYears.map((year, index) => [year, index]));
+    const lines = data.map(({ ticker, color, values }) => {
+      const coords = values.map(({ fiscalYear, value }) => ({
+        xIdx: yearIndices.get(fiscalYear)!,
+        fy: fiscalYear,
+        value: Number(value.toFixed(1)),
+      }));
 
       return {
-        ticker: company.ticker,
-        color: SERIES_COLORS[idx % SERIES_COLORS.length],
+        ticker,
+        color,
         coords,
         latestVal: coords[coords.length - 1]?.value ?? null,
       };
@@ -186,9 +190,13 @@ export function CompareHistoryCharts({
         </div>
       </div>
 
-      {series.length === 0 ? (
+      {chartData.lines.length === 0 ? (
         <div className="mt-6 flex h-44 items-center justify-center text-xs text-[var(--text-muted)]">
-          Loading 5-year historical filings…
+          {!historyResolved
+            ? "Loading 5-year historical filings…"
+            : historyState.failed
+              ? "Could not load historical filings."
+              : "Insufficient historical data for this metric."}
         </div>
       ) : (
         <>

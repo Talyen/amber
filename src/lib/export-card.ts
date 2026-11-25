@@ -547,6 +547,8 @@ export interface PortfolioExportPayload {
 }
 
 export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
+  const fundedHoldings = payload.holdings.filter(({ weightPct }) => weightPct > 0);
+  fundedHoldings.sort((a, b) => b.weightPct - a.weightPct);
   const width = 1200;
   const height = 675;
   const scale = 2;
@@ -573,7 +575,7 @@ export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
   ctx.font = '600 13px "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = "left";
   ctx.fillText(
-    `PORTFOLIO SNAPSHOT / ${payload.holdings.length} HOLDINGS`,
+    `PORTFOLIO SNAPSHOT / ${fundedHoldings.length} HOLDINGS`,
     56,
     72
   );
@@ -616,7 +618,7 @@ export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
   ctx.font = '600 13px "Inter", system-ui, sans-serif';
   ctx.fillText("TOP HOLDINGS & WEIGHTS", 56, 304);
 
-  payload.holdings.slice(0, 6).forEach((h, idx) => {
+  fundedHoldings.slice(0, 6).forEach((h, idx) => {
     const y = 324 + idx * 44;
     drawRoundedRect(ctx, 56, y, 1088, 34, 6);
     ctx.fillStyle = idx % 2 === 0 ? theme.bg : theme.surface;

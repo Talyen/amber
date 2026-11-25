@@ -157,10 +157,17 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     let wTrueMargin = 0;
     let wSbcPct = 0;
     let wDilution = 0;
+    let allocatedCount = 0;
+    let highGrowthCount = 0;
+    let highSbcCount = 0;
     const sectorWeights = new Map<string, number>();
 
     for (const h of holdings) {
       const w = normalizedWeights.get(h.ticker) ?? 0;
+      if (w <= 0) continue;
+      allocatedCount++;
+      if (h.impliedCagr >= 16) highGrowthCount++;
+      if (h.sbcPctRevenue >= 12) highSbcCount++;
       wImplied += h.impliedCagr * w;
       wTrueMargin += h.trueFcfMargin * w;
       wSbcPct += h.sbcPctRevenue * w;
@@ -169,8 +176,6 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     }
 
     const sectors = [...sectorWeights.entries()].sort((a, b) => b[1] - a[1]);
-    const highGrowthCount = holdings.filter((h) => h.impliedCagr >= 16).length;
-    const highSbcCount = holdings.filter((h) => h.sbcPctRevenue >= 12).length;
 
     const valuationStance =
       wImplied <= 10.5
@@ -198,7 +203,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     if (wImplied >= 15) {
       flags.push({
         tone: "warn",
-        text: `High expectations bar: ${highGrowthCount} of ${holdings.length} holdings price in ≥16%/yr revenue growth for a decade.`,
+        text: `High expectations bar: ${highGrowthCount} of ${allocatedCount} holdings price in ≥16%/yr revenue growth for a decade.`,
       });
     } else {
       flags.push({

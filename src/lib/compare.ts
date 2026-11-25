@@ -1,3 +1,5 @@
+export const DEFAULT_COMPARE_TICKERS = ["NVDA", "GOOGL", "AMZN", "MSFT", "META"];
+
 export const POPULAR_COMPARE_SLUGS = [
   "NVDA-vs-AMD",
   "PLTR-vs-SNOW",

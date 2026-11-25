@@ -12,7 +12,7 @@ export async function GET(request: Request) {
         .map((t) => t.trim().toUpperCase())
         .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
     ),
-  ].slice(0, 4);
+  ].slice(0, 5);
 
   if (tickers.length === 0) {
     return NextResponse.json({ series: [] });
