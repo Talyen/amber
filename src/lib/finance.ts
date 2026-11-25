@@ -15,6 +15,7 @@ export interface AnnualFinancials {
   stockholdersEquity?: number | null;
   depreciationAmortization?: number | null; // $M (optional, for REIT FFO & EBITDA)
   goodwillIntangibles?: number | null; // $M (optional, for Bank TBV / ROTCE)
+  dividendsPaid?: number | null; // $M (optional, cash dividends paid)
   periodEndDate?: string | null; // e.g. "2025-09-27"
   cashAndEquiv?: number | null; // $M historical cash
   totalDebt?: number | null; // $M historical debt
@@ -737,5 +738,56 @@ export function computeFinancialSectorMetrics(
     ffo,
     ffoPerShare,
     priceToFfo,
+  };
+}
+
+export interface ShareholderYieldMetrics {
+  dividendsPaid: number;
+  dividendYieldPct: number;
+  buybackYieldPct: number;
+  sbcYieldPct: number;
+  netBuybackYieldPct: number;
+  totalShareholderYieldPct: number;
+  dividendPayoutTrueFcfPct: number | null;
+  dividendPayoutFfoPct: number | null;
+}
+
+export function computeShareholderYieldMetrics(
+  company: Pick<CompanySnapshot, "marketCap" | "annuals">
+): ShareholderYieldMetrics {
+  const computed = computeAnnualMetrics(company.annuals);
+  const latest = computed[computed.length - 1];
+  const dividendsPaid = Math.max(0, latest?.dividendsPaid ?? 0);
+  const buybacks = Math.max(0, latest?.buybacks ?? 0);
+  const sbc = Math.max(0, latest?.sbc ?? 0);
+  const mcap = company.marketCap > 0 ? company.marketCap : 0;
+
+  const dividendYieldPct = mcap > 0 ? (dividendsPaid / mcap) * 100 : 0;
+  const buybackYieldPct = mcap > 0 ? (buybacks / mcap) * 100 : 0;
+  const sbcYieldPct = mcap > 0 ? (sbc / mcap) * 100 : 0;
+  const netBuybackYieldPct = mcap > 0 ? ((buybacks - sbc) / mcap) * 100 : 0;
+  const totalShareholderYieldPct =
+    mcap > 0 ? ((buybacks + dividendsPaid - sbc) / mcap) * 100 : 0;
+
+  const dividendPayoutTrueFcfPct =
+    dividendsPaid > 0 && latest && latest.trueFcf > 0
+      ? (dividendsPaid / latest.trueFcf) * 100
+      : null;
+
+  const sectorMetrics = computeFinancialSectorMetrics(company);
+  const dividendPayoutFfoPct =
+    dividendsPaid > 0 && sectorMetrics.ffo !== null && sectorMetrics.ffo > 0
+      ? (dividendsPaid / sectorMetrics.ffo) * 100
+      : null;
+
+  return {
+    dividendsPaid,
+    dividendYieldPct,
+    buybackYieldPct,
+    sbcYieldPct,
+    netBuybackYieldPct,
+    totalShareholderYieldPct,
+    dividendPayoutTrueFcfPct,
+    dividendPayoutFfoPct,
   };
 }

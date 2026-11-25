@@ -3,7 +3,18 @@ import type { DiscoveryLens, IndexSortKey } from "./insights.ts";
 type SortDirection = "asc" | "desc";
 type LensSort = Pick<DiscoveryLens, "id" | "defaultSortKey" | "defaultSortDir">;
 
-const numericFilters = ["fcf", "sbc", "imp", "dil", "cap"] as const;
+const numericFilters = [
+  "fcf",
+  "sbc",
+  "imp",
+  "dil",
+  "cap",
+  "shy",
+  "ptbv",
+  "rotce",
+  "pffo",
+  "irr",
+] as const;
 
 export function exploreSortDefaults(lens: LensSort | null) {
   return {
@@ -37,6 +48,11 @@ export function readExploreLink(
     imp: numericFilter(params.get("imp")),
     dil: numericFilter(params.get("dil")),
     cap: numericFilter(params.get("cap")),
+    shy: numericFilter(params.get("shy")),
+    ptbv: numericFilter(params.get("ptbv")),
+    rotce: numericFilter(params.get("rotce")),
+    pffo: numericFilter(params.get("pffo")),
+    irr: numericFilter(params.get("irr")),
   };
 }
 

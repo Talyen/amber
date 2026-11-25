@@ -28,9 +28,15 @@ import type {
 import { useWatchlist } from "@/lib/watchlist";
 import { authClient } from "@/lib/auth-client";
 import {
+  computePresetExpectedReturn,
   readAllLocalValuationPresets,
   type SavedValuationPreset,
 } from "@/lib/valuation-presets";
+import {
+  readLocalSavedScreens,
+  writeLocalSavedScreens,
+  type SavedScreen,
+} from "@/lib/saved-screens";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
 import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
@@ -258,6 +264,12 @@ export function SignalIndex({
   const [maxImplied, setMaxImplied] = useState("");
   const [maxDilution, setMaxDilution] = useState("");
   const [minMarketCapB, setMinMarketCapB] = useState("");
+  const [minShareholderYield, setMinShareholderYield] = useState("");
+  const [maxPtbv, setMaxPtbv] = useState("");
+  const [minRotce, setMinRotce] = useState("");
+  const [maxPffo, setMaxPffo] = useState("");
+  const [minThesisIrr, setMinThesisIrr] = useState("");
+  const [savedScreens, setSavedScreens] = useState<SavedScreen[]>([]);
   const [visibleLimit, setVisibleLimit] = useState(30);
   const watchlist = useWatchlist();
   const { data: session } = authClient.useSession();
@@ -291,6 +303,33 @@ export function SignalIndex({
           }
         }
         setSavedTheses(merged);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [sessionUserId]);
+
+  useEffect(() => {
+    let active = true;
+    const local = readLocalSavedScreens(sessionUserId);
+    queueMicrotask(() => {
+      if (active) setSavedScreens(local);
+    });
+    if (!sessionUserId) {
+      return () => {
+        active = false;
+      };
+    }
+    const controller = new AbortController();
+    fetch("/api/saved-screens", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { screens?: SavedScreen[] } | null) => {
+        if (active && Array.isArray(data?.screens)) {
+          setSavedScreens(data.screens);
+          writeLocalSavedScreens(data.screens, sessionUserId);
+        }
       })
       .catch(() => {});
     return () => {
@@ -334,7 +373,26 @@ export function SignalIndex({
       setMaxImplied(state.imp);
       setMaxDilution(state.dil);
       setMinMarketCapB(state.cap);
-      setScreenerOpen(Boolean(state.fcf || state.sbc || state.imp || state.dil || state.cap || state.sector !== "All"));
+      setMinShareholderYield(state.shy);
+      setMaxPtbv(state.ptbv);
+      setMinRotce(state.rotce);
+      setMaxPffo(state.pffo);
+      setMinThesisIrr(state.irr);
+      setScreenerOpen(
+        Boolean(
+          state.fcf ||
+            state.sbc ||
+            state.imp ||
+            state.dil ||
+            state.cap ||
+            state.shy ||
+            state.ptbv ||
+            state.rotce ||
+            state.pffo ||
+            state.irr ||
+            state.sector !== "All"
+        )
+      );
       setHydratedLens(initialLens?.id ?? null);
     });
     return () => {
@@ -348,6 +406,11 @@ export function SignalIndex({
     (maxImplied.trim() ? 1 : 0) +
     (maxDilution.trim() ? 1 : 0) +
     (minMarketCapB.trim() ? 1 : 0) +
+    (minShareholderYield.trim() ? 1 : 0) +
+    (maxPtbv.trim() ? 1 : 0) +
+    (minRotce.trim() ? 1 : 0) +
+    (maxPffo.trim() ? 1 : 0) +
+    (minThesisIrr.trim() ? 1 : 0) +
     (selectedSector !== "All" ? 1 : 0) +
     (groupBySector ? 1 : 0);
 
@@ -367,11 +430,33 @@ export function SignalIndex({
       imp: maxImplied,
       dil: maxDilution,
       cap: minMarketCapB,
+      shy: minShareholderYield,
+      ptbv: maxPtbv,
+      rotce: minRotce,
+      pffo: maxPffo,
+      irr: minThesisIrr,
     }, activeLens, initialLens);
     if (url.href !== window.location.href) {
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
-  }, [activeLens, initialLens, hydratedLens, minFcfMargin, maxSbcPct, maxImplied, maxDilution, minMarketCapB, selectedSector, sortKey, sortDir]);
+  }, [
+    activeLens,
+    initialLens,
+    hydratedLens,
+    minFcfMargin,
+    maxSbcPct,
+    maxImplied,
+    maxDilution,
+    minMarketCapB,
+    minShareholderYield,
+    maxPtbv,
+    minRotce,
+    maxPffo,
+    minThesisIrr,
+    selectedSector,
+    sortKey,
+    sortDir,
+  ]);
 
   const lensCtx = useMemo(
     () => ({
@@ -461,6 +546,11 @@ export function SignalIndex({
     const maxImpVal = maxImplied.trim() !== "" ? Number(maxImplied) : null;
     const maxDilVal = maxDilution.trim() !== "" ? Number(maxDilution) : null;
     const minCapVal = minMarketCapB.trim() !== "" ? Number(minMarketCapB) * 1000 : null;
+    const minShyVal = minShareholderYield.trim() !== "" ? Number(minShareholderYield) : null;
+    const maxPtbvVal = maxPtbv.trim() !== "" ? Number(maxPtbv) : null;
+    const minRotceVal = minRotce.trim() !== "" ? Number(minRotce) : null;
+    const maxPffoVal = maxPffo.trim() !== "" ? Number(maxPffo) : null;
+    const minIrrVal = minThesisIrr.trim() !== "" ? Number(minThesisIrr) : null;
 
     const filtered = entries.filter((c) => {
       if (watchlistOnly && !watchlist.has(c.ticker)) return false;
@@ -471,6 +561,40 @@ export function SignalIndex({
       if (maxImpVal !== null && Number.isFinite(maxImpVal) && c.impliedCagr > maxImpVal) return false;
       if (maxDilVal !== null && Number.isFinite(maxDilVal) && c.netDilutionCagr > maxDilVal) return false;
       if (minCapVal !== null && Number.isFinite(minCapVal) && c.marketCap < minCapVal) return false;
+      if (
+        minShyVal !== null &&
+        Number.isFinite(minShyVal) &&
+        (typeof c.shareholderYieldPct !== "number" || c.shareholderYieldPct < minShyVal)
+      ) {
+        return false;
+      }
+      if (
+        maxPtbvVal !== null &&
+        Number.isFinite(maxPtbvVal) &&
+        (typeof c.priceToTbv !== "number" || c.priceToTbv > maxPtbvVal)
+      ) {
+        return false;
+      }
+      if (
+        minRotceVal !== null &&
+        Number.isFinite(minRotceVal) &&
+        (typeof c.rotcePct !== "number" || c.rotcePct < minRotceVal)
+      ) {
+        return false;
+      }
+      if (
+        maxPffoVal !== null &&
+        Number.isFinite(maxPffoVal) &&
+        (typeof c.priceToFfo !== "number" || c.priceToFfo > maxPffoVal)
+      ) {
+        return false;
+      }
+      if (minIrrVal !== null && Number.isFinite(minIrrVal)) {
+        const preset = savedTheses[c.ticker];
+        if (!preset) return false;
+        const proj = computePresetExpectedReturn(preset, c);
+        if (!proj || proj.irrPct < minIrrVal) return false;
+      }
       if (!q) return true;
       return (
         c.ticker.toLowerCase().includes(q) ||
@@ -521,6 +645,12 @@ export function SignalIndex({
     maxImplied,
     maxDilution,
     minMarketCapB,
+    minShareholderYield,
+    maxPtbv,
+    minRotce,
+    maxPffo,
+    minThesisIrr,
+    savedTheses,
     sortKey,
     sortDir,
   ]);
@@ -975,8 +1105,84 @@ export function SignalIndex({
               maxImplied={maxImplied}
               maxDilution={maxDilution}
               minMarketCapB={minMarketCapB}
+              minShareholderYield={minShareholderYield}
+              maxPtbv={maxPtbv}
+              minRotce={minRotce}
+              maxPffo={maxPffo}
+              minThesisIrr={minThesisIrr}
               groupBySector={groupBySector}
               hasCustomScreen={hasCustomScreen}
+              savedScreens={savedScreens}
+              onSaveScreen={async (name) => {
+                const filters = {
+                  ...(selectedSector !== "All" ? { sector: selectedSector } : {}),
+                  ...(minFcfMargin.trim() ? { fcf: minFcfMargin.trim() } : {}),
+                  ...(maxSbcPct.trim() ? { sbc: maxSbcPct.trim() } : {}),
+                  ...(maxImplied.trim() ? { imp: maxImplied.trim() } : {}),
+                  ...(maxDilution.trim() ? { dil: maxDilution.trim() } : {}),
+                  ...(minMarketCapB.trim() ? { cap: minMarketCapB.trim() } : {}),
+                  ...(minShareholderYield.trim() ? { minShareholderYield: minShareholderYield.trim() } : {}),
+                  ...(maxPtbv.trim() ? { maxPtbv: maxPtbv.trim() } : {}),
+                  ...(minRotce.trim() ? { minRotce: minRotce.trim() } : {}),
+                  ...(maxPffo.trim() ? { maxPffo: maxPffo.trim() } : {}),
+                  ...(minThesisIrr.trim() ? { minThesisIrr: minThesisIrr.trim() } : {}),
+                };
+                if (Object.keys(filters).length === 0) return false;
+                if (sessionUserId) {
+                  try {
+                    const res = await fetch("/api/saved-screens", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name, filters }),
+                    });
+                    if (!res.ok) return false;
+                    const data = (await res.json()) as { screen?: SavedScreen };
+                    if (data.screen) {
+                      const next = [data.screen, ...savedScreens].slice(0, 15);
+                      setSavedScreens(next);
+                      writeLocalSavedScreens(next, sessionUserId);
+                      return true;
+                    }
+                    return false;
+                  } catch {
+                    return false;
+                  }
+                }
+                const localScreen: SavedScreen = {
+                  id: `local_${Date.now()}`,
+                  name,
+                  filters,
+                  updatedAt: new Date().toISOString(),
+                };
+                const next = [localScreen, ...savedScreens].slice(0, 15);
+                setSavedScreens(next);
+                writeLocalSavedScreens(next, sessionUserId);
+                return true;
+              }}
+              onDeleteScreen={(id) => {
+                const next = savedScreens.filter((s) => s.id !== id);
+                setSavedScreens(next);
+                writeLocalSavedScreens(next, sessionUserId);
+                if (sessionUserId && !id.startsWith("local_")) {
+                  fetch(`/api/saved-screens?id=${encodeURIComponent(id)}`, {
+                    method: "DELETE",
+                  }).catch(() => {});
+                }
+              }}
+              onApplySavedScreen={(screen) => {
+                setSelectedSector(screen.filters.sector ?? "All");
+                setMinFcfMargin(screen.filters.fcf ?? "");
+                setMaxSbcPct(screen.filters.sbc ?? "");
+                setMaxImplied(screen.filters.imp ?? "");
+                setMaxDilution(screen.filters.dil ?? "");
+                setMinMarketCapB(screen.filters.cap ?? "");
+                setMinShareholderYield(screen.filters.minShareholderYield ?? "");
+                setMaxPtbv(screen.filters.maxPtbv ?? "");
+                setMinRotce(screen.filters.minRotce ?? "");
+                setMaxPffo(screen.filters.maxPffo ?? "");
+                setMinThesisIrr(screen.filters.minThesisIrr ?? "");
+                setVisibleLimit(30);
+              }}
               onChangeSector={(value) => {
                 setSelectedSector(value);
                 setVisibleLimit(30);
@@ -1001,6 +1207,26 @@ export function SignalIndex({
                 setMinMarketCapB(value);
                 setVisibleLimit(30);
               }}
+              onChangeMinShareholderYield={(value) => {
+                setMinShareholderYield(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMaxPtbv={(value) => {
+                setMaxPtbv(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMinRotce={(value) => {
+                setMinRotce(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMaxPffo={(value) => {
+                setMaxPffo(value);
+                setVisibleLimit(30);
+              }}
+              onChangeMinThesisIrr={(value) => {
+                setMinThesisIrr(value);
+                setVisibleLimit(30);
+              }}
               onToggleGroupBySector={() => setGroupBySector((prev) => !prev)}
               onApplyPreset={(preset) => {
                 setSelectedSector(preset.values.sector ?? "All");
@@ -1009,6 +1235,11 @@ export function SignalIndex({
                 setMaxImplied(preset.values.imp ?? "");
                 setMaxDilution(preset.values.dil ?? "");
                 setMinMarketCapB(preset.values.cap ?? "");
+                setMinShareholderYield(preset.values.minShareholderYield ?? "");
+                setMaxPtbv(preset.values.maxPtbv ?? "");
+                setMinRotce(preset.values.minRotce ?? "");
+                setMaxPffo(preset.values.maxPffo ?? "");
+                setMinThesisIrr(preset.values.minThesisIrr ?? "");
                 setVisibleLimit(30);
               }}
               onResetAll={() => {
@@ -1019,6 +1250,11 @@ export function SignalIndex({
                 setMaxImplied("");
                 setMaxDilution("");
                 setMinMarketCapB("");
+                setMinShareholderYield("");
+                setMaxPtbv("");
+                setMinRotce("");
+                setMaxPffo("");
+                setMinThesisIrr("");
               }}
             />
           )}

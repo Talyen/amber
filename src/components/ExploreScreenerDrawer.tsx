@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Layers, Link2, Sparkles, X } from "lucide-react";
+import { Bookmark, Check, Layers, Link2, Sparkles, Trash2, X } from "lucide-react";
+import type { SavedScreen } from "@/lib/saved-screens";
 
 export interface ScreenerPreset {
   id: string;
@@ -14,6 +15,11 @@ export interface ScreenerPreset {
     imp?: string;
     dil?: string;
     cap?: string;
+    minShareholderYield?: string;
+    maxPtbv?: string;
+    minRotce?: string;
+    maxPffo?: string;
+    minThesisIrr?: string;
   };
 }
 
@@ -31,10 +37,22 @@ export const SCREENER_PRESETS: ScreenerPreset[] = [
     values: { fcf: "15", sbc: "3", imp: "", dil: "-1.5", cap: "", sector: "All" },
   },
   {
-    id: "large-cap-value",
-    label: "Large-Cap Value",
-    description: "Mkt Cap >= $50B, True FCF >= 15%, Priced-In Growth <= 8%",
-    values: { fcf: "15", sbc: "", imp: "8", dil: "", cap: "50", sector: "All" },
+    id: "total-yield-leaders",
+    label: "Shareholder Yield",
+    description: "Buybacks + Dividends − SBC >= 4% of Market Cap",
+    values: { fcf: "10", sbc: "3", minShareholderYield: "4", sector: "All" },
+  },
+  {
+    id: "quality-banks",
+    label: "Quality Banks",
+    description: "Financials with ROTCE >= 14% and P/TBV <= 2.5x",
+    values: { sector: "Financials", minRotce: "14", maxPtbv: "2.5" },
+  },
+  {
+    id: "value-reits",
+    label: "Value REITs",
+    description: "Real Estate & REITs with P/FFO <= 16x",
+    values: { sector: "Real Estate & REITs", maxPffo: "16" },
   },
   {
     id: "disciplined-saas",
@@ -52,14 +70,28 @@ interface ExploreScreenerDrawerProps {
   maxImplied: string;
   maxDilution: string;
   minMarketCapB: string;
+  minShareholderYield: string;
+  maxPtbv: string;
+  minRotce: string;
+  maxPffo: string;
+  minThesisIrr: string;
   groupBySector: boolean;
   hasCustomScreen: boolean;
+  savedScreens: SavedScreen[];
+  onSaveScreen: (name: string) => Promise<boolean>;
+  onDeleteScreen: (id: string) => void;
+  onApplySavedScreen: (screen: SavedScreen) => void;
   onChangeSector: (value: string) => void;
   onChangeMinFcf: (value: string) => void;
   onChangeMaxSbc: (value: string) => void;
   onChangeMaxImplied: (value: string) => void;
   onChangeMaxDilution: (value: string) => void;
   onChangeMinCapB: (value: string) => void;
+  onChangeMinShareholderYield: (value: string) => void;
+  onChangeMaxPtbv: (value: string) => void;
+  onChangeMinRotce: (value: string) => void;
+  onChangeMaxPffo: (value: string) => void;
+  onChangeMinThesisIrr: (value: string) => void;
   onToggleGroupBySector: () => void;
   onApplyPreset: (preset: ScreenerPreset) => void;
   onResetAll: () => void;
@@ -73,19 +105,36 @@ export function ExploreScreenerDrawer({
   maxImplied,
   maxDilution,
   minMarketCapB,
+  minShareholderYield,
+  maxPtbv,
+  minRotce,
+  maxPffo,
+  minThesisIrr,
   groupBySector,
   hasCustomScreen,
+  savedScreens,
+  onSaveScreen,
+  onDeleteScreen,
+  onApplySavedScreen,
   onChangeSector,
   onChangeMinFcf,
   onChangeMaxSbc,
   onChangeMaxImplied,
   onChangeMaxDilution,
   onChangeMinCapB,
+  onChangeMinShareholderYield,
+  onChangeMaxPtbv,
+  onChangeMinRotce,
+  onChangeMaxPffo,
+  onChangeMinThesisIrr,
   onToggleGroupBySector,
   onApplyPreset,
   onResetAll,
 }: ExploreScreenerDrawerProps) {
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [screenName, setScreenName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const activeChips: Array<{ label: string; onClear: () => void }> = [];
   if (selectedSector !== "All") {
@@ -106,6 +155,27 @@ export function ExploreScreenerDrawer({
   if (minMarketCapB.trim()) {
     activeChips.push({ label: `Mkt Cap >= $${minMarketCapB}B`, onClear: () => onChangeMinCapB("") });
   }
+  if (minShareholderYield.trim()) {
+    activeChips.push({
+      label: `Sh. Yield >= ${minShareholderYield}%`,
+      onClear: () => onChangeMinShareholderYield(""),
+    });
+  }
+  if (maxPtbv.trim()) {
+    activeChips.push({ label: `P/TBV <= ${maxPtbv}x`, onClear: () => onChangeMaxPtbv("") });
+  }
+  if (minRotce.trim()) {
+    activeChips.push({ label: `ROTCE >= ${minRotce}%`, onClear: () => onChangeMinRotce("") });
+  }
+  if (maxPffo.trim()) {
+    activeChips.push({ label: `P/FFO <= ${maxPffo}x`, onClear: () => onChangeMaxPffo("") });
+  }
+  if (minThesisIrr.trim()) {
+    activeChips.push({
+      label: `Saved Thesis IRR >= ${minThesisIrr}%`,
+      onClear: () => onChangeMinThesisIrr(""),
+    });
+  }
 
   async function handleCopyScreenUrl() {
     try {
@@ -114,6 +184,18 @@ export function ExploreScreenerDrawer({
       window.setTimeout(() => setCopiedUrl(false), 1800);
     } catch {
       // Clipboard may be unavailable
+    }
+  }
+
+  async function handleSubmitSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!screenName.trim() || saving) return;
+    setSaving(true);
+    const ok = await onSaveScreen(screenName.trim());
+    setSaving(false);
+    if (ok) {
+      setScreenName("");
+      setSaveOpen(false);
     }
   }
 
@@ -136,6 +218,37 @@ export function ExploreScreenerDrawer({
           </button>
         ))}
       </div>
+
+      {savedScreens.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)] mr-1">
+            <Bookmark className="h-3 w-3 text-[var(--amber)]" aria-hidden="true" />
+            Saved:
+          </span>
+          {savedScreens.map((screen) => (
+            <span
+              key={screen.id}
+              className="inline-flex items-center overflow-hidden rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] text-[11px]"
+            >
+              <button
+                type="button"
+                onClick={() => onApplySavedScreen(screen)}
+                className="px-2 py-1 font-medium text-[var(--amber)] hover:opacity-85 cursor-pointer"
+              >
+                {screen.name}
+              </button>
+              <button
+                type="button"
+                aria-label={`Delete saved screen ${screen.name}`}
+                onClick={() => onDeleteScreen(screen.id)}
+                className="border-l border-[var(--amber-border)] px-1.5 py-1 text-[var(--amber)]/70 hover:text-[var(--negative)] cursor-pointer"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <label className="col-span-2 block sm:col-span-1">
@@ -227,6 +340,81 @@ export function ExploreScreenerDrawer({
         </label>
       </div>
 
+      {/* Sector-Native, Yield & Saved Thesis Filters */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+            Min Sh. Yield %
+          </span>
+          <input
+            type="number"
+            step="0.5"
+            value={minShareholderYield}
+            onChange={(e) => onChangeMinShareholderYield(e.target.value)}
+            placeholder="e.g. 3"
+            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+            Max P/TBV (Banks)
+          </span>
+          <input
+            type="number"
+            step="0.2"
+            min="0"
+            value={maxPtbv}
+            onChange={(e) => onChangeMaxPtbv(e.target.value)}
+            placeholder="e.g. 2.5"
+            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+            Min ROTCE % (Banks)
+          </span>
+          <input
+            type="number"
+            step="1"
+            value={minRotce}
+            onChange={(e) => onChangeMinRotce(e.target.value)}
+            placeholder="e.g. 14"
+            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+            Max P/FFO (REITs)
+          </span>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            value={maxPffo}
+            onChange={(e) => onChangeMaxPffo(e.target.value)}
+            placeholder="e.g. 16"
+            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+            Min Thesis IRR %
+          </span>
+          <input
+            type="number"
+            step="1"
+            value={minThesisIrr}
+            onChange={(e) => onChangeMinThesisIrr(e.target.value)}
+            placeholder="e.g. 15"
+            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+        </label>
+      </div>
+
       {activeChips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {activeChips.map((chip) => (
@@ -257,9 +445,46 @@ export function ExploreScreenerDrawer({
           Group by Sector
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {hasCustomScreen && (
             <>
+              {saveOpen ? (
+                <form onSubmit={handleSubmitSave} className="inline-flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={screenName}
+                    onChange={(e) => setScreenName(e.target.value)}
+                    placeholder="Screen name..."
+                    maxLength={48}
+                    autoFocus
+                    className="h-7 w-36 rounded-md border border-[var(--amber-border)] bg-[var(--bg)] px-2 text-xs text-[var(--text-primary)] focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={saving || screenName.trim().length < 2}
+                    className="h-7 rounded-md bg-[var(--amber)] px-2.5 text-[11px] font-semibold text-white disabled:opacity-50 cursor-pointer"
+                  >
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSaveOpen(false)}
+                    className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSaveOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--amber)] cursor-pointer"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                  Save screen
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={handleCopyScreenUrl}

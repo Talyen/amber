@@ -215,6 +215,13 @@ const BUYBACK_TAGS = [
   "PaymentsForRepurchaseOfEquity",
   "PurchaseOfTreasuryShares",
 ];
+const DIVIDEND_TAGS = [
+  "PaymentsOfDividendsCommonStock",
+  "PaymentsOfDividends",
+  "PaymentsOfOrdinaryDividends",
+  "PaymentsOfDividendsPreferredStockAndPreferenceStock",
+  "DividendsPaid",
+];
 
 interface DirectoryCandidate {
   ticker: string;
@@ -1052,6 +1059,7 @@ export async function ingestCandidate(
       false
     );
     const daMap = extractAnnualSeries(facts, DA_TAGS, "USD");
+    const dividendMap = extractAnnualSeries(facts, DIVIDEND_TAGS, "USD");
     const goodwillMap = extractAnnualSeries(facts, GOODWILL_TAGS, "USD", false);
     const intangiblesMap = extractAnnualSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, "USD", false);
     const goodwillAndIntangiblesMap = extractAnnualSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, "USD", false);
@@ -1112,6 +1120,7 @@ export async function ingestCandidate(
       const niVal = netIncMap.get(end)?.val;
       const eqVal = equityMap.get(end)?.val;
       const daVal = daMap.get(end)?.val;
+      const divVal = dividendMap.get(end)?.val;
       const gwVal = goodwillMap.get(end)?.val;
       const intangVal = intangiblesMap.get(end)?.val;
       const combinedGwVal = goodwillAndIntangiblesMap.get(end)?.val;
@@ -1139,6 +1148,7 @@ export async function ingestCandidate(
         depreciationAmortization: daVal !== undefined ? Math.round(Math.abs(daVal) / 1e6) : null,
         goodwillIntangibles:
           goodwillIntangiblesVal !== undefined ? Math.round(goodwillIntangiblesVal / 1e6) : null,
+        dividendsPaid: divVal !== undefined ? Math.round(Math.abs(divVal) / 1e6) : null,
         periodEndDate: end,
         cashAndEquiv: supplement?.cashAndEquiv ?? balance.cashAndEquiv,
         totalDebt: supplement?.totalDebt ?? balance.totalDebt,
@@ -1176,6 +1186,7 @@ export async function ingestCandidate(
         const capexQ = getQuarterPair(CAPEX_TAGS);
         const sbcQ = getQuarterPair(SBC_TAGS);
         const buybackQ = getQuarterPair(BUYBACK_TAGS);
+        const dividendQ = getQuarterPair(DIVIDEND_TAGS);
         const ttmOcf = Math.round(
           latestAnnual.operatingCashFlow + (ocfQ.currentVal - ocfQ.priorVal) / 1e6
         );
@@ -1203,6 +1214,21 @@ export async function ingestCandidate(
                 : 0)
           )
         );
+
+        const ttmDividends =
+          latestAnnual.dividendsPaid != null
+            ? Math.max(
+                0,
+                Math.round(
+                  latestAnnual.dividendsPaid +
+                    (dividendQ
+                      ? (Math.abs(dividendQ.currentVal) - Math.abs(dividendQ.priorVal)) / 1e6
+                      : 0)
+                )
+              )
+            : dividendQ
+              ? Math.max(0, Math.round(Math.abs(dividendQ.currentVal) / 1e6))
+              : null;
 
         const gpQ = getQuarterPair(GROSS_PROFIT_TAGS);
         const corQ = getQuarterPair(COST_OF_REVENUE_TAGS);
@@ -1281,6 +1307,7 @@ export async function ingestCandidate(
             if (combined !== undefined) return Math.round(Math.max(0, combined) / 1e6);
             return latestAnnual.goodwillIntangibles ?? null;
           })(),
+          dividendsPaid: ttmDividends,
           cashAndEquiv: ttmSupplement?.cashAndEquiv ?? ttmBalance.cashAndEquiv,
           totalDebt: ttmSupplement?.totalDebt ?? ttmBalance.totalDebt,
         });

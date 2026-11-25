@@ -82,6 +82,7 @@ export const annualFinancials = pgTable(
     stockholdersEquity: doublePrecision("stockholders_equity"), // $M (optional, for ROIC)
     depreciationAmortization: doublePrecision("depreciation_amortization"), // $M (optional, for REIT FFO & EBITDA)
     goodwillIntangibles: doublePrecision("goodwill_intangibles"), // $M (optional, for Bank TBV / ROTCE)
+    dividendsPaid: doublePrecision("dividends_paid"), // $M (optional, cash dividends paid)
     periodEndDate: text("period_end_date"), // e.g. "2025-09-27"
     cashAndEquiv: doublePrecision("cash_and_equiv"), // $M historical cash
     totalDebt: doublePrecision("total_debt"), // $M historical debt
@@ -333,6 +334,7 @@ export const userValuationPresets = pgTable(
     targetMargin: doublePrecision("target_margin").notNull(),
     exitMultiple: doublePrecision("exit_multiple").notNull(),
     thesisNote: text("thesis_note"),
+    isPublic: boolean("is_public").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -342,3 +344,63 @@ export const userValuationPresets = pgTable(
     index("user_valuation_presets_user_idx").on(table.userId),
   ]
 );
+
+export const userAlertPreferences = pgTable("user_alert_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  watchlistDigest: boolean("watchlist_digest").notNull().default(false),
+  includeFilingDiffs: boolean("include_filing_diffs").notNull().default(true),
+  includeForm4Buys: boolean("include_form4_buys").notNull().default(true),
+  includeForm8k: boolean("include_form8k").notNull().default(true),
+  lastDigestSentAt: timestamp("last_digest_sent_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export interface SavedScreenFiltersJson {
+  sector?: string;
+  fcf?: string;
+  sbc?: string;
+  imp?: string;
+  dil?: string;
+  cap?: string;
+  minShareholderYield?: string;
+  maxPtbv?: string;
+  minRotce?: string;
+  maxPffo?: string;
+  minThesisIrr?: string;
+}
+
+export const userSavedScreens = pgTable(
+  "user_saved_screens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    filters: jsonb("filters").$type<SavedScreenFiltersJson>().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("user_saved_screens_user_idx").on(table.userId)]
+);
+
+export interface UserPortfolioHoldingJson {
+  ticker: string;
+  value: number;
+}
+
+export const userPortfolios = pgTable("user_portfolios", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  inputMode: text("input_mode").notNull().default("weight"), // "weight" | "dollars"
+  holdings: jsonb("holdings").$type<UserPortfolioHoldingJson[]>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});

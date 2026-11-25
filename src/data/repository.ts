@@ -85,6 +85,7 @@ async function queryCompanyFromDb(
         stockholdersEquity: a.stockholdersEquity,
         depreciationAmortization: a.depreciationAmortization,
         goodwillIntangibles: a.goodwillIntangibles,
+        dividendsPaid: a.dividendsPaid,
         periodEndDate: a.periodEndDate,
         cashAndEquiv: a.cashAndEquiv,
         totalDebt: a.totalDebt,
@@ -197,6 +198,10 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
           dilutedShares: annualFinancials.dilutedShares,
           operatingIncome: annualFinancials.operatingIncome,
           netIncome: annualFinancials.netIncome,
+          stockholdersEquity: annualFinancials.stockholdersEquity,
+          depreciationAmortization: annualFinancials.depreciationAmortization,
+          goodwillIntangibles: annualFinancials.goodwillIntangibles,
+          dividendsPaid: annualFinancials.dividendsPaid,
         })
         .from(annualFinancials)
         .innerJoin(companies, eq(annualFinancials.ticker, companies.ticker))

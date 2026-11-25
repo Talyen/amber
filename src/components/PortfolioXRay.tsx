@@ -7,12 +7,16 @@ import {
   X,
   AlertTriangle,
   ArrowRight,
+  Bookmark,
+  Check,
   CheckCircle2,
   ClipboardPaste,
   Download,
   DollarSign,
+  FileDiff,
   Percent,
   Trophy,
+  UserCheck,
 } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/search-index";
 import { authClient } from "@/lib/auth-client";
@@ -63,8 +67,29 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     sessionUserId && myArenaState?.userId === sessionUserId
       ? myArenaState.portfolio
       : null;
-  const [initialLocation, setInitialLocation] = useState<{ addTicker?: string } | null>(null);
+  const [initialLocation, setInitialLocation] = useState<{ addTicker?: string; hasSharedLink?: boolean } | null>(null);
   const [savedPresets, setSavedPresets] = useState<Record<string, SavedValuationPreset>>({});
+  const [portfolioSaveStatus, setPortfolioSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [holdingSignals, setHoldingSignals] = useState<{
+    diffs: Array<{
+      id: string;
+      ticker: string;
+      filingType: string;
+      filingDate: string;
+      section: string;
+      materiality: string;
+      headline: string;
+      summary: string;
+    }>;
+    insiderBuys: Array<{
+      id: string;
+      ticker: string;
+      filingDate: string;
+      insiderName: string;
+      insiderTitle: string;
+      totalValue: number;
+    }>;
+  }>({ diffs: [], insiderBuys: [] });
 
   // Hydrate saved valuation presets (localStorage + account sync when signed in)
   useEffect(() => {
@@ -136,12 +161,47 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       }
 
       const addTicker = params.get("add")?.trim().toUpperCase();
-      setInitialLocation({ addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined });
+      setInitialLocation({
+        addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined,
+        hasSharedLink: raw !== null,
+      });
     });
     return () => {
       active = false;
     };
   }, [byTicker, initialLocation]);
+
+  // Hydrate account-synced working portfolio when signed in (unless viewing a shared ?h= link)
+  useEffect(() => {
+    if (!sessionUserId || !initialLocation || initialLocation.hasSharedLink) return;
+    const controller = new AbortController();
+    fetch("/api/portfolio", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          data: {
+            portfolio?: {
+              inputMode: "weight" | "dollars";
+              holdings: Array<{ ticker: string; value: number }>;
+            } | null;
+          } | null
+        ) => {
+          if (controller.signal.aborted || !data?.portfolio?.holdings?.length) return;
+          const valid = data.portfolio.holdings.filter((item) => byTicker.has(item.ticker));
+          if (valid.length === 0) return;
+          setSharedTickers(valid.map((item) => item.ticker));
+          if (data.portfolio.inputMode === "dollars") {
+            setInputMode("dollars");
+            setDollars(Object.fromEntries(valid.map((item) => [item.ticker, item.value])));
+          } else {
+            setInputMode("weight");
+            setWeights(Object.fromEntries(valid.map((item) => [item.ticker, item.value])));
+          }
+        }
+      )
+      .catch(() => {});
+    return () => controller.abort();
+  }, [sessionUserId, initialLocation, byTicker]);
 
   const addTicker = initialLocation?.addTicker;
   const activeTickers = useMemo(() => {
@@ -158,6 +218,53 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
         .filter((x): x is SearchIndexEntry => Boolean(x)),
     [activeTickers, byTicker]
   );
+
+  const holdingsKey = holdings.map((h) => h.ticker).join(",");
+  useEffect(() => {
+    if (!holdingsKey) return;
+    const controller = new AbortController();
+    fetch(`/api/portfolio/signals?tickers=${encodeURIComponent(holdingsKey)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: typeof holdingSignals | null) => {
+        if (!controller.signal.aborted && data) {
+          setHoldingSignals({
+            diffs: Array.isArray(data.diffs) ? data.diffs : [],
+            insiderBuys: Array.isArray(data.insiderBuys) ? data.insiderBuys : [],
+          });
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [holdingsKey]);
+
+  async function handleSavePortfolio() {
+    if (!sessionUserId || holdings.length === 0 || portfolioSaveStatus === "saving") return;
+    setPortfolioSaveStatus("saving");
+    try {
+      const payload = {
+        inputMode,
+        holdings: holdings.map((h) => ({
+          ticker: h.ticker,
+          value:
+            inputMode === "dollars"
+              ? Math.max(0, dollars[h.ticker] ?? 10_000)
+              : Math.max(0, weights[h.ticker] ?? 10),
+        })),
+      };
+      const res = await fetch("/api/portfolio", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setPortfolioSaveStatus("saved");
+      window.setTimeout(() => setPortfolioSaveStatus("idle"), 2000);
+    } catch {
+      setPortfolioSaveStatus("failed");
+    }
+  }
 
   const totalDollars = useMemo(() => {
     if (inputMode !== "dollars") return 0;
@@ -454,6 +561,27 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
               Quick Paste
             </button>
+
+            {sessionUserId && (
+              <button
+                type="button"
+                onClick={handleSavePortfolio}
+                disabled={!hasAllocation || portfolioSaveStatus === "saving"}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer disabled:opacity-50"
+              >
+                {portfolioSaveStatus === "saved" ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <Bookmark className="h-3.5 w-3.5" />
+                    {portfolioSaveStatus === "saving" ? "Saving…" : "Save Portfolio"}
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               type="button"
@@ -845,6 +973,101 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             </table>
           </div>
         </section>
+        {/* Holdings Radar: Live SEC Filing Diffs, 8-Ks & Insider Buys for Portfolio Positions */}
+        {(holdingSignals.diffs.length > 0 || holdingSignals.insiderBuys.length > 0) && (
+          <section className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Holdings Radar
+                </h2>
+                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                  Recent SEC 10-K/10-Q prose diffs, Form 8-K events, and Form 4 insider buys across your portfolio.
+                </p>
+              </div>
+              <Link
+                href="/feed"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--amber)] hover:underline"
+              >
+                Full Signal Feed
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {holdingSignals.diffs.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                    <FileDiff className="h-3.5 w-3.5 text-[var(--amber)]" />
+                    Filing Diffs & 8-K Events
+                  </div>
+                  <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--bg)]">
+                    {holdingSignals.diffs.slice(0, 5).map((d) => (
+                      <Link
+                        key={d.id}
+                        href={`/t/${d.ticker}?tab=diffs`}
+                        className="block px-3.5 py-2.5 transition-colors hover:bg-[var(--surface-subtle)]"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="font-mono-num font-semibold text-[var(--amber)]">
+                            {d.ticker} · {d.filingType}
+                          </span>
+                          <span className="font-mono-num text-[var(--text-muted)]">
+                            {d.filingDate}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs font-medium text-[var(--text-primary)] line-clamp-1">
+                          {d.headline}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-[var(--text-secondary)] line-clamp-2">
+                          {d.summary}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {holdingSignals.insiderBuys.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                    <UserCheck className="h-3.5 w-3.5 text-[var(--positive)]" />
+                    Open-Market Insider Buys (Form 4)
+                  </div>
+                  <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--bg)]">
+                    {holdingSignals.insiderBuys.slice(0, 5).map((b) => (
+                      <Link
+                        key={b.id}
+                        href={`/t/${b.ticker}?tab=insiders`}
+                        className="flex items-center justify-between gap-3 px-3.5 py-2.5 transition-colors hover:bg-[var(--surface-subtle)]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="font-mono-num font-semibold text-[var(--amber)]">
+                              {b.ticker}
+                            </span>
+                            <span className="truncate font-medium text-[var(--text-primary)]">
+                              {b.insiderName}
+                            </span>
+                          </div>
+                          <div className="truncate text-[11px] text-[var(--text-muted)]">
+                            {b.insiderTitle} · {b.filingDate}
+                          </div>
+                        </div>
+                        <span className="font-mono-num shrink-0 text-xs font-semibold text-[var(--positive)]">
+                          {b.totalValue >= 1
+                            ? `$${b.totalValue.toFixed(2)}M`
+                            : `$${Math.round(b.totalValue * 1000)}K`}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
           <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
           <div className="flex items-center gap-4">

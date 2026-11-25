@@ -1,17 +1,29 @@
-/** Send periodic filing alerts to confirmed subscriptions. */
+/** Send periodic filing alerts and watchlist digests to confirmed subscribers. */
 import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
-import { alertSubscriptions, companies } from "../src/db/schema.ts";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import {
+  alertSubscriptions,
+  companies,
+  filingDiffs,
+  insiderTrades,
+  user,
+  userAlertPreferences,
+  userWatchlists,
+} from "../src/db/schema.ts";
 import {
   alertActionUrl,
   canRetryAlertDelivery,
   defaultAlertSender,
-  escapeAlertHtml,
+  renderFilingAlertHtml,
+  renderWatchlistDigestHtml,
   sendAlertEmail,
+  type WatchlistDigestItem,
 } from "../src/lib/alert-email.ts";
+
+const MATERIALITY_RANK: Record<string, number> = { High: 0, Medium: 1, Watch: 2 };
 
 export async function dispatchFilingAlerts({
   databaseUrl = process.env.DATABASE_URL,
@@ -81,32 +93,46 @@ export async function dispatchFilingAlerts({
         continue;
       }
 
+      // Fetch any extracted Filing Diff Radar highlights for this ticker + accession (best-effort)
+      let highlights: Array<{ materiality: string; section: string; headline: string; summary: string }> = [];
+      try {
+        const diffs = await db
+          .select({
+            materiality: filingDiffs.materiality,
+            section: filingDiffs.section,
+            headline: filingDiffs.headline,
+            summary: filingDiffs.summary,
+          })
+          .from(filingDiffs)
+          .where(and(
+            eq(filingDiffs.ticker, item.ticker),
+            eq(filingDiffs.accessionNumber, item.accession),
+          ))
+          .limit(8);
+
+        highlights = diffs
+          .sort((a, b) => (MATERIALITY_RANK[a.materiality] ?? 9) - (MATERIALITY_RANK[b.materiality] ?? 9))
+          .slice(0, 3);
+      } catch {
+        highlights = [];
+      }
+
       const unsubscribe = alertActionUrl(siteUrl, "unsubscribe", item.token);
-      const ticker = escapeAlertHtml(item.ticker);
-      const filingType = escapeAlertHtml(item.filingType);
-      const filingDate = escapeAlertHtml(item.filingDate);
-      const accession = escapeAlertHtml(item.accession);
-      const companyUrl = escapeAlertHtml(new URL(`/t/${encodeURIComponent(item.ticker)}`, siteUrl).href);
+      const companyUrl = new URL(`/t/${encodeURIComponent(item.ticker)}`, siteUrl).href;
       await sendAlertEmail(resendKey, `filing-alert/${item.token}/${item.accession}`, {
         from: fromEmail,
         to: [item.email],
         subject: `Amber Alert: ${item.ticker} filed a new ${item.filingType} (${item.filingDate})`,
-        html: `
-          <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#151517;">
-            <div style="font-size:12px;font-weight:600;letter-spacing:0.06em;color:#B45309;">AMBER / SEC FILING ALERT</div>
-            <h2 style="margin:8px 0 4px;font-size:20px;">${escapeAlertHtml(item.name)} (${ticker})</h2>
-            <p style="margin:0 0 16px;font-size:14px;color:#52525B;">
-              A new <strong>${filingType}</strong> was filed on ${filingDate} (EDGAR ${accession}).
-              View the filing and available analysis in Amber.
-            </p>
-            <a href="${companyUrl}" style="display:inline-block;padding:10px 16px;background:#B45309;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600;">
-              Open ${ticker} in Amber →
-            </a>
-            <p style="margin:20px 0 0;font-size:11px;color:#71717A;">
-              <a href="${escapeAlertHtml(unsubscribe)}" style="color:#B45309;">Unsubscribe from ${ticker} filing alerts</a>.
-            </p>
-          </div>
-        `,
+        html: renderFilingAlertHtml({
+          companyName: item.name,
+          ticker: item.ticker,
+          filingType: item.filingType,
+          filingDate: item.filingDate,
+          accession: item.accession,
+          companyUrl,
+          unsubscribeUrl: unsubscribe,
+          highlights,
+        }),
       }, wait);
 
       for (let attempt = 0; ; attempt++) {
@@ -129,6 +155,129 @@ export async function dispatchFilingAlerts({
   }
 
   console.log(`[amber-alerts] Dispatched ${sent}/${due.length} due filing alerts (${failed} unresolved).`);
+
+  // Dispatch daily Watchlist Digests for opted-in verified users
+  let digestsSent = 0;
+  try {
+    const digestCooldown = new Date(Date.now() - 20 * 60 * 60 * 1000);
+    const digestCutoffDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    const subscribers = await db
+      .select({
+        userId: userAlertPreferences.userId,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        includeFilingDiffs: userAlertPreferences.includeFilingDiffs,
+        includeForm4Buys: userAlertPreferences.includeForm4Buys,
+        includeForm8k: userAlertPreferences.includeForm8k,
+        lastDigestSentAt: userAlertPreferences.lastDigestSentAt,
+      })
+      .from(userAlertPreferences)
+      .innerJoin(user, eq(userAlertPreferences.userId, user.id))
+      .where(and(
+        eq(userAlertPreferences.watchlistDigest, true),
+        eq(user.emailVerified, true),
+      ));
+
+    for (const sub of subscribers) {
+      if (sub.lastDigestSentAt && sub.lastDigestSentAt > digestCooldown) continue;
+      const watchedRows = await db
+        .select({ ticker: userWatchlists.ticker })
+        .from(userWatchlists)
+        .where(eq(userWatchlists.userId, sub.userId));
+      const tickers = watchedRows.map((r) => r.ticker);
+      if (tickers.length === 0) continue;
+
+      const items: WatchlistDigestItem[] = [];
+      if (sub.includeFilingDiffs || sub.includeForm8k) {
+        const recentDiffs = await db
+          .select({
+            ticker: filingDiffs.ticker,
+            filingType: filingDiffs.filingType,
+            filingDate: filingDiffs.filingDate,
+            headline: filingDiffs.headline,
+            summary: filingDiffs.summary,
+            materiality: filingDiffs.materiality,
+          })
+          .from(filingDiffs)
+          .where(and(
+            inArray(filingDiffs.ticker, tickers),
+            gte(filingDiffs.filingDate, digestCutoffDate),
+          ))
+          .orderBy(desc(filingDiffs.filingDate))
+          .limit(20);
+
+        for (const d of recentDiffs) {
+          const is8k = d.filingType === "8-K";
+          if (is8k && !sub.includeForm8k) continue;
+          if (!is8k && !sub.includeFilingDiffs) continue;
+          items.push({
+            ticker: d.ticker,
+            kind: is8k ? "8-K Event" : "10-K/10-Q Diff",
+            date: d.filingDate,
+            headline: `[${d.materiality}] ${d.headline}`,
+            detail: d.summary,
+          });
+        }
+      }
+
+      if (sub.includeForm4Buys) {
+        const recentBuys = await db
+          .select({
+            ticker: insiderTrades.ticker,
+            filingDate: insiderTrades.filingDate,
+            insiderName: insiderTrades.insiderName,
+            insiderTitle: insiderTrades.insiderTitle,
+            totalValue: insiderTrades.totalValue,
+          })
+          .from(insiderTrades)
+          .where(and(
+            inArray(insiderTrades.ticker, tickers),
+            eq(insiderTrades.transactionType, "Buy"),
+            gte(insiderTrades.filingDate, digestCutoffDate),
+          ))
+          .orderBy(desc(insiderTrades.totalValue))
+          .limit(10);
+
+        for (const b of recentBuys) {
+          const valStr = b.totalValue >= 1 ? `$${b.totalValue.toFixed(2)}M` : `$${Math.round(b.totalValue * 1000)}K`;
+          items.push({
+            ticker: b.ticker,
+            kind: "Form 4 Buy",
+            date: b.filingDate,
+            headline: `${b.insiderName} (${b.insiderTitle}) bought ${valStr}`,
+            detail: `Open-market Form 4 purchase filed ${b.filingDate}.`,
+          });
+        }
+      }
+
+      if (items.length === 0) continue;
+
+      await sendAlertEmail(resendKey, `watchlist-digest/${sub.userId}/${todayIso}`, {
+        from: fromEmail,
+        to: [sub.email],
+        subject: `Amber Watchlist Digest: ${items.length} new signal${items.length === 1 ? "" : "s"} (${todayIso})`,
+        html: renderWatchlistDigestHtml({
+          dateLabel: todayIso,
+          siteUrl,
+          items,
+        }),
+      }, wait);
+
+      await db
+        .update(userAlertPreferences)
+        .set({ lastDigestSentAt: new Date() })
+        .where(eq(userAlertPreferences.userId, sub.userId));
+      digestsSent++;
+    }
+    if (subscribers.length > 0) {
+      console.log(`[amber-alerts] Dispatched ${digestsSent}/${subscribers.length} watchlist digests.`);
+    }
+  } catch (error) {
+    console.warn("[amber-alerts] Watchlist digest pass skipped:", error instanceof Error ? error.message : error);
+  }
+
   if (failed > 0) throw new Error(`${failed} filing alert deliveries need attention.`);
 }
 

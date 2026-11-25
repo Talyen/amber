@@ -11,6 +11,7 @@ export interface SavedValuationPreset {
   targetMargin: number;
   exitMultiple: number;
   thesisNote?: string | null;
+  isPublic?: boolean;
   updatedAt: string;
 }
 
@@ -58,6 +59,7 @@ export function normalizeValuationPresetInput(raw: unknown): Omit<SavedValuation
     targetMargin: Number(targetMargin.toFixed(1)),
     exitMultiple: Number(exitMultiple.toFixed(1)),
     thesisNote,
+    isPublic: obj.isPublic === true,
   };
 }
 

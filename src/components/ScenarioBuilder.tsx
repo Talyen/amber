@@ -120,6 +120,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [thesisNote, setThesisNote] = useState("");
+  const [isPublicThesis, setIsPublicThesis] = useState(false);
   const [activePreset, setActivePreset] = useState<"bear" | "base" | "bull" | "custom">("base");
   const [fromSharedLink, setFromSharedLink] = useState(false);
   const [restoredThesis, setRestoredThesis] = useState(false);
@@ -135,6 +136,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     setTargetMargin(preset.targetMargin);
     setExitMultiple(preset.exitMultiple);
     setThesisNote(preset.thesisNote ?? "");
+    setIsPublicThesis(preset.isPublic === true);
     setActivePreset("custom");
   }, [hasEbit, hasPe]);
 
@@ -219,6 +221,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       targetMargin,
       exitMultiple,
       thesisNote: trimmedNote ? trimmedNote.slice(0, 240) : null,
+      isPublic: Boolean(userId && isPublicThesis),
       updatedAt: new Date().toISOString(),
     };
     const storedLocally = writeLocalValuationPreset({ ...payload, owner: userId });
@@ -452,7 +455,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           </p>
         )}
 
-        <div className="mt-3">
+        <div className="mt-3 space-y-2">
           <input
             type="text"
             value={thesisNote}
@@ -465,6 +468,20 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             aria-label="Optional thesis note"
             className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
           />
+          {userId && (
+            <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isPublicThesis}
+                onChange={(e) => {
+                  editedThesis.current = true;
+                  setIsPublicThesis(e.target.checked);
+                }}
+                className="accent-[var(--amber)]"
+              />
+              Showcase this thesis on my public investor profile
+            </label>
+          )}
         </div>
 
         {/* Valuation Methodology Selector */}

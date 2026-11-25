@@ -43,6 +43,9 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0005_user_valuation_presets.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0006_valuation_preset_notes.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0007_sector_financial_inputs.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0008_dividends_paid.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0009_alert_preferences_and_digest.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0010_saved_screens_portfolios_public_theses.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -147,13 +150,36 @@ async function migrate() {
     from information_schema.columns
     where table_schema = 'public'
       and table_name = 'annual_financials'
-      and column_name in ('depreciation_amortization', 'goodwill_intangibles')
+      and column_name in ('depreciation_amortization', 'goodwill_intangibles', 'dividends_paid')
       and udt_name = 'float8'
   `;
-  if (sectorSchema?.columns !== 2) {
-    throw new Error("Could not verify annual_financials sector columns.");
+  if (sectorSchema?.columns !== 3) {
+    throw new Error("Could not verify annual_financials sector and dividend columns.");
   }
-  console.log("[amber-migrate] Verified annual_financials sector inputs.");
+  console.log("[amber-migrate] Verified annual_financials sector and dividend inputs.");
+
+  const [featureSchema] = await sql`
+    select
+      to_regclass('public.user_alert_preferences') is not null as has_alert_prefs,
+      to_regclass('public.user_saved_screens') is not null as has_saved_screens,
+      to_regclass('public.user_portfolios') is not null as has_user_portfolios,
+      exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'user_valuation_presets'
+          and column_name = 'is_public'
+          and udt_name = 'bool'
+      ) as has_public_theses
+  `;
+  if (
+    !featureSchema?.has_alert_prefs ||
+    !featureSchema.has_saved_screens ||
+    !featureSchema.has_user_portfolios ||
+    !featureSchema.has_public_theses
+  ) {
+    throw new Error("Could not verify alert preferences, saved screens, portfolios, and public theses schema.");
+  }
+  console.log("[amber-migrate] Verified alert preferences, saved screens, portfolios, and public theses.");
 }
 
 await migrate();

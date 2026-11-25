@@ -27,6 +27,7 @@ describe("Valuation presets validation", () => {
       targetMargin: 42.7,
       exitMultiple: 24.5,
       thesisNote: "AI datacenter compounding",
+      isPublic: false,
     });
 
     assert.equal(normalizeValuationPresetInput(null), null);

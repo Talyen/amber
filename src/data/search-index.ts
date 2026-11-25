@@ -1,7 +1,9 @@
 import {
   computeBaseCaseValuation,
   computeCompanyValuation,
+  computeFinancialSectorMetrics,
   computeRevenueCagr,
+  computeShareholderYieldMetrics,
   type CompanySnapshot,
 } from "../lib/finance.ts";
 import { normalizeCompanyName } from "../lib/company-name.ts";
@@ -28,6 +30,11 @@ export interface SearchIndexEntry {
   impliedCagr: number;
   fairValue?: number;
   fairValueUpsidePct?: number;
+  dividendYieldPct?: number;
+  shareholderYieldPct?: number;
+  priceToTbv?: number | null;
+  rotcePct?: number | null;
+  priceToFfo?: number | null;
   lastFilingDate: string;
 }
 
@@ -49,6 +56,8 @@ export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexE
   const { latest, netDilutionCagr, reverseDcf } = computeCompanyValuation(company);
   const baseCase = computeBaseCaseValuation(company);
   const revenueCagr = computeRevenueCagr(company.annuals);
+  const shareholderYield = computeShareholderYieldMetrics(company);
+  const sectorMetrics = computeFinancialSectorMetrics(company);
   const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
   const latestFy = fyOnly[fyOnly.length - 1] ?? latest;
   const operatingMargin =
@@ -82,6 +91,14 @@ export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexE
     impliedCagr: Number(reverseDcf.impliedRevenueCagrPct.toFixed(1)),
     fairValue: baseCase.fairValue,
     fairValueUpsidePct: baseCase.upsidePct,
+    dividendYieldPct: Number(shareholderYield.dividendYieldPct.toFixed(2)),
+    shareholderYieldPct: Number(shareholderYield.totalShareholderYieldPct.toFixed(2)),
+    priceToTbv:
+      sectorMetrics.priceToTbv !== null ? Number(sectorMetrics.priceToTbv.toFixed(2)) : null,
+    rotcePct:
+      sectorMetrics.rotcePct !== null ? Number(sectorMetrics.rotcePct.toFixed(1)) : null,
+    priceToFfo:
+      sectorMetrics.priceToFfo !== null ? Number(sectorMetrics.priceToFfo.toFixed(1)) : null,
     lastFilingDate: company.lastFiling.date,
   };
 }

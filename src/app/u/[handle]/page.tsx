@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Bot, Trophy } from "lucide-react";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { ArrowLeft, ArrowRight, Bot, Sparkles, Trophy } from "lucide-react";
+import { getDb } from "@/db";
+import { user, userValuationPresets } from "@/db/schema";
 import {
   getArenaPortfoliosByHandle,
   getArenaEntryBenchmarks,
 } from "@/data/arena-repository";
+import { getSearchIndex } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { formatPct } from "@/lib/finance";
+import {
+  computePresetExpectedReturn,
+  type SavedScenarioLens,
+} from "@/lib/valuation-presets";
 
 export const revalidate = 3600;
 
@@ -34,6 +42,78 @@ export default async function InvestorProfilePage({
 
   if (entries.length === 0) notFound();
   const benchmarks = await getArenaEntryBenchmarks(entries);
+
+  // Fetch any published Saved Theses for this investor handle
+  let publishedTheses: Array<{
+    ticker: string;
+    name: string;
+    lens: SavedScenarioLens;
+    revGrowth: number;
+    targetMargin: number;
+    exitMultiple: number;
+    thesisNote: string | null;
+    irrPct: number | null;
+    fairValueToday: number | null;
+  }> = [];
+  const db = getDb();
+  if (db) {
+    try {
+      const [owner] = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(sql`lower(${user.handle}) = lower(${handle})`)
+        .limit(1);
+      if (owner) {
+        const rows = await db
+          .select()
+          .from(userValuationPresets)
+          .where(
+            and(
+              eq(userValuationPresets.userId, owner.id),
+              eq(userValuationPresets.isPublic, true)
+            )
+          )
+          .orderBy(desc(userValuationPresets.updatedAt))
+          .limit(12);
+        if (rows.length > 0) {
+          const index = await getSearchIndex();
+          const byTicker = new Map(index.map((e) => [e.ticker, e]));
+          publishedTheses = rows.map((row) => {
+            const entry = byTicker.get(row.ticker);
+            const lens: SavedScenarioLens =
+              row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf";
+            const proj = entry
+              ? computePresetExpectedReturn(
+                  {
+                    ticker: row.ticker,
+                    lens,
+                    revGrowth: row.revGrowth,
+                    targetMargin: row.targetMargin,
+                    exitMultiple: row.exitMultiple,
+                    thesisNote: row.thesisNote,
+                    updatedAt: row.updatedAt.toISOString(),
+                  },
+                  entry
+                )
+              : null;
+            return {
+              ticker: row.ticker,
+              name: entry?.name ?? row.ticker,
+              lens,
+              revGrowth: row.revGrowth,
+              targetMargin: row.targetMargin,
+              exitMultiple: row.exitMultiple,
+              thesisNote: row.thesisNote ?? null,
+              irrPct: proj?.irrPct ?? null,
+              fairValueToday: proj?.fairValueToday ?? null,
+            };
+          });
+        }
+      }
+    } catch {
+      // Public theses are optional
+    }
+  }
 
   const liveEntries = entries
     .filter((e) => !e.isFinalized)
@@ -158,6 +238,58 @@ export default async function InvestorProfilePage({
             )}
           </div>
         </section>
+
+        {/* Published Valuation Theses */}
+        {publishedTheses.length > 0 && (
+          <section className="mt-8">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+              <Sparkles className="h-4 w-4 text-[var(--amber)]" />
+              Published Valuation Theses
+            </h2>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {publishedTheses.map((item) => (
+                <Link
+                  key={item.ticker}
+                  href={`/t/${item.ticker}?tab=dcf&model=scenario&lens=${item.lens}&rev=${item.revGrowth}&m=${item.targetMargin}&exit=${item.exitMultiple}`}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--amber-border)]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-mono-num text-sm font-semibold text-[var(--amber)]">
+                        {item.ticker}
+                      </span>
+                      <span className="ml-2 text-xs text-[var(--text-secondary)]">
+                        {item.name}
+                      </span>
+                    </div>
+                    {item.irrPct !== null && (
+                      <span
+                        className={`font-mono-num text-xs font-semibold ${
+                          item.irrPct >= 12
+                            ? "text-[var(--positive)]"
+                            : item.irrPct >= 8
+                              ? "text-[var(--amber)]"
+                              : "text-[var(--negative)]"
+                        }`}
+                      >
+                        {formatPct(item.irrPct, true)}/yr
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-mono-num mt-1.5 text-[11px] text-[var(--text-muted)]">
+                    {item.lens.toUpperCase()} · {item.revGrowth}% rev · {item.targetMargin}% margin · {item.exitMultiple}x exit
+                    {item.fairValueToday !== null ? ` · FV $${item.fairValueToday.toFixed(0)}` : ""}
+                  </div>
+                  {item.thesisNote && (
+                    <p className="mt-2 text-xs text-[var(--text-secondary)] line-clamp-2">
+                      {item.thesisNote}
+                    </p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Track Record / Past Periods */}
         {archivedEntries.length > 0 && (

@@ -99,6 +99,14 @@ export function SettingsWorkspace({
   const [syncingWatchlistAlerts, setSyncingWatchlistAlerts] = useState(false);
   const [alertStatus, setAlertStatus] = useState("");
   const [alertError, setAlertError] = useState("");
+  const [digestPrefs, setDigestPrefs] = useState({
+    watchlistDigest: false,
+    includeFilingDiffs: true,
+    includeForm4Buys: true,
+    includeForm8k: true,
+  });
+  const [savingDigest, setSavingDigest] = useState(false);
+  const [digestStatus, setDigestStatus] = useState("");
 
   const profileLoaded = profileState?.userId === sessionUserId;
   const alertsLoaded = alertState?.userId === sessionUserId;
@@ -131,6 +139,50 @@ export function SettingsWorkspace({
 
     return () => controller.abort();
   }, [sessionUserId, alertsLoaded]);
+
+  useEffect(() => {
+    if (!sessionUserId) return;
+    const controller = new AbortController();
+    fetch("/api/alerts/preferences", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { preferences?: typeof digestPrefs } | null) => {
+        if (!controller.signal.aborted && data?.preferences) {
+          setDigestPrefs(data.preferences);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [sessionUserId]);
+
+  async function handleUpdateDigest(next: typeof digestPrefs) {
+    if (!sessionUserId || savingDigest) return;
+    const prev = digestPrefs;
+    setDigestPrefs(next);
+    setSavingDigest(true);
+    setDigestStatus("");
+    try {
+      const res = await fetch("/api/alerts/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      if (!res.ok) {
+        setDigestPrefs(prev);
+        setAlertError("Could not save Watchlist Digest preferences.");
+      } else {
+        setDigestStatus(
+          next.watchlistDigest
+            ? "Watchlist Digest enabled — sent daily when new signals arrive."
+            : "Watchlist Digest paused."
+        );
+      }
+    } catch {
+      setDigestPrefs(prev);
+      setAlertError("Network error while saving digest preferences.");
+    } finally {
+      setSavingDigest(false);
+    }
+  }
 
   function updateDraft(changes: Omit<ProfileDraft, "userId">) {
     if (!sessionUserId) return;
@@ -498,6 +550,93 @@ export function SettingsWorkspace({
               {alertError && (
                 <p role="alert" className="mt-2 text-xs text-[var(--negative)]">{alertError}</p>
               )}
+
+              {/* Daily Watchlist Digest */}
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold text-[var(--text-primary)]">
+                      Daily Watchlist Digest
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                      One concise email whenever your starred companies trigger new SEC signals — includes Filing Diff Radar highlights.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={digestPrefs.watchlistDigest}
+                    disabled={savingDigest}
+                    onClick={() =>
+                      handleUpdateDigest({
+                        ...digestPrefs,
+                        watchlistDigest: !digestPrefs.watchlistDigest,
+                      })
+                    }
+                    className={`inline-flex h-7 items-center rounded-full px-3 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+                      digestPrefs.watchlistDigest
+                        ? "bg-[var(--amber)] text-white"
+                        : "border border-[var(--border)] bg-[var(--bg)] text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    {digestPrefs.watchlistDigest ? "Digest On" : "Digest Off"}
+                  </button>
+                </div>
+
+                {digestPrefs.watchlistDigest && (
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--text-secondary)]">
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={digestPrefs.includeFilingDiffs}
+                        disabled={savingDigest}
+                        onChange={(e) =>
+                          handleUpdateDigest({
+                            ...digestPrefs,
+                            includeFilingDiffs: e.target.checked,
+                          })
+                        }
+                        className="accent-[var(--amber)]"
+                      />
+                      10-K/10-Q Diffs
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={digestPrefs.includeForm8k}
+                        disabled={savingDigest}
+                        onChange={(e) =>
+                          handleUpdateDigest({
+                            ...digestPrefs,
+                            includeForm8k: e.target.checked,
+                          })
+                        }
+                        className="accent-[var(--amber)]"
+                      />
+                      8-K Material Events
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={digestPrefs.includeForm4Buys}
+                        disabled={savingDigest}
+                        onChange={(e) =>
+                          handleUpdateDigest({
+                            ...digestPrefs,
+                            includeForm4Buys: e.target.checked,
+                          })
+                        }
+                        className="accent-[var(--amber)]"
+                      />
+                      Form 4 Insider Buys
+                    </label>
+                  </div>
+                )}
+
+                {digestStatus && (
+                  <p className="mt-2 text-xs text-[var(--positive)]">{digestStatus}</p>
+                )}
+              </div>
             </section>
 
             {/* Appearance */}

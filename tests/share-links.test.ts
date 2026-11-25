@@ -28,6 +28,11 @@ test("round-trips the sector and non-default sort on an Explore lens", () => {
     imp: "",
     dil: "",
     cap: "",
+    shy: "",
+    ptbv: "",
+    rotce: "",
+    pffo: "",
+    irr: "",
   });
   assert.equal(params.get("source"), "shared");
 });

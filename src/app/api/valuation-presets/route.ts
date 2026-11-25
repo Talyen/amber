@@ -13,6 +13,7 @@ function serializePreset(row: typeof userValuationPresets.$inferSelect) {
     targetMargin: row.targetMargin,
     exitMultiple: row.exitMultiple,
     thesisNote: row.thesisNote ?? null,
+    isPublic: row.isPublic,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -122,6 +123,7 @@ export async function PUT(request: Request) {
       targetMargin: normalized.targetMargin,
       exitMultiple: normalized.exitMultiple,
       thesisNote: normalized.thesisNote ?? null,
+      isPublic: normalized.isPublic === true,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -132,6 +134,7 @@ export async function PUT(request: Request) {
         targetMargin: normalized.targetMargin,
         exitMultiple: normalized.exitMultiple,
         thesisNote: normalized.thesisNote ?? null,
+        isPublic: normalized.isPublic === true,
         updatedAt: now,
       },
     });
