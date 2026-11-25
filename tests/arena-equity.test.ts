@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arenaBenchmark, arenaPerformanceWindow, buildArenaPerformance } from "../src/lib/arena-equity.ts";
+import { arenaBenchmark, arenaClosingReturn, arenaPerformanceWindow, buildArenaPerformance, isArenaIndexBot } from "../src/lib/arena-equity.ts";
 
 const entry = {
   periodKey: "2026-11",
@@ -70,4 +70,31 @@ test("entries in the same month use their own SPY baseline, including on the sco
     nav: 100,
     totalReturnPct: 5,
   }).spyReturn, comparison);
+});
+
+test("the synthetic SPY position charts returns from the actual benchmark close", () => {
+  const window = arenaPerformanceWindow({ ...entry, lockedAt: "2026-11-02T14:30:00Z", isBot: true });
+  assert.ok(window);
+  const spy = new Map([["2026-10-30", 500], ["2026-11-02", 510], ["2026-11-30", 525]]);
+  assert.deepEqual(buildArenaPerformance([
+    { ticker: "SPY", weightPct: 100, entryPrice: 100 },
+  ], new Map([["SPY", spy]]), window, { nav: 100, totalReturnPct: 5, tracksBenchmark: true }), {
+    spyReturn: 5,
+    curvePoints: [
+      { date: "2026-11-02", portfolioPct: 2, spyPct: 2 },
+      { date: "2026-11-30", portfolioPct: 5, spyPct: 5 },
+    ],
+  });
+  assert.ok(isArenaIndexBot({ id: "bot-sp500-index-2026-11", botTheme: null, isBot: true }));
+  assert.equal(isArenaIndexBot({ id: "bot-sp500-index-2026-11", botTheme: "Index Fund", isBot: false }), false);
+});
+
+test("closing a portfolio only requires prices for funded positions", () => {
+  const positions = [
+    { ticker: "MSFT", weightPct: 100, entryPrice: 100 },
+    { ticker: "MISSING", weightPct: 0, entryPrice: 50 },
+  ];
+  assert.equal(arenaClosingReturn(positions, new Map([["MSFT", 110]]), 105), 15.5);
+  assert.equal(arenaClosingReturn(positions, new Map(), 105), undefined);
+  assert.equal(arenaClosingReturn(positions.slice(1), new Map([["MISSING", 50]]), 105), undefined);
 });

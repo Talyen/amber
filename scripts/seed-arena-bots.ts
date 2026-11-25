@@ -22,6 +22,7 @@ interface BotTemplate {
   avatarIcon: string;
   thesis: string;
   tickers: string[];
+  isIndexBenchmark?: boolean;
 }
 
 const BOTS: BotTemplate[] = [
@@ -114,6 +115,16 @@ const BOTS: BotTemplate[] = [
     avatarIcon: "gem",
     thesis: "Payment networks, financial software, and transaction infrastructure taking a cut of global commerce.",
     tickers: ["V", "MA", "AXP", "PYPL", "FI", "INTU"],
+  },
+  {
+    slug: "sp500-index",
+    handle: "sp500_index",
+    title: "S&P 500 & Chill",
+    botTheme: "Index Fund",
+    avatarIcon: "orbit",
+    thesis: "Passive 100% S&P 500 (SPY) index fund investor. No stock picking, no market timing—just the broad U.S. market benchmark.",
+    tickers: ["SPY"],
+    isIndexBenchmark: true,
   },
 ];
 
@@ -242,10 +253,55 @@ async function run() {
   let seeded = 0;
   for (const period of PERIODS) {
     for (const bot of BOTS) {
+      const id = `bot-${bot.slug}${period.idSuffix}`;
+
+      if (bot.isIndexBenchmark) {
+        const spyMap = monthlyByTicker.get("SPY") ?? {};
+        const entryPrice = spyMap[period.entryYm];
+        const exitPrice = period.exitYm ? spyMap[period.exitYm] : undefined;
+        const finalReturnPct =
+          period.exitYm && entryPrice && exitPrice && entryPrice > 0
+            ? Number((((exitPrice - entryPrice) / entryPrice) * 100).toFixed(2))
+            : null;
+
+        await db
+          .insert(arenaPortfolios)
+          .values({
+            id,
+            handle: bot.handle,
+            title: bot.title,
+            thesis: bot.thesis,
+            isBot: 1,
+            botTheme: bot.botTheme,
+            avatarIcon: bot.avatarIcon,
+            periodKey: period.key,
+            finalReturnPct,
+            lockedAt: period.lockedAt,
+          })
+          .onConflictDoUpdate({
+            target: arenaPortfolios.id,
+            set: {
+              handle: sql`excluded.handle`,
+              title: sql`excluded.title`,
+              thesis: sql`excluded.thesis`,
+              botTheme: sql`excluded.bot_theme`,
+              avatarIcon: sql`excluded.avatar_icon`,
+              periodKey: sql`excluded.period_key`,
+              finalReturnPct: sql`excluded.final_return_pct`,
+              lockedAt: sql`excluded.locked_at`,
+            },
+          });
+
+        await db
+          .delete(arenaPositions)
+          .where(eq(arenaPositions.portfolioId, id));
+        seeded++;
+        continue;
+      }
+
       const validTickers = bot.tickers.filter((t) => livePriceMap.has(t));
       if (validTickers.length < 3) continue;
 
-      const id = `bot-${bot.slug}${period.idSuffix}`;
       const weight = Number((100 / validTickers.length).toFixed(2));
 
       const posEntries = validTickers.map((ticker) => {

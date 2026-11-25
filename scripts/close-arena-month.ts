@@ -1,10 +1,9 @@
 /**
- * Monthly Arena Close & Snapshot Script (Idempotent)
+ * Arena Period Close & Snapshot Script (Idempotent)
  *
  * Designed to run daily in GitHub Actions:
- *   - Checks for any active (`finalReturnPct IS NULL`) monthly Arena entries
- *     whose `periodKey` (YYYY-MM) is strictly before the current calendar month.
- *   - Freezes each expired monthly entry's `finalReturnPct` using official closing
+ *   - Checks for any unfinalized monthly or yearly Arena entries whose period has ended.
+ *   - Freezes each expired entry's `finalReturnPct` using official closing
  *     prices from the expiring period + its banked Time-Weighted NAV.
  *
  * Safe to run on any day; does nothing if all prior months are already finalized.
@@ -14,15 +13,17 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { arenaPortfolios, arenaPositions } from "../src/db/schema.ts";
-import { arenaMonth, arenaPeriodBounds, lastTradingClose } from "../src/lib/arena-period.ts";
+import { arenaClosingReturn, isArenaIndexBot } from "../src/lib/arena-equity.ts";
+import { arenaBenchmarkHistoryStart, arenaIndexPeriodReturn, arenaMonth, arenaPeriodBounds, lastTradingClose } from "../src/lib/arena-period.ts";
 
-async function fetchClosingPrice(
+async function fetchPeriodPrices(
   ticker: string,
-  bounds: NonNullable<ReturnType<typeof arenaPeriodBounds>>
+  bounds: NonNullable<ReturnType<typeof arenaPeriodBounds>>,
+  includeBenchmark: boolean,
 ) {
   const symbol = encodeURIComponent(ticker.replace(/\./g, "-"));
   const query = new URLSearchParams({
-    period1: String(bounds.start),
+    period1: String(includeBenchmark ? arenaBenchmarkHistoryStart(bounds.start) : bounds.start),
     period2: String(bounds.end),
     interval: "1d",
   });
@@ -35,11 +36,21 @@ async function fetchClosingPrice(
     const data = await response.json() as {
       chart?: { result?: Array<{
         timestamp?: number[];
-        indicators?: { quote?: Array<{ close?: Array<number | null> }> };
+        indicators?: {
+          quote?: Array<{ close?: Array<number | null> }>;
+          adjclose?: Array<{ adjclose?: Array<number | null> }>;
+        };
       }> };
     };
     const series = data.chart?.result?.[0];
-    return lastTradingClose(series?.timestamp ?? [], series?.indicators?.quote?.[0]?.close ?? [], bounds);
+    const timestamps = series?.timestamp ?? [];
+    const raw = series?.indicators?.quote?.[0]?.close ?? [];
+    return {
+      closingPrice: lastTradingClose(timestamps, raw, bounds),
+      benchmarkReturn: includeBenchmark
+        ? arenaIndexPeriodReturn(timestamps, series?.indicators?.adjclose?.[0]?.adjclose ?? raw, bounds)
+        : undefined,
+    };
   } catch {
     // Missing prices leave the affected entries open for the next run.
     return undefined;
@@ -92,36 +103,36 @@ async function run() {
   let closed = 0;
   for (const [periodKey, entries] of toClose) {
     const bounds = arenaPeriodBounds(periodKey)!;
+    const indexEntries = new Set(entries.filter((entry) =>
+      !posByPort.has(entry.id) && isArenaIndexBot({ ...entry, isBot: entry.isBot === 1 })
+    ).map(({ id }) => id));
     const tickers = [...new Set(entries.flatMap((entry) =>
-      (posByPort.get(entry.id) ?? []).map((position) => position.ticker)
+      indexEntries.has(entry.id)
+        ? ["SPY"]
+        : (posByPort.get(entry.id) ?? []).filter((position) => position.weightPct !== 0).map((position) => position.ticker)
     ))];
-    const prices = new Map<string, number>();
+    const closingPrices = new Map<string, number>();
+    let benchmarkReturn: number | undefined;
     const concurrency = 6;
     for (let i = 0; i < tickers.length; i += concurrency) {
       await Promise.all(tickers.slice(i, i + concurrency).map(async (ticker) => {
-        const price = await fetchClosingPrice(ticker, bounds);
-        if (price !== undefined) prices.set(ticker, price);
+        const quote = await fetchPeriodPrices(ticker, bounds, ticker === "SPY" && indexEntries.size > 0);
+        if (quote?.closingPrice !== undefined) closingPrices.set(ticker, quote.closingPrice);
+        if (quote?.benchmarkReturn !== undefined) benchmarkReturn = quote.benchmarkReturn;
       }));
     }
 
     for (const port of entries) {
       const positions = posByPort.get(port.id) ?? [];
-      if (positions.length === 0) continue;
-
-      const weightedReturns = positions.map((position) => {
-        const price = prices.get(position.ticker);
-        if (price === undefined || !Number.isFinite(position.entryPrice) || position.entryPrice <= 0) {
-          return undefined;
-        }
-        return ((price - position.entryPrice) / position.entryPrice) * position.weightPct;
-      });
-      if (!weightedReturns.every((ret) => ret !== undefined)) {
+      const tracksBenchmark = indexEntries.has(port.id);
+      if (!tracksBenchmark && positions.length === 0) continue;
+      const finalReturnPct = tracksBenchmark
+        ? benchmarkReturn
+        : arenaClosingReturn(positions, closingPrices, port.nav);
+      if (finalReturnPct === undefined) {
         console.warn(`[amber-arena-close] Skipping ${port.id}: missing valid entry or ${periodKey} closing prices.`);
         continue;
       }
-      const weightedRet = weightedReturns.reduce((sum, ret) => sum + ret, 0);
-      const nav = Number.isFinite(port.nav) ? port.nav : 100;
-      const finalReturnPct = Number((nav * (1 + weightedRet / 100) - 100).toFixed(2));
       const updated = await db
         .update(arenaPortfolios)
         .set({ finalReturnPct })

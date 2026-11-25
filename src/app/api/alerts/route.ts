@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { cancelPendingConfirmation, requestAlertConfirmation, saveVerifiedAlert } from "@/data/alert-subscriptions";
+import { requestAlertConfirmation, saveVerifiedAlert } from "@/data/alert-subscriptions";
 import { getDb } from "@/db";
 import { alertSubscriptions, companies, userWatchlists } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
@@ -203,19 +203,14 @@ export async function POST(request: Request) {
     const token = await requestAlertConfirmation(db, id, email, ticker);
     if (token) {
       const link = escapeAlertHtml(alertActionUrl(SITE_URL, "confirm", token));
-      try {
-        await sendAlertEmail(resendKey, `filing-alert-confirm/${token}`, {
-          from: process.env.ALERT_FROM_EMAIL ?? defaultAlertSender,
-          to: [email],
-          subject: `Confirm Amber filing alerts for ${ticker}`,
-          html: `<p>Confirm that you want SEC filing alerts for ${ticker} from Amber.</p>
-            <p><a href="${link}">Confirm filing alerts</a></p>
-            <p>If you did not request this, you can ignore this email.</p>`,
-        });
-      } catch (error) {
-        await cancelPendingConfirmation(db, token);
-        throw error;
-      }
+      await sendAlertEmail(resendKey, `filing-alert-confirm/${token}`, {
+        from: process.env.ALERT_FROM_EMAIL ?? defaultAlertSender,
+        to: [email],
+        subject: `Confirm Amber filing alerts for ${ticker}`,
+        html: `<p>Confirm that you want SEC filing alerts for ${ticker} from Amber.</p>
+          <p><a href="${link}">Confirm filing alerts</a></p>
+          <p>If you did not request this, you can ignore this email.</p>`,
+      });
     }
 
     return NextResponse.json({

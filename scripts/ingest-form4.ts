@@ -13,6 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { setTimeout as sleep } from "node:timers/promises";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { sql } from "drizzle-orm";
@@ -207,13 +208,14 @@ export function parseSecForm4Xml(xml: string, ticker: string, accn: string, fili
  * Direct SEC EDGAR Form 4 XML fallback when OpenInsider is unreachable.
  * Fetches the latest Form 4 XML filings for a ticker's CIK and parses Code P / Code S open-market trades.
  */
-async function fetchSecForm4Fallback(
+export async function fetchSecForm4Fallback(
   ticker: string,
-  cik: string
-): Promise<Array<InsiderTradeItem & { ticker: string }>> {
+  cik: string,
+  wait: (ms: number) => Promise<void> = sleep,
+): Promise<InsiderTrade[]> {
   const padded = cik.padStart(10, "0");
   const cikNum = String(Number(cik));
-  const out: Array<InsiderTradeItem & { ticker: string }> = [];
+  const out: InsiderTrade[] = [];
 
   try {
     const subRes = await fetch(
@@ -242,20 +244,26 @@ async function fetchSecForm4Fallback(
     let checked = 0;
     for (let i = 0; i < recent.form.length && checked < 6; i++) {
       if (recent.form[i] !== "4") continue;
-      checked++;
       const accn = recent.accessionNumber[i];
       const filingDate = recent.filingDate[i];
-      const rawDoc = recent.primaryDocument[i].replace(/^xsl[^/]+\//i, "");
+      const document = recent.primaryDocument[i];
+      if (typeof accn !== "string" || !accn || !filingDate || typeof document !== "string" || !document) continue;
+      const rawDoc = document.replace(/^xsl[^/]+\//i, "");
+      checked++;
       const xmlUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accn.replace(/-/g, "")}/${rawDoc}`;
-      const xmlRes = await fetch(xmlUrl, {
-        headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/xml,text/xml" },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!xmlRes.ok) continue;
-      const xml = await xmlRes.text();
-
-      out.push(...parseSecForm4Xml(xml, ticker, accn, filingDate));
-      await new Promise((r) => setTimeout(r, 150));
+      try {
+        const xmlRes = await fetch(xmlUrl, {
+          headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/xml,text/xml" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (xmlRes.ok) {
+          out.push(...parseSecForm4Xml(await xmlRes.text(), ticker, accn, filingDate));
+        }
+      } catch {
+        // A failed document must not prevent the rest of the filings from being read.
+      } finally {
+        await wait(150);
+      }
     }
   } catch {
     // Ignore transient SEC fallback errors

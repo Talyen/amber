@@ -36,3 +36,24 @@ export function lastTradingClose(
   }
   return lastPrice;
 }
+
+const BENCHMARK_LOOKBACK_SECONDS = 10 * 86_400;
+
+export function arenaBenchmarkHistoryStart(periodStart: number) {
+  return periodStart - BENCHMARK_LOOKBACK_SECONDS;
+}
+
+export function arenaIndexPeriodReturn(
+  timestamps: readonly number[],
+  closes: readonly (number | null)[],
+  bounds: NonNullable<ReturnType<typeof arenaPeriodBounds>>,
+) {
+  const entry = lastTradingClose(timestamps, closes, {
+    start: arenaBenchmarkHistoryStart(bounds.start),
+    end: bounds.start,
+  });
+  const exit = lastTradingClose(timestamps, closes, bounds);
+  if (entry !== undefined && exit !== undefined) {
+    return Number((((exit - entry) / entry) * 100).toFixed(2));
+  }
+}

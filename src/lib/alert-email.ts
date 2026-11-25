@@ -54,7 +54,12 @@ export async function sendAlertEmail(
       continue;
     }
     if (response.ok) return;
-    if ((response.status !== 429 && response.status < 500) || attempt >= 2) {
+    const error: { name?: string } | null = response.status === 409 && attempt < 2
+      ? await response.json().catch(() => null)
+      : null;
+    const retryable = response.status === 429 || response.status >= 500 ||
+      error?.name === "concurrent_idempotent_requests";
+    if (!retryable || attempt >= 2) {
       throw new Error(`Email delivery returned HTTP ${response.status}`);
     }
     await wait(500 * 2 ** attempt);

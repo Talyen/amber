@@ -25,3 +25,12 @@ test("normalizes finite weights without overflowing or rounding allocations to z
   assert.ok(weights.get("NVDA")! > 0);
   assert.ok(Math.abs([...weights.values()].reduce((a, b) => a + b, 0) - 100) < 1e-10);
 });
+
+test("allocations that underflow to zero do not count toward the required holdings", () => {
+  const weights = parseArenaWeights([
+    { ticker: "MSFT", weight: Number.MAX_VALUE },
+    { ticker: "AAPL", weight: Number.MIN_VALUE },
+    { ticker: "NVDA", weight: Number.MIN_VALUE },
+  ]);
+  assert.deepEqual([...weights], [["MSFT", 100]]);
+});

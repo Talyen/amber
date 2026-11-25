@@ -43,13 +43,14 @@ type Close = { date: string; price: number };
 export function completedDailyCloses(result: YahooChartResult, now: number): Close[] {
   const timezone = result.meta?.exchangeTimezoneName;
   const session = result.meta?.currentTradingPeriod?.regular;
-  if (!timezone || !session || result.meta?.currency !== "USD" || result.meta.instrumentType !== "EQUITY") return [];
+  if (!timezone || result.meta?.currency !== "USD" || result.meta.instrumentType !== "EQUITY") return [];
   const dateFormat = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
   });
   const marketDate = (seconds: number) => dateFormat.format(seconds * 1000);
   const today = marketDate(now);
-  const sessionDate = marketDate(session.start);
+  const sessionCompleted = session && Number.isFinite(session.start) && Number.isFinite(session.end) &&
+    session.end > session.start && marketDate(session.start) === today && now >= session.end;
   const close = result.indicators?.quote?.[0]?.close ?? [];
   const closes: Close[] = [];
 
@@ -58,8 +59,9 @@ export function completedDailyCloses(result: YahooChartResult, now: number): Clo
     if (typeof price !== "number" || !Number.isFinite(price) || price <= 0 ||
       !Number.isFinite(timestamp) || timestamp > now) continue;
     const date = marketDate(timestamp);
-    if (date > today || (date === today && (sessionDate !== today || now < session.end))) continue;
-    closes.push({ date, price: Number(price.toFixed(2)) });
+    if (date > today || (date === today && !sessionCompleted)) continue;
+    const rounded = Number(price.toFixed(2));
+    if (rounded > 0) closes.push({ date, price: rounded });
   }
   return closes.sort((a, b) => a.date.localeCompare(b.date));
 }

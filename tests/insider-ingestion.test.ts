@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchInsiderBatch, parseOpenInsiderHtml, parseSecForm4Xml } from "../scripts/ingest-form4.ts";
+import { fetchInsiderBatch, fetchSecForm4Fallback, parseOpenInsiderHtml, parseSecForm4Xml } from "../scripts/ingest-form4.ts";
 
 const accession = "0000000100-26-000001";
 const filingDate = "2026-11-20";
@@ -81,4 +81,33 @@ test("an unsuccessful sell request preserves buys and falls back only for sales"
     await fetchInsiderBatch(fetchMarket, async () => [{ ...buy, shares: 1 }, sell]),
     [buy, sell],
   );
+});
+
+test("the SEC fallback skips unavailable Form 4 documents and keeps scanning older filings", async (t) => {
+  const accessions = [1, 2, 3, 4].map((i) => `0000000100-26-00000${i}`);
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    urls.push(url);
+    if (url.includes("/submissions/")) {
+      return Response.json({ filings: { recent: {
+        form: ["4", "4", "4", "4"],
+        accessionNumber: accessions,
+        filingDate: accessions.map(() => filingDate),
+        primaryDocument: ["xslF345X05/timeout.xml", "", "unavailable.xml", "xslF345X05/trade.xml"],
+      } } });
+    }
+    if (url.endsWith("/timeout.xml")) throw new Error("SEC document request timed out");
+    if (url.endsWith("/unavailable.xml")) return new Response(null, { status: 503 });
+    return new Response(`<nonDerivativeTransaction>
+      <transactionCode>P</transactionCode>
+      <transactionShares><value>500</value></transactionShares>
+      <transactionPricePerShare><value>100</value></transactionPricePerShare>
+    </nonDerivativeTransaction>`);
+  });
+  const waits: number[] = [];
+  const trades = await fetchSecForm4Fallback("EXAMPLE", "100", async (ms) => { waits.push(ms); });
+  assert.deepEqual(trades.map((trade) => trade.accessionNumber), [accessions[3]]);
+  assert.equal(urls.length, 4);
+  assert.ok(urls[3].endsWith("/000000010026000004/trade.xml"));
+  assert.deepEqual(waits, [150, 150, 150]);
 });

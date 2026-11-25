@@ -3,8 +3,10 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { arenaPortfolios, arenaPositions, arenaRebalances, companies } from "@/db/schema";
 import { getSearchIndex } from "@/data/repository";
+import { normalizeCompanyName } from "@/lib/company-name";
 import type { SearchIndexEntry } from "@/data/search-index";
-import { arenaBenchmark, arenaPerformanceWindow, buildArenaPerformance } from "@/lib/arena-equity";
+import { arenaBenchmark, arenaPerformanceWindow, buildArenaPerformance, isArenaIndexBot } from "@/lib/arena-equity";
+import { arenaBenchmarkHistoryStart } from "@/lib/arena-period";
 
 export type { EquityCurvePoint } from "@/lib/arena-equity";
 
@@ -95,34 +97,55 @@ function buildArenaPortfolioView(
   rawPositions: Array<typeof arenaPositions.$inferSelect>,
   rebalances: ArenaRebalanceItem[],
   compMap: ReadonlyMap<string, { name: string; price: number }>,
-  indexByTicker: Map<string, SearchIndexEntry>
+  indexByTicker: Map<string, SearchIndexEntry>,
+  spyBenchmarks?: Record<string, number>
 ): ArenaPortfolioView {
-  let weightedReturn = 0;
-  const positions: ArenaPositionView[] = rawPositions.map((p) => {
-    const live = compMap.get(p.ticker);
-    const currentPrice = live?.price ?? p.entryPrice;
-    const ret =
-      p.entryPrice > 0
-        ? ((currentPrice - p.entryPrice) / p.entryPrice) * 100
-        : 0;
-    weightedReturn += ret * (p.weightPct / 100);
-    return {
-      ticker: p.ticker,
-      companyName: live?.name ?? p.ticker,
-      weightPct: p.weightPct,
-      entryPrice: p.entryPrice,
-      currentPrice,
-      returnPct: Number(ret.toFixed(2)),
-    };
-  });
-
-  positions.sort((a, b) => b.weightPct - a.weightPct);
-
   const isoDate = port.lockedAt.toISOString();
   const lastRebalancedIso = (port.lastRebalancedAt ?? port.lockedAt).toISOString();
   const resolvedPeriodKey = port.periodKey ?? isoDate.slice(0, 7);
   const finalReturnPct = port.finalReturnPct;
   const isFinalized = typeof finalReturnPct === "number";
+  const isSp500IndexBot = rawPositions.length === 0 && isArenaIndexBot({ ...port, isBot: port.isBot === 1 });
+
+  let weightedReturn = 0;
+  let positions: ArenaPositionView[];
+  if (isSp500IndexBot) {
+    const spyReturn = isFinalized
+      ? finalReturnPct
+      : (spyBenchmarks?.[resolvedPeriodKey] ?? 0);
+    weightedReturn = spyReturn;
+    positions = [
+      {
+        ticker: "SPY",
+        companyName: "SPDR S&P 500 ETF Trust",
+        weightPct: 100,
+        entryPrice: 100,
+        currentPrice: Number((100 * (1 + spyReturn / 100)).toFixed(2)),
+        returnPct: Number(spyReturn.toFixed(2)),
+      },
+    ];
+  } else {
+    positions = rawPositions.map((p) => {
+      const live = compMap.get(p.ticker);
+      const currentPrice = live?.price ?? p.entryPrice;
+      const ret =
+        p.entryPrice > 0
+          ? ((currentPrice - p.entryPrice) / p.entryPrice) * 100
+          : 0;
+      weightedReturn += ret * (p.weightPct / 100);
+      return {
+        ticker: p.ticker,
+        companyName: live ? normalizeCompanyName(live.name) : p.ticker,
+        weightPct: p.weightPct,
+        entryPrice: p.entryPrice,
+        currentPrice,
+        returnPct: Number(ret.toFixed(2)),
+      };
+    });
+  }
+
+  positions.sort((a, b) => b.weightPct - a.weightPct);
+
   const nav =
     typeof port.nav === "number" && Number.isFinite(port.nav) ? port.nav : 100;
   const liveTotalReturn = nav * (1 + weightedReturn / 100) - 100;
@@ -154,22 +177,24 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
   if (!db) return [];
 
   try {
-    const [portRows, posRows, rebRows, compRows, searchIndex] = await Promise.all([
-      db.select().from(arenaPortfolios).orderBy(desc(arenaPortfolios.lockedAt)),
-      db.select().from(arenaPositions),
-      db
-        .select()
-        .from(arenaRebalances)
-        .orderBy(desc(arenaRebalances.createdAt)),
-      db
-        .select({
-          ticker: companies.ticker,
-          name: companies.name,
-          price: companies.price,
-        })
-        .from(companies),
-      getSearchIndex(),
-    ]);
+    const [portRows, posRows, rebRows, compRows, searchIndex, spyBenchmarks] =
+      await Promise.all([
+        db.select().from(arenaPortfolios).orderBy(desc(arenaPortfolios.lockedAt)),
+        db.select().from(arenaPositions),
+        db
+          .select()
+          .from(arenaRebalances)
+          .orderBy(desc(arenaRebalances.createdAt)),
+        db
+          .select({
+            ticker: companies.ticker,
+            name: companies.name,
+            price: companies.price,
+          })
+          .from(companies),
+        getSearchIndex(),
+        getSpyBenchmarks(),
+      ]);
 
     const compMap = new Map(compRows.map((c) => [c.ticker, c]));
     const indexByTicker = new Map(searchIndex.map((e) => [e.ticker, e]));
@@ -190,14 +215,15 @@ async function queryArenaLeaderboardFromDb(): Promise<ArenaPortfolioView[]> {
     const views: ArenaPortfolioView[] = [];
     for (const port of portRows) {
       const rawPositions = posByPort.get(port.id) ?? [];
-      if (rawPositions.length === 0) continue;
+      if (rawPositions.length === 0 && !isArenaIndexBot({ ...port, isBot: port.isBot === 1 })) continue;
 
       views.push(buildArenaPortfolioView(
         port,
         rawPositions,
         rebByPort.get(port.id) ?? [],
         compMap,
-        indexByTicker
+        indexByTicker,
+        spyBenchmarks
       ));
     }
 
@@ -212,7 +238,7 @@ export async function getArenaLeaderboard(): Promise<ArenaPortfolioView[]> {
   if (!process.env.DATABASE_URL) return [];
   const cachedFetch = unstable_cache(
     async () => queryArenaLeaderboardFromDb(),
-    ["amber-arena-leaderboard-v3"],
+    ["amber-arena-leaderboard-v4"],
     { revalidate: 3600, tags: ["arena", "companies"] }
   );
   return await cachedFetch();
@@ -232,7 +258,7 @@ async function queryArenaPortfolioByIdFromDb(
       .limit(1);
     if (!port) return null;
 
-    const [rawPositions, rebRows, searchIndex] = await Promise.all([
+    const [rawPositions, rebRows, searchIndex, spyBenchmarks] = await Promise.all([
       db
         .select()
         .from(arenaPositions)
@@ -243,6 +269,7 @@ async function queryArenaPortfolioByIdFromDb(
         .where(eq(arenaRebalances.portfolioId, port.id))
         .orderBy(desc(arenaRebalances.createdAt)),
       getSearchIndex(),
+      getSpyBenchmarks(),
     ]);
 
     const posTickers = [...new Set(rawPositions.map((p) => p.ticker))];
@@ -265,7 +292,8 @@ async function queryArenaPortfolioByIdFromDb(
       rawPositions,
       rebRows.map(toArenaRebalanceItem),
       compMap,
-      indexByTicker
+      indexByTicker,
+      spyBenchmarks
     );
   } catch (err) {
     console.warn(`[amber-repo] Arena portfolio ${id} lookup failed:`, err);
@@ -279,7 +307,7 @@ export async function getArenaPortfolioById(
   if (!process.env.DATABASE_URL) return undefined;
   const cachedFetch = unstable_cache(
     async () => queryArenaPortfolioByIdFromDb(id),
-    ["amber-arena-portfolio-v3", id],
+    ["amber-arena-portfolio-v4", id],
     { revalidate: 600, tags: ["arena", "companies"] }
   );
   return (await cachedFetch()) ?? undefined;
@@ -372,8 +400,6 @@ export async function getSpyBenchmarks(): Promise<Record<string, number>> {
   return await cachedFetch();
 }
 
-const SECONDS_PER_DAY = 86_400;
-
 async function fetchDailyCloses(ticker: string, start: number, end: number) {
   const query = new URLSearchParams({
     period1: String(start),
@@ -419,7 +445,7 @@ async function fetchDailyCloses(ticker: string, start: number, end: number) {
 const getSpyDailyCloses = unstable_cache(
   (year: number) => fetchDailyCloses(
     "SPY",
-    Date.UTC(year, 0, 1) / 1000 - 10 * SECONDS_PER_DAY,
+    arenaBenchmarkHistoryStart(Date.UTC(year, 0, 1) / 1000),
     Date.UTC(year + 1, 0, 1) / 1000,
   ),
   ["amber-arena-spy-daily-v1"],
@@ -458,7 +484,7 @@ export async function getArenaEntryBenchmarks(
 async function fetchArenaPerformance(
   positions: Array<{ ticker: string; weightPct: number; entryPrice: number }>,
   window: NonNullable<ReturnType<typeof arenaPerformanceWindow>>,
-  score: { nav: number; totalReturnPct: number },
+  score: { nav: number; totalReturnPct: number; tracksBenchmark: boolean },
 ) {
   const tickers = [...new Set([...positions.map((p) => p.ticker), "SPY"])];
   const quotes = await Promise.allSettled(tickers.map((ticker) => ticker === "SPY"
@@ -476,13 +502,17 @@ export async function getArenaPerformance(portfolio: ArenaPortfolioView): Promis
 
   const cachedFetch = unstable_cache(
     fetchArenaPerformance,
-    ["amber-arena-scorecard-v2", portfolio.id],
+    ["amber-arena-scorecard-v3", portfolio.id],
     { revalidate: 3600, tags: ["arena", "companies"] }
   );
   const positions = window.includeHoldings
     ? portfolio.positions.map(({ ticker, weightPct, entryPrice }) => ({ ticker, weightPct, entryPrice }))
     : [];
-  return await cachedFetch(positions, window, { nav: portfolio.nav, totalReturnPct: portfolio.totalReturnPct });
+  return await cachedFetch(positions, window, {
+    nav: portfolio.nav,
+    totalReturnPct: portfolio.totalReturnPct,
+    tracksBenchmark: isArenaIndexBot(portfolio) && positions.length === 1 && positions[0].ticker === "SPY",
+  });
 }
 
 export async function getArenaPortfoliosByHandle(

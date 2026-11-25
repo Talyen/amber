@@ -12,7 +12,7 @@ export async function saveVerifiedAlert(db: AlertDb, id: string, email: string, 
     });
 }
 
-export async function requestAlertConfirmation(db: AlertDb, id: string, email: string, ticker: string) {
+export async function requestAlertConfirmation(db: Pick<NeonHttpDatabase, "insert" | "select">, id: string, email: string, ticker: string) {
   const confirmationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const [row] = await db.insert(alertSubscriptions).values({ id, email, ticker, confirmationExpiresAt })
     .onConflictDoUpdate({
@@ -21,7 +21,18 @@ export async function requestAlertConfirmation(db: AlertDb, id: string, email: s
       setWhere: lte(alertSubscriptions.confirmationExpiresAt, sql`statement_timestamp()`),
     })
     .returning({ token: alertSubscriptions.unsubscribeToken });
-  return row?.token;
+  if (row) return row.token;
+
+  // A previous send may have been accepted even if Amber never received the reply.
+  const [pending] = await db.select({ token: alertSubscriptions.unsubscribeToken })
+    .from(alertSubscriptions)
+    .where(and(
+      eq(alertSubscriptions.email, email),
+      eq(alertSubscriptions.ticker, ticker),
+      gt(alertSubscriptions.confirmationExpiresAt, sql`statement_timestamp()`),
+    ))
+    .limit(1);
+  return pending?.token;
 }
 
 export async function confirmAlert(db: AlertDb, token: string) {
@@ -36,11 +47,4 @@ export async function confirmAlert(db: AlertDb, token: string) {
 
 export async function unsubscribeAlert(db: AlertDb, token: string) {
   await db.delete(alertSubscriptions).where(eq(alertSubscriptions.unsubscribeToken, token));
-}
-
-export async function cancelPendingConfirmation(db: AlertDb, token: string) {
-  await db.delete(alertSubscriptions).where(and(
-    eq(alertSubscriptions.unsubscribeToken, token),
-    gt(alertSubscriptions.confirmationExpiresAt, sql`statement_timestamp()`),
-  ));
 }

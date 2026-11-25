@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { normalizeValuationPresetInput } from "../src/lib/valuation-presets.ts";
-import { buildCompareCompanyHistory } from "../src/lib/compare-history.ts";
+import { buildCompareCompanyHistory, indexCompareHistory } from "../src/lib/compare-history.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 import { readExploreLink, writeExploreLink } from "../src/lib/explore-link.ts";
 
@@ -28,6 +28,16 @@ describe("Valuation presets validation", () => {
     assert.equal(normalizeValuationPresetInput({ ticker: "NVDA", revGrowth: 10, targetMargin: 0, exitMultiple: 15 }), null);
     assert.equal(normalizeValuationPresetInput({ ticker: "NVDA", revGrowth: 10, targetMargin: 20, exitMultiple: 100 }), null);
   });
+
+  it("accepts numeric strings without coercing blank or non-numeric values into assumptions", () => {
+    const draft = { ticker: "NVDA", lens: "fcf", revGrowth: "0", targetMargin: "20", exitMultiple: "15" };
+    assert.equal(normalizeValuationPresetInput(draft)?.revGrowth, 0);
+    for (const revGrowth of [null, " ", false, [], [1]]) {
+      assert.equal(normalizeValuationPresetInput({ ...draft, revGrowth }), null);
+    }
+    assert.equal(normalizeValuationPresetInput({ ...draft, targetMargin: true }), null);
+    assert.equal(normalizeValuationPresetInput({ ...draft, exitMultiple: [15] }), null);
+  });
 });
 
 describe("Compare history builder", () => {
@@ -45,6 +55,24 @@ describe("Compare history builder", () => {
     assert.ok(history.points.length >= 3 && history.points.length <= 5);
     assert.ok(history.points.every((p) => p.fiscalYear !== "TTM"));
     assert.ok(history.points.every((p) => Number.isFinite(p.trueFcfMargin)));
+  });
+
+  it("indexes each series from its first positive value and skips missing share counts", () => {
+    const points = [
+      { fiscalYear: "FY22", revenue: 0, dilutedShares: 10 },
+      { fiscalYear: "FY23", revenue: 50, dilutedShares: 0 },
+      { fiscalYear: "FY24", revenue: 125, dilutedShares: 8 },
+    ].map((point) => ({ ...point, trueFcfMargin: 0, sbcPctRevenue: 0 }));
+
+    assert.deepEqual(indexCompareHistory(points, "revenue"), [
+      { fiscalYear: "FY23", value: 100 },
+      { fiscalYear: "FY24", value: 250 },
+    ]);
+    assert.deepEqual(indexCompareHistory(points, "dilutedShares"), [
+      { fiscalYear: "FY22", value: 100 },
+      { fiscalYear: "FY24", value: 80 },
+    ]);
+    assert.deepEqual(indexCompareHistory(points.slice(0, 1), "revenue"), []);
   });
 });
 

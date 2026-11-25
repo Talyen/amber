@@ -14,6 +14,33 @@ export interface EquityCurvePoint {
   spyPct: number;
 }
 
+export function isArenaIndexBot({ id, isBot, botTheme }: { id: string; isBot: boolean; botTheme: string | null }) {
+  return isBot && (id.startsWith("bot-sp500-index") || botTheme === "Index Fund");
+}
+
+export function arenaClosingReturn(
+  positions: readonly { ticker: string; weightPct: number; entryPrice: number }[],
+  prices: ReadonlyMap<string, number>,
+  nav: number,
+) {
+  let weightedReturn = 0;
+  let hasAllocation = false;
+  for (const { ticker, weightPct, entryPrice } of positions) {
+    if (weightPct === 0) continue;
+    const price = prices.get(ticker);
+    if (!Number.isFinite(weightPct) || weightPct < 0 ||
+      !Number.isFinite(entryPrice) || entryPrice <= 0 ||
+      price === undefined || !Number.isFinite(price) || price <= 0) return;
+    hasAllocation = true;
+    weightedReturn += ((price - entryPrice) / entryPrice) * weightPct;
+  }
+  if (hasAllocation) {
+    const entryNav = Number.isFinite(nav) ? nav : 100;
+    const result = entryNav * (1 + weightedReturn / 100) - 100;
+    if (Number.isFinite(result)) return Number(result.toFixed(2));
+  }
+}
+
 export function arenaPerformanceWindow(entry: ArenaEquityEntry) {
   const bounds = arenaPeriodBounds(entry.periodKey);
   const lockedDay = Date.parse(entry.lockedAt.slice(0, 10) + "T00:00:00Z") / 1000;
@@ -44,14 +71,14 @@ export function arenaBenchmark(
   if (!firstDay || !lastDay) return;
   const spyBase = spy.get(firstDay)!;
   const spyReturnOn = (day: string) => Number(((spy.get(day)! / spyBase - 1) * 100).toFixed(2));
-  return { days, lastDay, spyReturnOn, spyReturn: spyReturnOn(lastDay) };
+  return { days, lastDay, spyBase, spyReturnOn, spyReturn: spyReturnOn(lastDay) };
 }
 
 export function buildArenaPerformance(
   positions: readonly { ticker: string; weightPct: number; entryPrice: number }[],
   series: ReadonlyMap<string, ReadonlyMap<string, number>>,
   window: NonNullable<ReturnType<typeof arenaPerformanceWindow>>,
-  { nav, totalReturnPct }: { nav: number; totalReturnPct: number },
+  { nav, totalReturnPct, tracksBenchmark }: { nav: number; totalReturnPct: number; tracksBenchmark?: boolean },
 ): { spyReturn?: number; curvePoints: EquityCurvePoint[] } {
   const spy = series.get("SPY");
   const benchmark = spy && arenaBenchmark(spy, window);
@@ -63,6 +90,8 @@ export function buildArenaPerformance(
 
   const startPrices = positions.map((position) => ({
     ...position,
+    // The index bot's displayed entry is normalized to 100. Its price series is in dollars.
+    entryPrice: tracksBenchmark ? benchmark.spyBase : position.entryPrice,
     prices: series.get(position.ticker),
   }));
   const points: EquityCurvePoint[] = [];

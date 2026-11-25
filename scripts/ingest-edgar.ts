@@ -20,6 +20,7 @@ import { pathToFileURL } from "node:url";
 import { FILING_SUPPLEMENTS } from "./filing-supplements.ts";
 import { writeCompanyData } from "./write-company-data.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
+import { normalizeCompanyName } from "../src/lib/company-name.ts";
 import {
   type AnnualFinancials,
   type CompanySnapshot,
@@ -331,7 +332,7 @@ export function cleanCompanyName(raw: string): string {
     "RTX", "S&P", "SAP", "SBA", "SEI", "SK", "SLB", "SM", "SS&C", "STERIS", "STM",
     "TC", "TD", "TE", "TFX", "TJX", "TKO", "TSMC", "UGI", "UPS", "US",
     "USA", "VF", "VFC", "WEC", "WEX", "WP", "WPP", "WRB", "XPO", "YUM",
-    "ZTO", "LLC", "LP", "PLC", "SA", "NV", "SE", "AG", "INC", "CORP", "CO", "LTD",
+    "ZTO", "LLC", "LP", "PLC", "SA", "NV", "SE", "AG",
   ]);
 
   cleaned = cleaned
@@ -339,27 +340,22 @@ export function cleanCompanyName(raw: string): string {
     .map((word) => {
       const bare = word.replace(/[^A-Za-z&]/g, "");
       if (bare.length >= 3 && bare === bare.toUpperCase() && !ACRONYMS.has(bare)) {
-        return word.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+        return word.toLowerCase().replace(/(^|[\s-])[a-z]/g, (c) => c.toUpperCase());
       }
       return word;
     })
     .join(" ");
 
-  return cleaned
-    .replace(/^Amazon Com Inc\.?$/i, "Amazon.com, Inc.")
-    .replace(/^Mcdonalds Corp\.?$/i, "McDonald's Corp.")
-    .replace(/^Unitedhealth Group Inc\.?$/i, "UnitedHealth Group Inc.")
-    .replace(/^Paypal Holdings,? Inc\.?$/i, "PayPal Holdings, Inc.")
-    .replace(/^Mastercard Inc\.?$/i, "Mastercard Inc.")
-    .replace(/^Jpmorgan Chase & Co\.?$/i, "JPMorgan Chase & Co.")
-    .replace(/\bSab De Cv\b/gi, "S.A.B. de C.V.")
-    .replace(/\bLlc\b/g, "LLC")
-    .replace(/\bLp\b/g, "LP")
-    .replace(/\bPlc\b/g, "PLC")
-    .replace(/\bCorp\b\.?/g, "Corp.")
-    .replace(/\bInc\b\.?/g, "Inc.")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeCompanyName(
+    cleaned
+      .replace(/^Amazon Com Inc\.?$/i, "Amazon.com, Inc.")
+      .replace(/^Mcdonalds Corp\.?$/i, "McDonald's Corp.")
+      .replace(/^Unitedhealth Group Inc\.?$/i, "UnitedHealth Group Inc.")
+      .replace(/^Paypal Holdings,? Inc\.?$/i, "PayPal Holdings, Inc.")
+      .replace(/^Mastercard Inc\.?$/i, "Mastercard Inc.")
+      .replace(/^Jpmorgan Chase & Co\.?$/i, "JPMorgan Chase & Co.")
+      .replace(/\bSab De Cv\b/gi, "S.A.B. de C.V.")
+  );
 }
 
 export function normalizeShareCountToMillions(

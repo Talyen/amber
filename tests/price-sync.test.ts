@@ -28,3 +28,18 @@ test("only uses completed trading sessions and matches fiscal dates without look
   assert.equal(closeAtPeriodEnd(afterClose, "2026-11-23"), undefined);
   assert.equal(closeAtPeriodEnd(afterClose, "2026-12-05"), undefined);
 });
+
+test("retains historical closes when today's regular session cannot be verified", () => {
+  const chart = {
+    meta: { currency: "USD", instrumentType: "EQUITY", exchangeTimezoneName: "America/New_York" },
+    timestamp: ["2026-11-23", "2026-11-24", "2026-11-25"].map((date) => seconds(`${date}T14:30:00Z`)),
+    indicators: { quote: [{ close: [0.004, 12.123, 15] }] },
+  };
+  const now = seconds("2026-11-25T22:00:00Z");
+  const validHistory = [{ date: "2026-11-24", price: 12.12 }];
+  assert.deepEqual(completedDailyCloses(chart, now), validHistory);
+  assert.deepEqual(completedDailyCloses({ ...chart, meta: {
+    ...chart.meta,
+    currentTradingPeriod: { regular: { start: seconds("2026-11-25T14:30:00Z"), end: NaN } },
+  } }, now), validHistory);
+});

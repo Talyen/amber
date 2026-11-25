@@ -22,7 +22,7 @@ import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AVATAR_PRESETS, normalizeAvatarId, type AvatarId } from "@/lib/avatars";
 import { setTheme, useTheme } from "@/lib/theme";
 
-interface ProfileResponse {
+export interface SettingsProfileData {
   authenticated: boolean;
   user?: { email: string; handle: string; avatarIcon: string };
   portfolio?: {
@@ -35,18 +35,47 @@ interface ProfileResponse {
   } | null;
 }
 
-export function SettingsWorkspace() {
+interface SettingsWorkspaceProps {
+  initialUserId?: string | null;
+  initialProfile?: SettingsProfileData | null;
+  initialAlertTickers?: string[] | null;
+}
+
+interface ProfileDraft {
+  userId: string;
+  handle?: string;
+  avatarIcon?: AvatarId;
+}
+
+export function SettingsWorkspace({
+  initialUserId = null,
+  initialProfile = null,
+  initialAlertTickers = null,
+}: SettingsWorkspaceProps) {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [profileState, setProfileState] = useState<{
     userId: string;
-    profile: ProfileResponse | null;
-  } | null>(null);
+    profile: SettingsProfileData | null;
+  } | null>(() =>
+    initialUserId && initialProfile
+      ? { userId: initialUserId, profile: initialProfile }
+      : null
+  );
   const [alertState, setAlertState] = useState<{
     userId: string;
     tickers: string[];
-  } | null>(null);
-  const sessionUserId = session?.user?.id ?? null;
+  } | null>(() =>
+    initialUserId && initialAlertTickers
+      ? { userId: initialUserId, tickers: initialAlertTickers }
+      : null
+  );
+  const sessionUserId = isPending
+    ? initialUserId
+    : (session?.user?.id ?? null);
+  const isAuthenticated = isPending
+    ? Boolean(initialUserId)
+    : Boolean(session?.user);
   const profile =
     sessionUserId && profileState?.userId === sessionUserId
       ? profileState.profile
@@ -55,8 +84,10 @@ export function SettingsWorkspace() {
     sessionUserId && alertState?.userId === sessionUserId
       ? alertState.tickers
       : [];
-  const [handle, setHandle] = useState("");
-  const [avatarIcon, setAvatarIcon] = useState<AvatarId>("compass");
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft | null>(null);
+  const draft = profileDraft?.userId === sessionUserId ? profileDraft : null;
+  const handle = draft?.handle ?? profile?.user?.handle ?? "";
+  const avatarIcon = draft?.avatarIcon ?? normalizeAvatarId(profile?.user?.avatarIcon);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [error, setError] = useState("");
@@ -69,39 +100,49 @@ export function SettingsWorkspace() {
   const [alertStatus, setAlertStatus] = useState("");
   const [alertError, setAlertError] = useState("");
 
+  const profileLoaded = profileState?.userId === sessionUserId;
+  const alertsLoaded = alertState?.userId === sessionUserId;
+
   useEffect(() => {
-    if (!sessionUserId) {
-      return;
-    }
-    let active = true;
-    fetch("/api/account/profile")
+    if (!sessionUserId || profileLoaded) return;
+    const controller = new AbortController();
+    fetch("/api/account/profile", { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: ProfileResponse | null) => {
-        if (!active || !data) return;
-        setProfileState({ userId: sessionUserId, profile: data });
-        if (data.user) {
-          setHandle(data.user.handle ?? "");
-          setAvatarIcon(normalizeAvatarId(data.user.avatarIcon));
+      .then((data: SettingsProfileData | null) => {
+        if (!controller.signal.aborted && data?.authenticated) {
+          setProfileState({ userId: sessionUserId, profile: data });
         }
       })
       .catch(() => {});
+    return () => controller.abort();
+  }, [sessionUserId, profileLoaded]);
 
-    fetch("/api/alerts")
+  useEffect(() => {
+    if (!sessionUserId || alertsLoaded) return;
+    const controller = new AbortController();
+    fetch("/api/alerts", { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { tickers?: string[] } | null) => {
-        if (active && Array.isArray(data?.tickers)) {
+      .then((data: { authenticated?: boolean; tickers?: string[] } | null) => {
+        if (!controller.signal.aborted && data?.authenticated && Array.isArray(data.tickers)) {
           setAlertState({ userId: sessionUserId, tickers: data.tickers });
         }
       })
       .catch(() => {});
 
-    return () => {
-      active = false;
-    };
-  }, [sessionUserId]);
+    return () => controller.abort();
+  }, [sessionUserId, alertsLoaded]);
+
+  function updateDraft(changes: Omit<ProfileDraft, "userId">) {
+    if (!sessionUserId) return;
+    setProfileDraft((prev) => ({
+      ...(prev?.userId === sessionUserId ? prev : {}),
+      ...changes,
+      userId: sessionUserId,
+    }));
+  }
 
   async function handleSyncWatchlistAlerts() {
-    if (!sessionUserId) return;
+    if (!sessionUserId || syncingWatchlistAlerts || removingAlerts.length > 0) return;
     setSyncingWatchlistAlerts(true);
     setAlertError("");
     setAlertStatus("");
@@ -132,6 +173,7 @@ export function SettingsWorkspace() {
   }
 
   async function handleUnsubscribeAlert(ticker: string) {
+    if (!sessionUserId || syncingWatchlistAlerts || removingAlerts.includes(ticker)) return;
     setRemovingAlerts((prev) => [...prev, ticker]);
     setAlertError("");
     try {
@@ -140,7 +182,7 @@ export function SettingsWorkspace() {
       });
       if (res.ok) {
         setAlertState((prev) =>
-          prev
+          prev?.userId === sessionUserId
             ? { ...prev, tickers: prev.tickers.filter((t) => t !== ticker) }
             : prev
         );
@@ -156,6 +198,7 @@ export function SettingsWorkspace() {
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
+    if (!sessionUserId || saving) return;
     setSaving(true);
     setError("");
     setSavedMsg("");
@@ -173,30 +216,26 @@ export function SettingsWorkspace() {
       if (!res.ok || !data.ok) {
         setError(data.error ?? "Could not save profile.");
       } else {
-        setProfileState((prev) =>
-          prev?.profile
-            ? {
-                ...prev,
-                profile: {
-                  ...prev.profile,
-                  user: prev.profile.user
-                    ? {
-                        ...prev.profile.user,
-                        handle: data.user?.handle ?? handle,
-                        avatarIcon: data.user?.avatarIcon ?? avatarIcon,
-                      }
-                    : prev.profile.user,
-                  portfolio: prev.profile.portfolio
-                    ? {
-                        ...prev.profile.portfolio,
-                        handle: data.user?.handle ?? handle,
-                        avatarIcon: data.user?.avatarIcon ?? avatarIcon,
-                      }
-                    : null,
-                },
-              }
-            : prev
-        );
+        const savedHandle = data.user?.handle ?? handle;
+        const savedAvatar = normalizeAvatarId(data.user?.avatarIcon ?? avatarIcon);
+        setProfileDraft((prev) => prev?.userId === sessionUserId ? {
+          ...prev,
+          handle: prev.handle === handle ? savedHandle : prev.handle,
+          avatarIcon: prev.avatarIcon === avatarIcon ? savedAvatar : prev.avatarIcon,
+        } : prev);
+        setProfileState((prev) => {
+          if (prev?.userId !== sessionUserId || !prev.profile) return prev;
+          const { user, portfolio } = prev.profile;
+          const saved = { handle: savedHandle, avatarIcon: savedAvatar };
+          return {
+            ...prev,
+            profile: {
+              ...prev.profile,
+              user: user && { ...user, ...saved },
+              portfolio: portfolio && { ...portfolio, ...saved },
+            },
+          };
+        });
         window.dispatchEvent(new CustomEvent("amber:profile-updated"));
         setSavedMsg("Profile saved.");
         window.setTimeout(() => setSavedMsg(""), 2500);
@@ -273,7 +312,7 @@ export function SettingsWorkspace() {
           </p>
         </div>
 
-        {!isPending && !session?.user ? (
+        {!isAuthenticated ? (
           <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">
               Sign in to manage account settings
@@ -325,7 +364,7 @@ export function SettingsWorkspace() {
                         <button
                           key={preset.id}
                           type="button"
-                          onClick={() => setAvatarIcon(preset.id)}
+                          onClick={() => updateDraft({ avatarIcon: preset.id })}
                           aria-label={`Select ${preset.label} icon`}
                           aria-pressed={selected}
                           title={preset.label}
@@ -354,7 +393,7 @@ export function SettingsWorkspace() {
                     type="text"
                     required
                     value={handle}
-                    onChange={(e) => setHandle(e.target.value)}
+                    onChange={(e) => updateDraft({ handle: e.target.value })}
                     placeholder="e.g. value_owl"
                     className="font-mono-num h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
                   />
@@ -396,7 +435,7 @@ export function SettingsWorkspace() {
                   Email <span className="ml-1 opacity-75">(Private, never shown publicly)</span>
                 </div>
                 <div className="font-mono-num mt-1 font-medium text-[var(--text-primary)]">
-                  {session?.user?.email ?? ""}
+                  {session?.user?.email ?? profile?.user?.email ?? ""}
                 </div>
               </div>
             </section>
@@ -412,7 +451,7 @@ export function SettingsWorkspace() {
                 </div>
                 <button
                   type="button"
-                  disabled={syncingWatchlistAlerts}
+                  disabled={syncingWatchlistAlerts || removingAlerts.length > 0}
                   onClick={handleSyncWatchlistAlerts}
                   className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
                 >
@@ -445,7 +484,7 @@ export function SettingsWorkspace() {
                       </Link>
                       <button
                         type="button"
-                        disabled={removingAlerts.includes(t)}
+                        disabled={syncingWatchlistAlerts || removingAlerts.includes(t)}
                         onClick={() => handleUnsubscribeAlert(t)}
                         aria-label={`Unsubscribe from ${t} filing alerts`}
                         className="inline-flex h-4 w-4 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--negative)] disabled:opacity-50 cursor-pointer"

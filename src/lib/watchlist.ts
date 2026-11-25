@@ -14,17 +14,22 @@ function readWatchlist(): SavedWatchlist {
   if (storageWriteFailed) return memory;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY_WATCHLIST;
+    if (!raw) {
+      memory = EMPTY_WATCHLIST;
+      return memory;
+    }
     const parsed = JSON.parse(raw);
     const tickers = Array.isArray(parsed) ? parsed : parsed?.tickers;
     const guestTickers = Array.isArray(parsed?.guestTickers)
       ? parsed.guestTickers.filter((x: unknown): x is string => typeof x === "string")
       : undefined;
-    return {
+    memory = {
       owner: typeof parsed?.owner === "string" ? parsed.owner : null,
       tickers: Array.isArray(tickers) ? tickers.filter((x): x is string => typeof x === "string") : [],
       ...(guestTickers?.length ? { guestTickers } : {}),
+      ...(parsed?.guestImportChecked === true ? { guestImportChecked: true } : {}),
     };
+    return memory;
   } catch {
     return memory;
   }
@@ -45,12 +50,13 @@ const watchlistSync = createWatchlistSync({
   read: readWatchlist,
   write: writeWatchlist,
   async request(signal, mutation) {
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
     const response = await fetch("/api/watchlist", mutation ? {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(mutation),
-      signal,
-    } : { signal });
+      signal: requestSignal,
+    } : { signal: requestSignal });
     if (!response.ok) throw new Error("Watchlist sync failed");
     const data: { tickers?: string[]; authenticated?: boolean } = await response.json();
     if (data.authenticated === false || !Array.isArray(data.tickers)) {
@@ -68,22 +74,28 @@ export function useWatchlist() {
     ? cached.tickers
     : EMPTY_WATCHLIST.tickers;
   const ready = cached !== null && (!isPending || cached.owner === null);
+  const canEdit = cached !== null && !isPending;
 
   useEffect(() => {
     const sync = () => setCached(readWatchlist());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY || event.key === null) sync();
+    };
     sync();
-    window.addEventListener("storage", sync);
+    window.addEventListener("storage", onStorage);
     window.addEventListener(SYNC_EVENT, sync);
     if (!isPending) watchlistSync.connect(userId);
     return () => {
-      window.removeEventListener("storage", sync);
+      window.removeEventListener("storage", onStorage);
       window.removeEventListener(SYNC_EVENT, sync);
     };
   }, [isPending, userId]);
 
   const toggle = useCallback(
-    (rawTicker: string) => watchlistSync.toggle(rawTicker.trim().toUpperCase(), userId),
-    [userId]
+    (rawTicker: string) => {
+      if (canEdit) watchlistSync.toggle(rawTicker.trim().toUpperCase(), userId);
+    },
+    [canEdit, userId]
   );
 
   const has = useCallback(
@@ -91,5 +103,5 @@ export function useWatchlist() {
     [tickers]
   );
 
-  return { tickers, toggle, has, ready };
+  return { tickers, toggle, has, ready, canEdit };
 }

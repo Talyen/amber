@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { neonConfig } from "@neondatabase/serverless";
+import { neon, neonConfig } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
 import { dispatchFilingAlerts } from "../scripts/send-filing-alerts.ts";
-import { canRetryAlertDelivery, filingAlertEmailIsVerified } from "../src/lib/alert-email.ts";
+import { requestAlertConfirmation } from "../src/data/alert-subscriptions.ts";
+import { canRetryAlertDelivery, filingAlertEmailIsVerified, sendAlertEmail } from "../src/lib/alert-email.ts";
 
 test("only the signed-in account's verified email can skip filing alert confirmation", () => {
   const email = "reader@example.test";
@@ -16,6 +18,51 @@ test("unresolved alert deliveries stop before the provider's idempotency key exp
   const startedAt = new Date("2026-11-01T00:00:00Z");
   assert.equal(canRetryAlertDelivery(startedAt, Date.parse("2026-11-01T22:59:00Z")), true);
   assert.equal(canRetryAlertDelivery(startedAt, Date.parse("2026-11-01T23:00:00Z")), false);
+});
+
+test("confirmation requests reuse an unexpired pending token and skip confirmed subscriptions", async (t) => {
+  const token = "6d52957c-39cb-4442-be79-2ded8d403408";
+  let state = "new";
+  const originalNeonFetch = neonConfig.fetchFunction;
+  t.after(() => { neonConfig.fetchFunction = originalNeonFetch; });
+  neonConfig.fetchFunction = async (_url: string, options: RequestInit) => {
+    const { query } = JSON.parse(String(options.body)) as { query: string };
+    const isInsert = query.startsWith("insert");
+    if (isInsert) assert.match(query, /where "alert_subscriptions"\."confirmation_expires_at" <= statement_timestamp\(\)/i);
+    else assert.match(query, /"alert_subscriptions"\."confirmation_expires_at" > statement_timestamp\(\)/i);
+    const rows = (isInsert ? state === "new" : state === "pending") ? [[token]] : [];
+    if (state === "new") state = "pending";
+    return Response.json({ fields: [{ name: "unsubscribe_token", dataTypeID: 25 }], rows });
+  };
+
+  const db = drizzle(neon("postgresql://fixture:fixture@fixture.example/database"));
+  const email = "reader@example.test";
+  assert.equal(await requestAlertConfirmation(db, `ABC:${email}`, email, "ABC"), token);
+  assert.equal(await requestAlertConfirmation(db, `ABC:${email}`, email, "ABC"), token);
+  state = "confirmed";
+  assert.equal(await requestAlertConfirmation(db, `ABC:${email}`, email, "ABC"), undefined);
+});
+
+test("email delivery retries an in-progress idempotent request and stops on a conflicting payload", async (t) => {
+  let requests = 0;
+  let conflict = "concurrent_idempotent_requests";
+  t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
+    assert.equal(new Headers(options.headers).get("Idempotency-Key"), "confirmation/fixture");
+    return ++requests === 1 || conflict === "invalid_idempotent_request"
+      ? Response.json({ name: conflict }, { status: 409 })
+      : new Response(null, { status: 200 });
+  });
+  const email = { from: "alerts@example.test", to: ["reader@example.test"], subject: "Confirm", html: "Confirm" };
+  const waits: number[] = [];
+  const wait = async (ms: number) => { waits.push(ms); };
+  await sendAlertEmail("fixture", "confirmation/fixture", email, wait);
+  assert.equal(requests, 2);
+  assert.deepEqual(waits, [500]);
+
+  conflict = "invalid_idempotent_request";
+  await assert.rejects(sendAlertEmail("fixture", "confirmation/fixture", email, wait), /HTTP 409/);
+  assert.equal(requests, 3);
+  assert.deepEqual(waits, [500]);
 });
 
 test("failed dispatch retries the same delivery key and records only accepted email", async (t) => {

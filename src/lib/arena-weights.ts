@@ -18,5 +18,10 @@ export function parseArenaWeights(positions: unknown) {
   for (const weight of weights.values()) largest = Math.max(largest, weight);
   const scaled = [...weights].map(([ticker, weight]) => [ticker, weight / largest] as const);
   const total = scaled.reduce((sum, [, weight]) => sum + weight, 0);
-  return new Map(scaled.map(([ticker, weight]) => [ticker, (weight / total) * 100]));
+  const allocations = new Map<string, number>();
+  for (const [ticker, weight] of scaled) {
+    const percentage = (weight / total) * 100;
+    if (percentage > 0) allocations.set(ticker, percentage);
+  }
+  return allocations;
 }

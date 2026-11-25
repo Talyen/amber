@@ -132,18 +132,30 @@ export default async function InvestorProfilePage({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-1.5">
-            {primary.positions.map((pos) => (
-              <Link
-                key={pos.ticker}
-                href={`/t/${pos.ticker}`}
-                className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--amber)]"
-              >
-                <strong className="text-[var(--text-primary)]">
-                  {pos.ticker}
-                </strong>{" "}
-                {Math.round(pos.weightPct)}%
-              </Link>
-            ))}
+            {primary.positions.map((pos) =>
+              pos.ticker === "SPY" ? (
+                <span
+                  key={pos.ticker}
+                  className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)]"
+                >
+                  <strong className="text-[var(--text-primary)]">
+                    {pos.ticker}
+                  </strong>{" "}
+                  {Math.round(pos.weightPct)}%
+                </span>
+              ) : (
+                <Link
+                  key={pos.ticker}
+                  href={`/t/${pos.ticker}`}
+                  className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--amber)]"
+                >
+                  <strong className="text-[var(--text-primary)]">
+                    {pos.ticker}
+                  </strong>{" "}
+                  {Math.round(pos.weightPct)}%
+                </Link>
+              )
+            )}
           </div>
         </section>
 

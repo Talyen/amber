@@ -116,13 +116,15 @@ export default async function ArenaDetailPage({
                 portfolio={portfolio}
                 spyReturnPct={spyReturn}
               />
-              <Link
-                href={arenaPortfolioAnalysisHref(portfolio.positions)}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--cta-bg)] hover:text-[var(--cta-fg)]"
-              >
-                <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
-                Analyze in Portfolio
-              </Link>
+              {!portfolio.positions.every((p) => p.ticker === "SPY") && (
+                <Link
+                  href={arenaPortfolioAnalysisHref(portfolio.positions)}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-colors hover:bg-[var(--cta-bg)] hover:text-[var(--cta-fg)]"
+                >
+                  <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
+                  Analyze in Portfolio
+                </Link>
+              )}
             </div>
           </div>
         </section>
@@ -208,17 +210,28 @@ export default async function ArenaDetailPage({
                 {portfolio.positions.map((pos) => (
                   <tr key={pos.ticker}>
                     <th scope="row">
-                      <Link
-                        href={`/t/${pos.ticker}`}
-                        className="inline-flex items-center gap-2 hover:text-[var(--amber)]"
-                      >
-                        <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
-                          {pos.ticker}
+                      {pos.ticker === "SPY" ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
+                            {pos.ticker}
+                          </span>
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {pos.companyName}
+                          </span>
                         </span>
-                        <span className="font-medium text-[var(--text-primary)]">
-                          {pos.companyName}
-                        </span>
-                      </Link>
+                      ) : (
+                        <Link
+                          href={`/t/${pos.ticker}`}
+                          className="inline-flex items-center gap-2 hover:text-[var(--amber)]"
+                        >
+                          <span className="font-mono-num w-12 font-semibold text-[var(--amber)]">
+                            {pos.ticker}
+                          </span>
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {pos.companyName}
+                          </span>
+                        </Link>
+                      )}
                     </th>
                     <td data-label="Weight" className="font-mono-num">
                       {pos.weightPct.toFixed(1)}%

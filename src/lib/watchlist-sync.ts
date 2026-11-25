@@ -2,6 +2,7 @@ export interface SavedWatchlist {
   owner: string | null;
   tickers: string[];
   guestTickers?: string[];
+  guestImportChecked?: true;
 }
 
 interface WatchlistEdit {
@@ -16,6 +17,7 @@ interface WatchlistSession {
   controller: AbortController;
   confirmed: string[];
   guestTickers: string[] | undefined;
+  needsGuestImport: boolean;
   pending: WatchlistEdit[];
   queue: Promise<void>;
   loading: boolean;
@@ -43,6 +45,7 @@ export function createWatchlistSync({
         owner: current.userId,
         tickers: current.pending.reduce(applyEdit, current.confirmed),
         ...(current.guestTickers ? { guestTickers: current.guestTickers } : {}),
+        ...(current.guestTickers && !current.needsGuestImport ? { guestImportChecked: true } : {}),
       });
     }
   }
@@ -51,12 +54,16 @@ export function createWatchlistSync({
     const { controller: { signal }, guestTickers } = current;
     const remote = await request(signal);
     signal.throwIfAborted();
-    const confirmed = remote.length === 0 && guestTickers
-      ? await request(signal, { tickers: guestTickers.slice(0, 30) })
-      : remote;
-    signal.throwIfAborted();
-    current.confirmed = confirmed;
-    current.guestTickers = undefined;
+    if (remote.length === 0 && guestTickers && current.needsGuestImport) {
+      const imported = await request(signal, { tickers: guestTickers.slice(0, 30) });
+      signal.throwIfAborted();
+      current.confirmed = imported;
+      const remaining = guestTickers.filter((ticker) => !imported.includes(ticker));
+      current.guestTickers = remaining.length > 0 ? remaining : undefined;
+    } else {
+      current.confirmed = remote;
+    }
+    current.needsGuestImport = false;
   }
 
   function connect(userId: string | null) {
@@ -72,12 +79,13 @@ export function createWatchlistSync({
       session?.controller.abort();
       const guest = cached.owner === null ? cached.tickers : cached.guestTickers;
       const guestTickers = guest?.length ? guest : undefined;
-      const confirmed = guestTickers ?? (cached.owner === userId ? cached.tickers : []);
+      const sameOwner = cached.owner === userId;
       session = {
         userId,
         controller: new AbortController(),
-        confirmed,
+        confirmed: sameOwner ? cached.tickers : guestTickers ?? [],
         guestTickers,
+        needsGuestImport: Boolean(guestTickers && (!sameOwner || !cached.guestImportChecked)),
         pending: [],
         queue: Promise.resolve(),
         loading: false,
@@ -105,9 +113,10 @@ export function createWatchlistSync({
   function toggle(ticker: string, userId: string | null) {
     if (session?.userId !== userId) connect(userId);
     const cached = read();
+    const visible = cached.owner === null || cached.owner === userId ? cached.tickers : [];
     const edit: WatchlistEdit = {
       ticker,
-      action: cached.tickers.includes(ticker) ? "remove" : "add",
+      action: visible.includes(ticker) ? "remove" : "add",
     };
     if (!session) {
       write({ owner: null, tickers: applyEdit(cached.tickers, edit) });
@@ -115,6 +124,12 @@ export function createWatchlistSync({
     }
 
     const current = session;
+    if (!current.loading && current.pending.length === 0 && cached.owner === userId) {
+      // A different tab may have published a newer snapshot since the last request.
+      current.confirmed = cached.tickers;
+      current.guestTickers = cached.guestTickers;
+      current.needsGuestImport = Boolean(cached.guestTickers && !cached.guestImportChecked);
+    }
     current.pending.push(edit);
     publish(current);
     current.queue = current.queue.then(async () => {
@@ -122,7 +137,7 @@ export function createWatchlistSync({
       if (signal.aborted) return;
       let submitted = false;
       try {
-        if (current.guestTickers) {
+        if (current.needsGuestImport) {
           await refresh(current);
           publish(current);
         }

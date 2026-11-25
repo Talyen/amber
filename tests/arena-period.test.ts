@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { arenaMonth, arenaPeriodBounds, lastTradingClose } from "../src/lib/arena-period.ts";
+import { arenaIndexPeriodReturn, arenaMonth, arenaPeriodBounds, lastTradingClose } from "../src/lib/arena-period.ts";
 
 const epoch = (date: string) => Date.parse(date) / 1000;
 
@@ -27,4 +27,13 @@ test("uses the last valid trading close inside the expired period", () => {
     epoch("2026-10-31"),
   ], [145, 120, 112, null], bounds), 120);
   assert.equal(lastTradingClose([epoch("2026-11-02")], [145], bounds), undefined);
+});
+
+test("the expired SPY benchmark closes from the pre-period trading close to the final in-period close", () => {
+  const bounds = arenaPeriodBounds("2026-11");
+  assert.ok(bounds);
+  const timestamps = ["2026-10-01", "2026-10-30", "2026-11-02", "2026-11-30", "2026-12-01"].map(epoch);
+  assert.equal(arenaIndexPeriodReturn(timestamps, [480, 500, 510, 525, 600], bounds), 5);
+  assert.equal(arenaIndexPeriodReturn(timestamps, [480, null, 510, 525, 600], bounds), undefined);
+  assert.equal(arenaIndexPeriodReturn(timestamps, [480, 500, null, null, 600], bounds), undefined);
 });
