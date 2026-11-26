@@ -43,7 +43,7 @@ export async function generateMetadata({
 
   return {
     title: `${company.ticker} | ${company.name} Valuation, SEC Filings & Insiders`,
-    description: `${company.name} (${company.ticker}): ${formatPct(reverseDcf.impliedRevenueCagrPct)}/yr implied 10Y growth, ${formatCurrencyCompact(latest.trueFcf)} True FCF (${formatPct(latest.trueFcfMargin)} margin), ${formatPct(netDilutionCagr, true)}/yr share count trend, and SEC ${company.lastFiling.type} filing diffs.`,
+    description: `${company.name} (${company.ticker}): ${reverseDcf ? `${formatPct(reverseDcf.impliedRevenueCagrPct)}/yr implied 10Y growth, ` : ""}${formatCurrencyCompact(latest.trueFcf)} True FCF (${formatPct(latest.trueFcfMargin)} margin), ${formatPct(netDilutionCagr, true)}/yr share count trend, and SEC ${company.lastFiling.type} filing diffs.`,
   };
 }
 
@@ -59,6 +59,7 @@ export default async function TickerPage({ params }: TickerPageProps) {
     getInsiderTrades(company.ticker),
     getSearchIndex(),
   ]);
+
   const sectorBenchmark = getSectorBenchmark(company.sector, searchIndex);
 
   const sectorPeers = searchIndex
@@ -80,14 +81,14 @@ export default async function TickerPage({ params }: TickerPageProps) {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     mainEntity: [
-      {
+      ...(reverseDcf ? [{
         "@type": "Question",
         name: `What growth rate is ${company.ticker} stock pricing in?`,
         acceptedAnswer: {
           "@type": "Answer",
           text: `At $${company.price.toFixed(2)} (${formatCurrencyCompact(enterpriseValue)} Enterprise Value), ${company.name} (${company.ticker}) is pricing in approximately ${formatPct(reverseDcf.impliedRevenueCagrPct)} annual revenue growth over the next 10 years under baseline Reverse DCF assumptions.`,
         },
-      },
+      }] : []),
       {
         "@type": "Question",
         name: `Does ${company.ticker} dilute shareholders?`,

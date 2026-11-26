@@ -71,20 +71,30 @@ jobs:
           MAX_8K_TICKERS: ${{ env.UNIVERSE_LIMIT }}
         run: pnpm ingest:8k
 
+      - name: Sync SEC DEF 14A Proxy Executive Comp & SBC Disclosures
+        id: ingest_proxy
+        continue-on-error: true
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_PROXY_TICKERS: "150"
+        run: pnpm ingest:proxy
+
       - name: Sync SEC Form 4 Open-Market Insider Activity
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'AmberFinance research@amber.example' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm ingest:form4
 
-      - name: Dispatch Filing Alerts via Resend (when configured)
+      - name: Dispatch Filing Alerts via Resend
         id: send_alerts
         continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_FROM_EMAIL: ${{ vars.ALERT_FROM_EMAIL }}
           AMBER_PROD_URL: ${{ secrets.AMBER_PROD_URL }}
-        run: pnpm send:alerts
+        run: pnpm send:alerts --require-config
 
       - name: Trigger Vercel On-Demand ISR Revalidation (when configured)
         env:

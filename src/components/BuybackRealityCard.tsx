@@ -1,5 +1,6 @@
 import {
   type ComputedAnnual,
+  computeCapitalAllocationMix,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -168,6 +169,49 @@ export function BuybackRealityCard({
       <p className="mt-3 text-xs text-[var(--text-secondary)]">
         {verdict.detail}
       </p>
+
+      {(() => {
+        const mix = computeCapitalAllocationMix(series);
+        if (!mix || mix.segments.length < 2) return null;
+        const segmentColors: Record<string, string> = {
+          capex: "bg-[var(--reported)]",
+          rd: "bg-[var(--text-muted)]",
+          buybacks: "bg-[var(--amber)]",
+          dividends: "bg-[var(--positive)]",
+        };
+        return (
+          <div className="mt-4 border-t border-[var(--border)] pt-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span className="font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                {mix.years}Y Capital Deployment Mix ({formatCurrencyCompact(mix.total)})
+              </span>
+              <div className="flex flex-wrap items-center gap-3 text-[var(--text-secondary)]">
+                {mix.segments.map((seg) => (
+                  <span key={seg.key} className="inline-flex items-center gap-1.5">
+                    <span
+                      className={`h-2 w-2 rounded-xs ${segmentColors[seg.key] ?? "bg-[var(--border-strong)]"}`}
+                    />
+                    <span>{seg.label}</span>
+                    <strong className="font-mono-num text-[var(--text-primary)]">
+                      {seg.pct.toFixed(0)}%
+                    </strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+              {mix.segments.map((seg) => (
+                <div
+                  key={seg.key}
+                  style={{ width: `${Math.max(2, seg.pct)}%` }}
+                  className={`h-full ${segmentColors[seg.key] ?? "bg-[var(--border-strong)]"}`}
+                  title={`${seg.label}: ${formatCurrencyCompact(seg.amount)} (${seg.pct.toFixed(1)}%)`}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }

@@ -120,7 +120,7 @@ export function CompareStudio({
 
   const maxTrueMargin = Math.max(
     10,
-    ...selectedItems.map((i) => Math.abs(i.trueFcfMargin))
+    ...selectedItems.map((i) => i.scenarioBasis.equityLensOnly ? 0 : Math.abs(i.trueFcfMargin))
   );
   const maxSbcPct = Math.max(
     5,
@@ -128,7 +128,7 @@ export function CompareStudio({
   );
   const maxImplied = Math.max(
     10,
-    ...selectedItems.map((i) => Math.abs(i.impliedCagr))
+    ...selectedItems.map((i) => Math.abs(i.impliedCagr ?? 0))
   );
 
   return (
@@ -188,7 +188,9 @@ export function CompareStudio({
             </button>
             <button
               type="button"
-              onClick={() => exportComparisonCard(selectedItems)}
+              onClick={() => exportComparisonCard(selectedItems.map((item) => item.scenarioBasis.equityLensOnly
+      ? { ...item, trueFcf: null, trueFcfMargin: null }
+      : item))}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
@@ -303,10 +305,10 @@ export function CompareStudio({
             </div>
             <div className="mt-4 space-y-3.5">
               {selectedItems.map((item) => {
-                const hasAnyNeg = selectedItems.some((i) => i.trueFcfMargin < 0);
+                const hasAnyNeg = selectedItems.some((i) => !i.scenarioBasis.equityLensOnly && i.trueFcfMargin < 0);
                 const halfWidth = Math.min(
                   50,
-                  (Math.abs(item.trueFcfMargin) / maxTrueMargin) * 50
+                  (Math.abs(item.scenarioBasis.equityLensOnly ? 0 : item.trueFcfMargin) / maxTrueMargin) * 50
                 );
                 return (
                   <div key={item.ticker}>
@@ -321,7 +323,7 @@ export function CompareStudio({
                             : "text-[var(--negative)]"
                         }`}
                       >
-                        {formatPct(item.trueFcfMargin)}
+                        {formatPct(item.scenarioBasis.equityLensOnly ? null : item.trueFcfMargin)}
                       </span>
                     </div>
                     {hasAnyNeg ? (
@@ -347,7 +349,7 @@ export function CompareStudio({
                         <div
                           className="h-full rounded-full bg-[var(--amber)] transition-all duration-200"
                           style={{
-                            width: `${Math.min(100, (item.trueFcfMargin / maxTrueMargin) * 100)}%`,
+                            width: `${Math.min(100, ((item.scenarioBasis.equityLensOnly ? 0 : item.trueFcfMargin) / maxTrueMargin) * 100)}%`,
                           }}
                         />
                       </div>
@@ -407,7 +409,7 @@ export function CompareStudio({
                     <div
                       className="h-full rounded-full bg-[var(--text-primary)] opacity-75 transition-all duration-200"
                       style={{
-                        width: `${Math.min(100, (Math.abs(item.impliedCagr) / maxImplied) * 100)}%`,
+                        width: `${Math.min(100, (Math.abs(item.impliedCagr ?? 0) / maxImplied) * 100)}%`,
                       }}
                     />
                   </div>
@@ -462,7 +464,7 @@ export function CompareStudio({
                   <th scope="row">Reported FCF</th>
                   {selectedItems.map((i) => (
                     <td key={i.ticker} data-label={i.ticker} className="font-mono-num">
-                      {formatCurrencyCompact(i.reportedFcf)}
+                      {i.scenarioBasis.equityLensOnly ? "—" : formatCurrencyCompact(i.reportedFcf)}
                     </td>
                   ))}
                 </tr>
@@ -490,7 +492,7 @@ export function CompareStudio({
                           : "text-[var(--negative)]"
                       }`}
                     >
-                      {formatCurrencyCompact(i.trueFcf)}
+                      {i.scenarioBasis.equityLensOnly ? "—" : formatCurrencyCompact(i.trueFcf)}
                     </td>
                   ))}
                 </tr>

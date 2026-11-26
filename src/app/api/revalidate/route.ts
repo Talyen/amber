@@ -38,6 +38,7 @@ export async function POST(request: Request) {
 
   revalidateTag("companies");
   revalidatePath("/");
+  revalidatePath("/api/search-index");
 
   for (const ticker of tickers) {
     revalidateTag(`ticker-${ticker}`);

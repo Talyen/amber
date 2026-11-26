@@ -41,3 +41,7 @@ jobs:
           AMBER_TEST_POSTGRES_URL: postgres://amber:amber_test_password@127.0.0.1:5432/amber_test
         run: pnpm test
       - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
+        env:
+          AMBER_TEST_POSTGRES_URL: postgres://amber:amber_test_password@127.0.0.1:5432/amber_test

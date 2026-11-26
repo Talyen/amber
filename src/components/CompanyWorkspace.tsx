@@ -23,6 +23,7 @@ import {
   type CompanySnapshot,
   computeCompanyValuation,
   computeFinancialSectorMetrics,
+  computeQuarterlyMomentum,
   formatCurrencyCompact,
   formatPct,
   isFinancialInstitution as checkFinancialInstitution,
@@ -33,6 +34,7 @@ import {
   buildTickerMarkdown,
   buildTickerPlainText,
 } from "@/lib/export-markdown";
+import { isFreshPriceDate } from "@/lib/market-price";
 import { exportTrueFcfCard } from "@/lib/export-card";
 import { valuationModelFromUrl } from "@/lib/valuation-link";
 import { useWatchlist } from "@/lib/watchlist";
@@ -73,6 +75,18 @@ export function CompanyWorkspace({
 }: CompanyWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
+  const [fcfCadence, setFcfCadence] = useState<"annual" | "quarterly">("annual");
+  const quarterlyMomentum = useMemo(
+    () => computeQuarterlyMomentum(company.quarterlyFinancials ?? []),
+    [company.quarterlyFinancials]
+  );
+  const yoyRevByQuarter = useMemo(() => {
+    const map: Record<string, number | null> = {};
+    for (const q of quarterlyMomentum.quarters) {
+      map[q.fiscalYear] = q.yoyRevenueGrowthPct;
+    }
+    return map;
+  }, [quarterlyMomentum.quarters]);
   const [restoredLocation, setRestoredLocation] = useState(false);
   const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
@@ -175,6 +189,7 @@ export function CompanyWorkspace({
 
   const { series, latest, enterpriseValue, netDilutionCagr, reverseDcf } =
     useMemo(() => computeCompanyValuation(company), [company]);
+  const impliedGrowth = reverseDcf?.impliedRevenueCagrPct ?? null;
   const latestFy = useMemo(() => {
     const fy = series.filter((s) => s.fiscalYear !== "TTM");
     return fy[fy.length - 1] ?? latest;
@@ -185,10 +200,11 @@ export function CompanyWorkspace({
     () => (isFinancialInstitution ? computeFinancialSectorMetrics(company) : null),
     [company, isFinancialInstitution]
   );
+  const sectorValuationMultiple = isReitCompany ? financialMetrics?.priceToFfo : financialMetrics?.priceToTbv;
   const evToTrueFcf =
-    latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
+    reverseDcf && latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
   const evToRepFcf =
-    latest.reportedFcf > 0 ? enterpriseValue / latest.reportedFcf : null;
+    reverseDcf && latest.reportedFcf > 0 ? enterpriseValue / latest.reportedFcf : null;
   const openMarketBuys = useMemo(
     () => insiderTrades.filter((t) => t.transactionType === "Buy"),
     [insiderTrades]
@@ -207,10 +223,10 @@ export function CompanyWorkspace({
       buildCompanyBriefing(
         company,
         series,
-        reverseDcf.impliedRevenueCagrPct,
+        impliedGrowth,
         insiderTrades
       ),
-    [company, series, reverseDcf.impliedRevenueCagrPct, insiderTrades]
+    [company, series, impliedGrowth, insiderTrades]
   );
 
   const tabs: Array<{
@@ -252,6 +268,17 @@ export function CompanyWorkspace({
               <span>{company.exchange}</span>
               <span aria-hidden="true">/</span>
               <span>{company.sector}</span>
+              {(company.lastFiling.type === "20-F" || company.lastFiling.type === "40-F") && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span
+                    className="rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]"
+                    title={`International ${company.lastFiling.type} filer normalized to USD`}
+                  >
+                    {company.lastFiling.type} · USD
+                  </span>
+                </>
+              )}
             </div>
 
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)] sm:text-3xl">
@@ -341,7 +368,7 @@ export function CompanyWorkspace({
                             buildTickerPlainText(
                               company,
                               series,
-                              reverseDcf.impliedRevenueCagrPct,
+                              impliedGrowth,
                               window.location.origin
                             )
                           );
@@ -374,7 +401,7 @@ export function CompanyWorkspace({
                             buildTickerMarkdown(
                               company,
                               series,
-                              reverseDcf.impliedRevenueCagrPct,
+                              impliedGrowth,
                               window.location.origin
                             )
                           );
@@ -407,7 +434,7 @@ export function CompanyWorkspace({
                             buildTickerAiContext(
                               company,
                               series,
-                              reverseDcf.impliedRevenueCagrPct,
+                              impliedGrowth,
                               window.location.origin
                             )
                           );
@@ -466,6 +493,10 @@ export function CompanyWorkspace({
               <div className="font-mono-num text-xl font-semibold text-[var(--text-primary)]">
                 ${company.price.toFixed(2)}
               </div>
+              <div className="text-[11px] text-[var(--text-muted)]">
+                {company.priceAsOf ? `Close ${company.priceAsOf}` : "Close date unavailable"}
+                {company.priceAsOf && !isFreshPriceDate(company.priceAsOf) && " · Stale quote"}
+              </div>
             </div>
             <div>
               <div className="text-[11px] font-medium text-[var(--text-muted)]">
@@ -517,7 +548,7 @@ export function CompanyWorkspace({
                   {isReitCompany ? (
                     <>
                       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
-                        <div className="text-[11px] text-[var(--text-muted)]">Price / FFO</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">Price / FFO {financialMetrics.ffoFiscalYear ?? ""}</div>
                         <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
                           {financialMetrics.priceToFfo !== null
                             ? `${financialMetrics.priceToFfo.toFixed(1)}×`
@@ -525,7 +556,7 @@ export function CompanyWorkspace({
                         </div>
                       </div>
                       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5">
-                        <div className="text-[11px] text-[var(--text-muted)]">FFO / Share</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">FFO / Share {financialMetrics.ffoFiscalYear ?? ""}</div>
                         <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
                           {financialMetrics.ffoPerShare !== null
                             ? `$${financialMetrics.ffoPerShare.toFixed(2)}`
@@ -624,20 +655,20 @@ export function CompanyWorkspace({
             className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
           >
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>Implied 10Y Growth</span>
+              <span>{reverseDcf ? "Implied 10Y Growth" : isReitCompany ? "Price / FFO" : "Price / Tangible Book"}</span>
               <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
                 Model →
               </span>
             </div>
             <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              {formatPct(reverseDcf.impliedRevenueCagrPct)}
+              {reverseDcf ? formatPct(impliedGrowth) : sectorValuationMultiple == null ? "—" : `${sectorValuationMultiple.toFixed(1)}×`}
             </div>
             <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
               <span className="font-mono-num">
                 Hist: {formatPct(briefing.revenueCagr)}/yr
               </span>
               <span className="font-mono-num">
-                {company.defaultDcf.terminalMultiple}x exit
+                {reverseDcf ? `${company.defaultDcf.terminalMultiple}x exit` : financialMetrics?.ffoFiscalYear}
               </span>
             </div>
           </button>
@@ -856,7 +887,7 @@ export function CompanyWorkspace({
                               <span className="text-[var(--text-muted)]">
                                 True FCF{" "}
                                 <strong className="font-mono-num text-[var(--text-primary)]">
-                                  {formatPct(peer.trueFcfMargin)}
+                                  {formatPct(peer.scenarioBasis.equityLensOnly ? null : peer.trueFcfMargin)}
                                 </strong>
                               </span>
                               <span className="text-[var(--text-muted)]">
@@ -882,7 +913,12 @@ export function CompanyWorkspace({
             >
               {activeTab === "fcf" && (
                 <div>
-                  <TrueFcfChart company={company} series={series} />
+                  <TrueFcfChart
+                    company={company}
+                    series={series}
+                    cadence={fcfCadence}
+                    onCadenceChange={setFcfCadence}
+                  />
                   <TrueFcfWaterfall period={latest} />
                   <BuybackRealityCard
                     series={series}
@@ -890,7 +926,17 @@ export function CompanyWorkspace({
                   />
                   <FinancialLedgerTable
                     ticker={company.ticker}
-                    series={series}
+                    series={
+                      fcfCadence === "quarterly" && quarterlyMomentum.quarters.length >= 4
+                        ? quarterlyMomentum.quarters
+                        : series
+                    }
+                    cadence={
+                      fcfCadence === "quarterly" && quarterlyMomentum.quarters.length >= 4
+                        ? "quarterly"
+                        : "annual"
+                    }
+                    yoyRevByPeriod={yoyRevByQuarter}
                   />
                 </div>
               )}
@@ -908,14 +954,14 @@ export function CompanyWorkspace({
                       type="button"
                       onClick={() => setValuationMode("scenario")}
                       className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                        valuationMode === "scenario"
+                        !reverseDcf || valuationMode === "scenario"
                           ? "bg-[var(--amber-soft)] text-[var(--amber)]"
                           : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                       }`}
                     >
                       5-Year Return Scenario (Bull / Base / Bear)
                     </button>
-                    <button
+                    {reverseDcf && <button
                       type="button"
                       onClick={() => setValuationMode("reverse")}
                       className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
@@ -925,11 +971,11 @@ export function CompanyWorkspace({
                       }`}
                     >
                       Reverse DCF (What&apos;s Priced In)
-                    </button>
+                    </button>}
                   </div>
 
-                  {valuationMode === "scenario" ? (
-                    <ScenarioBuilder company={company} latest={latest} />
+                  {!reverseDcf || valuationMode === "scenario" ? (
+                    <ScenarioBuilder company={company} />
                   ) : (
                     <ReverseDcfStudio company={company} latest={latest} />
                   )}

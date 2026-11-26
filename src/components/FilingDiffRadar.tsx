@@ -33,11 +33,22 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
   const [selectedCategory, setSelectedCategory] = useState<
     "All" | FilingDiffItem["category"]
   >("All");
+  const [selectedForm, setSelectedForm] = useState<"All" | "periodic" | "8-K" | "DEF 14A">("All");
 
-  const visibleDiffs =
-    selectedCategory === "All"
-      ? company.filingDiffs
-      : company.filingDiffs.filter((d) => d.category === selectedCategory);
+  const has8k = company.filingDiffs.some((d) => d.filingType === "8-K");
+  const hasProxy = company.filingDiffs.some((d) => d.filingType === "DEF 14A");
+  const hasPeriodic = company.filingDiffs.some(
+    (d) => d.filingType !== "8-K" && d.filingType !== "DEF 14A"
+  );
+  const showFormFilter = [hasPeriodic, has8k, hasProxy].filter(Boolean).length >= 2;
+
+  const visibleDiffs = company.filingDiffs.filter((d) => {
+    if (selectedCategory !== "All" && d.category !== selectedCategory) return false;
+    if (selectedForm === "8-K") return d.filingType === "8-K";
+    if (selectedForm === "DEF 14A") return d.filingType === "DEF 14A";
+    if (selectedForm === "periodic") return d.filingType !== "8-K" && d.filingType !== "DEF 14A";
+    return true;
+  });
 
   // Deterministic 3-bullet executive summary (High materiality prioritized)
   const topTakeaways = [...company.filingDiffs]
@@ -80,7 +91,36 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
 
       {/* Filter & Push Alert Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {showFormFilter && (
+            <div className="inline-flex rounded-md border border-[var(--border)] bg-[var(--bg)] p-0.5 text-[11px]">
+              {(
+                [
+                  { id: "All", label: "All Forms", show: true },
+                  { id: "periodic", label: "10-K / 10-Q", show: hasPeriodic },
+                  { id: "8-K", label: "8-K", show: has8k },
+                  { id: "DEF 14A", label: "DEF 14A", show: hasProxy },
+                ] as const
+              )
+                .filter((opt) => opt.show)
+                .map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSelectedForm(opt.id)}
+                    className={`rounded px-2 py-1 font-medium transition-colors cursor-pointer ${
+                      selectedForm === opt.id
+                        ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-1.5">
           {CATEGORIES.map((cat) => {
             const active = selectedCategory === cat;
             const count =
@@ -106,6 +146,7 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
               </button>
             );
           })}
+          </div>
         </div>
 
         <FilingAlertModal ticker={company.ticker} companyName={company.name} />

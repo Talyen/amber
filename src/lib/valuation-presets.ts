@@ -1,6 +1,6 @@
-import { computeFiveYearScenario } from "./finance.ts";
+import { computeScenarioProjection, type ScenarioBasis, type ScenarioLens } from "./finance.ts";
 
-export type SavedScenarioLens = "fcf" | "ebit" | "pe";
+export type SavedScenarioLens = ScenarioLens;
 
 export const MAX_THESIS_NOTE_LENGTH = 240;
 
@@ -63,74 +63,57 @@ export function normalizeValuationPresetInput(raw: unknown): Omit<SavedValuation
   };
 }
 
-export function readLocalValuationPreset(ticker: string): LocalValuationPreset | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const map = JSON.parse(raw) as Record<string, LocalValuationPreset>;
-    return map[ticker.toUpperCase()] ?? null;
-  } catch {
-    return null;
-  }
+function ownerStorageKey(owner: string | null | undefined): string {
+  return owner ? `${STORAGE_KEY}:account:${owner}` : `${STORAGE_KEY}:guest`;
+}
+
+export function readLocalValuationPreset(
+  ticker: string,
+  owner: string | null | undefined
+): LocalValuationPreset | null {
+  return readAllLocalValuationPresets(owner)[ticker.toUpperCase()] ?? null;
 }
 
 export function readAllLocalValuationPresets(
   owner?: string | null
 ): Record<string, LocalValuationPreset> {
-  try {
-    if (typeof window === "undefined") return {};
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const map = JSON.parse(raw) as Record<string, LocalValuationPreset>;
-    const result: Record<string, LocalValuationPreset> = {};
-    for (const [key, preset] of Object.entries(map)) {
-      if (!preset || typeof preset !== "object") continue;
-      if (owner && preset.owner && preset.owner !== owner) continue;
-      if (!owner && preset.owner) continue;
-      result[key.toUpperCase()] = preset;
+  if (typeof window === "undefined") return {};
+  const result: Record<string, LocalValuationPreset> = {};
+  // Read existing browser saves as well as new account-isolated saves.
+  for (const key of [STORAGE_KEY, ownerStorageKey(owner)]) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const map = JSON.parse(raw) as Record<string, LocalValuationPreset>;
+      for (const [ticker, preset] of Object.entries(map)) {
+        if (!preset || typeof preset !== "object") continue;
+        if ((preset.owner ?? null) !== (owner ?? null)) continue;
+        result[ticker.toUpperCase()] = preset;
+      }
+    } catch {
+      // An unavailable or malformed storage entry cannot restore a thesis.
     }
-    return result;
-  } catch {
-    return {};
   }
+  return result;
 }
 
 export function writeLocalValuationPreset(preset: LocalValuationPreset): boolean {
   try {
     if (typeof window === "undefined") return false;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const key = ownerStorageKey(preset.owner);
+    const raw = window.localStorage.getItem(key);
     const map = raw ? (JSON.parse(raw) as Record<string, LocalValuationPreset>) : {};
     map[preset.ticker.toUpperCase()] = preset;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    window.localStorage.setItem(key, JSON.stringify(map));
     return true;
   } catch {
     return false;
   }
 }
 
-export function removeLocalValuationPreset(ticker: string): void {
-  try {
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const map = JSON.parse(raw) as Record<string, LocalValuationPreset>;
-    delete map[ticker.toUpperCase()];
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    // Ignore storage errors
-  }
-}
-
 export interface PresetValuationEntry {
   ticker: string;
-  price?: number;
-  marketCap: number;
-  netCash?: number;
-  revenue: number;
-  trueFcfMargin: number;
-  operatingMargin?: number | null;
-  netMargin?: number | null;
+  scenarioBasis: ScenarioBasis;
 }
 
 export interface PresetExpectedReturn {
@@ -147,36 +130,13 @@ export function computePresetExpectedReturn(
   preset: SavedValuationPreset,
   entry: PresetValuationEntry
 ): PresetExpectedReturn | null {
-  const price = entry.price ?? 0;
-  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(entry.marketCap) || entry.marketCap <= 0) {
-    return null;
-  }
-  if (!Number.isFinite(entry.revenue) || entry.revenue <= 0) return null;
-
-  const dilutedShares = entry.marketCap / price;
-  const currentMargin =
-    preset.lens === "ebit" && typeof entry.operatingMargin === "number"
-      ? entry.operatingMargin
-      : preset.lens === "pe" && typeof entry.netMargin === "number"
-        ? entry.netMargin
-        : entry.trueFcfMargin;
-
-  const scenario = computeFiveYearScenario({
-    currentPrice: price,
-    dilutedShares,
-    baseRevenue: entry.revenue,
-    currentTrueFcfMarginPct: currentMargin,
-    netCash: preset.lens === "pe" ? 0 : (entry.netCash ?? 0),
-    revGrowthPct: preset.revGrowth,
-    targetTrueFcfMarginPct: preset.targetMargin,
-    exitMultiple: preset.exitMultiple,
-    hurdleRatePct: 10,
-  });
+  const scenario = computeScenarioProjection(entry.scenarioBasis, preset);
+  if (!scenario || scenario.irrPct === null) return null;
 
   return {
     ticker: preset.ticker,
     lens: preset.lens,
-    irrPct: Number(scenario.irrPct.toFixed(1)),
+    irrPct: scenario.irrPct,
     upsidePct: Number(scenario.upsidePct.toFixed(1)),
     fairValueToday: Number(scenario.fairValueToday.toFixed(2)),
     yr5TargetPrice: Number(scenario.yr5TargetPrice.toFixed(2)),
@@ -232,4 +192,70 @@ export function computePortfolioThesisSummary(
       coveredWeight > 0 ? Number((weightedUpsideSum / coveredWeight).toFixed(1)) : null,
     byTicker,
   };
+}
+
+export interface CommunityThesisItem {
+  handle: string;
+  avatarIcon: string;
+  lens: SavedScenarioLens;
+  revGrowth: number;
+  targetMargin: number;
+  exitMultiple: number;
+  thesisNote: string | null;
+  updatedAt: string;
+}
+
+export interface ValuationTriggerCandidate extends SavedValuationPreset {
+  id: string;
+  lastValuationAlertAt?: Date | string | null;
+}
+
+export interface ValuationTriggerHit {
+  presetId: string;
+  ticker: string;
+  lens: SavedScenarioLens;
+  irrPct: number;
+  fairValueToday: number;
+  price: number;
+  upsidePct: number;
+  thesisNote: string | null;
+}
+
+export const VALUATION_ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function evaluateValuationTriggers(
+  presets: readonly ValuationTriggerCandidate[],
+  entriesByTicker: ReadonlyMap<string, PresetValuationEntry>,
+  irrThresholdPct: number,
+  nowMs: number = Date.now()
+): ValuationTriggerHit[] {
+  const hits: ValuationTriggerHit[] = [];
+  for (const preset of presets) {
+    if (preset.lastValuationAlertAt) {
+      const lastMs =
+        preset.lastValuationAlertAt instanceof Date
+          ? preset.lastValuationAlertAt.getTime()
+          : Date.parse(preset.lastValuationAlertAt);
+      if (Number.isFinite(lastMs) && nowMs - lastMs < VALUATION_ALERT_COOLDOWN_MS) {
+        continue;
+      }
+    }
+    const entry = entriesByTicker.get(preset.ticker);
+    if (!entry) continue;
+    const computed = computePresetExpectedReturn(preset, entry);
+    if (!computed) continue;
+    if (computed.irrPct >= irrThresholdPct) {
+      hits.push({
+        presetId: preset.id,
+        ticker: preset.ticker,
+        lens: preset.lens,
+        irrPct: computed.irrPct,
+        fairValueToday: computed.fairValueToday,
+        price: entry.scenarioBasis.price,
+        upsidePct: computed.upsidePct,
+        thesisNote: preset.thesisNote ?? null,
+      });
+    }
+  }
+  return hits.sort((a, b) => b.irrPct - a.irrPct);
 }

@@ -17,8 +17,9 @@ import { pathToFileURL } from "node:url";
 import { writeCompanyData } from "./write-company-data.ts";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { companies as companiesTable } from "../src/db/schema.ts";
+import { isFreshPriceDate, meetsQuoteCoverage, MIN_QUOTE_COVERAGE } from "../src/lib/market-price.ts";
 import type { EdgarSnapshot } from "./ingest-edgar.ts";
 
 interface YahooChartResponse {
@@ -99,7 +100,7 @@ async function fetchPriceAndHistory(
       const now = Date.now() / 1000;
       const closes = completedDailyCloses(result, now);
       const last = closes.at(-1);
-      if (!last || now * 1000 - Date.parse(last.date) > 10 * 86_400_000) return null;
+      if (!last || !isFreshPriceDate(last.date, now * 1_000)) return null;
       return closes;
     } catch {
       if (attempt < retries) {
@@ -129,7 +130,7 @@ async function run() {
   const dbUrl = process.env.DATABASE_URL;
   const db = dbUrl ? drizzle(neon(dbUrl)) : null;
 
-  const refreshed: Pick<EdgarSnapshot, "ticker" | "price" | "marketCap" | "priceHistory" | "edgarFallback">[] = [];
+  const candidates: Array<{ company: EdgarSnapshot; closes: Close[] }> = [];
   const concurrency = 6;
 
   for (let i = 0; i < snapshots.length; i += concurrency) {
@@ -143,37 +144,41 @@ async function run() {
       const fetched = results[j];
       if (!fetched) continue;
 
-      const last = fetched.at(-1)!;
-      const latestShares = company.marketCapShares ?? company.annuals.at(-1)?.dilutedShares ?? 0;
-      if (latestShares <= 0) continue;
-
-      company.price = last.price;
-      company.marketCap = Math.round(last.price * latestShares);
-      const history: Array<{ fiscalYear: string; price: number }> = [];
-      for (const row of company.annuals) {
-        const rawYear = row.fiscalYear.replace(/^FY/i, "");
-        const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
-        const price = row.fiscalYear === "TTM"
-          ? last.price
-          : closeAtPeriodEnd(fetched, row.periodEndDate ?? `${year}-12-31`);
-        if (price !== undefined) history.push({ fiscalYear: row.fiscalYear, price });
-      }
-      if (!company.edgarFallback) company.priceHistory = history.length >= 2 ? history : undefined;
-
-      refreshed.push({
-        ticker: company.ticker,
-        price: company.price,
-        marketCap: company.marketCap,
-        priceHistory: company.edgarFallback ? undefined : company.priceHistory,
-        edgarFallback: company.edgarFallback,
-      });
+      candidates.push({ company, closes: fetched });
     }
 
     // Polite throttle between batches
     await new Promise((r) => setTimeout(r, 250));
   }
 
-  writeCompanyData(outDir, snapshots);
+  // A ticker with an older close than the rest of the market has not refreshed.
+  const latestDate = candidates.map(({ closes }) => closes.at(-1)!.date).sort().at(-1);
+  const refreshed = candidates.filter(({ company, closes }) =>
+    closes.at(-1)!.date === latestDate &&
+    (company.marketCapShares ?? company.annuals.at(-1)?.dilutedShares ?? 0) > 0
+  );
+  if (!meetsQuoteCoverage(refreshed.length, snapshots.length)) {
+    throw new Error(`Quote refresh reached ${refreshed.length}/${snapshots.length} on ${latestDate ?? "no trading date"}; ${MIN_QUOTE_COVERAGE * 100}% required.`);
+  }
+
+  for (const { company, closes } of refreshed) {
+    const last = closes.at(-1)!;
+    const latestShares = company.marketCapShares ?? company.annuals.at(-1)?.dilutedShares ?? 0;
+
+    company.price = last.price;
+    company.priceAsOf = last.date;
+    company.marketCap = Math.round(last.price * latestShares);
+    const history: Array<{ fiscalYear: string; price: number }> = [];
+    for (const row of company.annuals) {
+      const rawYear = row.fiscalYear.replace(/^FY/i, "");
+      const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+      const price = row.fiscalYear === "TTM"
+        ? last.price
+        : closeAtPeriodEnd(closes, row.periodEndDate ?? `${year}-12-31`);
+      if (price !== undefined) history.push({ fiscalYear: row.fiscalYear, price });
+    }
+    if (!company.edgarFallback) company.priceHistory = history.length >= 2 ? history : undefined;
+  }
 
   if (db) {
     console.log(
@@ -183,11 +188,12 @@ async function run() {
     for (let i = 0; i < refreshed.length; i += chunkSize) {
       const slice = refreshed.slice(i, i + chunkSize);
       await Promise.all(
-        slice.map((c) =>
+        slice.map(({ company: c }) =>
           db
             .update(companiesTable)
             .set({
               price: c.price,
+              priceAsOf: c.priceAsOf,
               // A fallback's shares may be stale. Reprice the last persisted market cap.
               marketCap: c.edgarFallback ? sql`case when ${companiesTable.price} > 0
                 then round(${companiesTable.marketCap} * ${c.price} / ${companiesTable.price})
@@ -195,17 +201,22 @@ async function run() {
               priceHistory: c.edgarFallback ? undefined : c.priceHistory ?? null,
               updatedAt: new Date(),
             })
-            .where(eq(companiesTable.ticker, c.ticker))
+            .where(and(
+              eq(companiesTable.ticker, c.ticker),
+              or(isNull(companiesTable.priceAsOf), lte(companiesTable.priceAsOf, c.priceAsOf!)),
+            ))
         )
       );
     }
   }
 
+  writeCompanyData(outDir, snapshots);
+
   console.log(
-    `[amber-prices] ✓ Updated live EOD prices for ${refreshed.length}/${snapshots.length} companies.`
+    `[amber-prices] ✓ Updated ${latestDate} EOD prices for ${refreshed.length}/${snapshots.length} companies.`
   );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  run();
+  await run();
 }

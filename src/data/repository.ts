@@ -60,6 +60,7 @@ async function queryCompanyFromDb(
       sector: row.sector,
       tagline: row.tagline,
       price: row.price,
+      priceAsOf: row.priceAsOf,
       marketCap: row.marketCap,
       cashAndEquiv: row.cashAndEquiv,
       totalDebt: row.totalDebt,
@@ -131,7 +132,7 @@ export async function getCompanySnapshot(
       }
       return res;
     },
-    ["amber-company-v3", ticker],
+    ["amber-company-v4", ticker],
     {
       revalidate: 3600,
       tags: ["companies", `ticker-${ticker}`],
@@ -174,10 +175,12 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
       db
         .select({
           ticker: companies.ticker,
+          cik: companies.cik,
           name: companies.name,
           exchange: companies.exchange,
           sector: companies.sector,
           price: companies.price,
+          priceAsOf: companies.priceAsOf,
           marketCap: companies.marketCap,
           cashAndEquiv: companies.cashAndEquiv,
           totalDebt: companies.totalDebt,
@@ -190,6 +193,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntry[] | null> {
         .select({
           ticker: annualFinancials.ticker,
           fiscalYear: annualFinancials.fiscalYear,
+          periodEndDate: annualFinancials.periodEndDate,
           revenue: annualFinancials.revenue,
           operatingCashFlow: annualFinancials.operatingCashFlow,
           capex: annualFinancials.capex,
@@ -255,7 +259,7 @@ export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
       }
       return res;
     },
-    ["amber-search-index-v4"],
+    ["amber-search-index-v6"],
     {
       revalidate: 3600,
       tags: ["companies"],
@@ -348,7 +352,7 @@ export function getSectorBenchmark(
   sector: string,
   index: SearchIndexEntry[]
 ): SectorBenchmark | null {
-  const peers = index.filter((c) => c.sector === sector);
+  const peers = index.filter((c) => c.sector === sector && !c.scenarioBasis.equityLensOnly);
   if (peers.length < 3) return null;
 
   return {

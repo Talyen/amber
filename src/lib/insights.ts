@@ -45,7 +45,7 @@ export interface CompanyBriefingData {
 export function buildCompanyBriefing(
   company: CompanySnapshot,
   series: ComputedAnnual[],
-  impliedCagr: number,
+  impliedCagr: number | null,
   insiderTrades: InsiderTradeItem[]
 ): CompanyBriefingData {
   const latest = series[series.length - 1];
@@ -140,22 +140,22 @@ export function buildCompanyBriefing(
   };
 
   // 4. Market Expectations Pillar
-  const growthGap = impliedCagr - revenueCagr;
+  const growthGap = impliedCagr === null ? 0 : impliedCagr - revenueCagr;
   const expectationsPillar: BriefingPillar = {
     id: "expectations",
     question: "What is the stock pricing in?",
     verdict:
-      impliedCagr >= 22
+      impliedCagr === null ? "Sector-specific valuation" : impliedCagr >= 22
         ? "Priced for Perfection"
         : growthGap > 4
           ? "Expects Acceleration"
           : growthGap < -4
             ? "Conservative Bar"
             : "In Line With History",
-    headlineStat: `${formatPct(impliedCagr)} / yr`,
-    explanation: `Today's price implies ${formatPct(impliedCagr)} annual revenue growth for the next 10 years, compared to ${formatPct(revenueCagr)}/yr historically.`,
+    headlineStat: impliedCagr === null ? "—" : `${formatPct(impliedCagr)} / yr`,
+    explanation: impliedCagr === null ? "Use sector-specific metrics and the earnings scenario for this company." : `Today's price implies ${formatPct(impliedCagr)} annual revenue growth for the next 10 years, compared to ${formatPct(revenueCagr)}/yr historically.`,
     tone:
-      impliedCagr >= 22 || growthGap > 6
+      (impliedCagr !== null && impliedCagr >= 22) || growthGap > 6
         ? "amber"
         : growthGap < -3
           ? "positive"
@@ -183,7 +183,7 @@ export function buildCompanyBriefing(
     });
   }
 
-  if (latest.sbcPctRevenue >= 10) {
+  if (impliedCagr !== null && latest.sbcPctRevenue >= 10) {
     standouts.push({
       id: "sbc-drag",
       tag: "Hidden Cost",
@@ -260,7 +260,8 @@ export function buildCompanyBriefing(
 
   // Build a single blunt, plain-English Pre-Buy Reality Check sentence
   const expectationsClause =
-    impliedCagr >= 22
+    impliedCagr === null ? `Revenue grew ${formatPct(revenueCagr)}/yr historically`
+      : impliedCagr >= 22
       ? `Priced for ${formatPct(impliedCagr)}/yr revenue growth for a decade (vs. ${formatPct(revenueCagr)}/yr historically)`
       : growthGap > 4
         ? `Today's price requires growth to accelerate from ${formatPct(revenueCagr)}/yr to ${formatPct(impliedCagr)}/yr for 10 years`
@@ -277,12 +278,14 @@ export function buildCompanyBriefing(
     secondaryClause = `, with a high-signal ${highDiff.filingType} change in ${highDiff.category}.`;
   } else if (dilutionCagr <= -1.5) {
     secondaryClause = `, backed by buybacks shrinking share count ${Math.abs(dilutionCagr).toFixed(1)}%/yr.`;
-  } else if (latest.sbcPctRevenue >= 12 && latest.sbcPctReportedFcf !== null) {
+  } else if (impliedCagr !== null && latest.sbcPctRevenue >= 12 && latest.sbcPctReportedFcf !== null) {
     secondaryClause = `, while stock comp absorbs ${formatPct(latest.sbcPctReportedFcf, false, 0)} of headline FCF.`;
   } else if (latest.sbcPctRevenue >= 12) {
     secondaryClause = `, while stock comp costs ${formatPct(latest.sbcPctRevenue)} of revenue.`;
   } else if (dilutionCagr >= 2.2) {
     secondaryClause = `, while diluted shares expanded +${dilutionCagr.toFixed(1)}%/yr.`;
+  } else if (impliedCagr === null) {
+    secondaryClause = ".";
   } else {
     secondaryClause = `, converting ${formatPct(latest.trueFcfMargin)} of revenue into real cash.`;
   }
@@ -295,7 +298,7 @@ export function buildCompanyBriefing(
     netCash,
     capexPctRev,
     realityCheckSummary,
-    pillars: [growthPillar, cashPillar, balancePillar, expectationsPillar],
+    pillars: impliedCagr === null ? [growthPillar, expectationsPillar] : [growthPillar, cashPillar, balancePillar, expectationsPillar],
     standouts: standouts.slice(0, 4),
   };
 }
@@ -363,6 +366,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     defaultSortKey: "netDilutionCagr",
     defaultSortDir: "asc",
     filter: (c) =>
+      !isFinancialInstitution(c) &&
       c.revenue >= 500 &&
       c.netDilutionCagr <= -1.5 &&
       c.trueFcf > 0,
@@ -378,6 +382,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
     defaultSortKey: "fairValueUpsidePct",
     defaultSortDir: "desc",
     filter: (c) =>
+      !isFinancialInstitution(c) &&
       c.revenue >= 1000 &&
       c.trueFcfMargin >= 8 &&
       c.trueFcfMargin <= 75 &&

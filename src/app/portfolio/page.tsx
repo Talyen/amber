@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getSearchIndex } from "@/data/repository";
-import { PortfolioXRay } from "@/components/PortfolioXRay";
+import { PortfolioAnalyzer } from "@/components/PortfolioAnalyzer";
 
 export const revalidate = 86400;
 
@@ -12,5 +12,5 @@ export const metadata: Metadata = {
 
 export default async function PortfolioPage() {
   const entries = await getSearchIndex();
-  return <PortfolioXRay entries={entries} />;
+  return <PortfolioAnalyzer entries={entries} />;
 }

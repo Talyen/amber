@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { hasNewCoverageInputs, ingestCandidate, selectCoverageCandidates } from "../scripts/ingest-edgar.ts";
+import { hasNewCoverageInputs, ingestCandidate, normalizeShareCountToMillions, selectCoverageCandidates } from "../scripts/ingest-edgar.ts";
 import { selectFinancialSnapshots } from "../scripts/seed-neon.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 
@@ -203,4 +203,23 @@ test("the ledger retains reported operating cash flow for banks", async (t) => {
   });
   const snapshot = await ingestCandidate({ ...candidate, ticker: "JPM" }, new Map(), new Map());
   assert.equal(snapshot?.annuals.at(-1)?.operatingCashFlow, -148_000);
+});
+
+
+test("converts the issuer's common shares into current U.S. listing units", async (t) => {
+  mockSec(t, {
+    Revenues: usd(...annual(1000)),
+    NetCashProvidedByUsedInOperatingActivities: usd(...annual(200)),
+    CommonStockSharesOutstanding: {
+      units: { shares: [fact(undefined, "2025-12-31", 1000, "20-F", "2026-02-15", annualAccession)] },
+    },
+  });
+  for (const [ticker, expectedShares] of [["SNY", 2000], ["AZN", 1000], ["TSM", 200]] as const) {
+    const listing = { ...candidate, ticker };
+    const previous = { ...PILOT_TICKERS[0], ...listing, price: 50 };
+    const result = await ingestCandidate(listing, new Map(), new Map([[ticker, previous]]));
+    assert.equal(normalizeShareCountToMillions(1e9, ticker), expectedShares);
+    assert.equal(result?.marketCapShares, expectedShares);
+    assert.equal(result?.marketCap, 50 * expectedShares);
+  }
 });

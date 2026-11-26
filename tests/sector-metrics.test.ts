@@ -4,6 +4,7 @@ import {
   computeFinancialSectorMetrics,
   isFinancialInstitution,
   isReit,
+  matchesReitPriceToFfo,
 } from "../src/lib/finance.ts";
 
 describe("Sector-specific financial metrics", () => {
@@ -39,14 +40,17 @@ describe("Sector-specific financial metrics", () => {
     assert.equal(Number(m.roePct?.toFixed(1)), 15.7);
   });
 
-  it("computes FFO, FFO/share, and P/FFO for REITs using net income plus D&A", () => {
+  it("uses issuer-reported FFO from the matching annual period and excludes non-REITs", () => {
     const reit = {
-      ticker: "PLD",
+      ticker: "O",
+      cik: "0000726728",
       sector: "Real Estate & REITs",
-      marketCap: 100_000,
+      price: 63.75,
+      marketCap: 58_000,
       annuals: [
         {
           fiscalYear: "FY25",
+          periodEndDate: "2025-12-31",
           revenue: 8_500,
           operatingCashFlow: 5_000,
           capex: 1_200,
@@ -64,9 +68,19 @@ describe("Sector-specific financial metrics", () => {
     assert.equal(isReit(reit), true);
 
     const m = computeFinancialSectorMetrics(reit);
-    assert.equal(m.ffo, 5_500);
-    assert.equal(Number(m.ffoPerShare?.toFixed(2)), 5.95);
-    assert.equal(Number(m.priceToFfo?.toFixed(1)), 18.2);
+    assert.equal(m.ffo, 3860.323);
+    assert.equal(m.ffoPerShare, 4.25);
+    assert.equal(m.priceToFfo, 15);
+    assert.equal(m.ffoFiscalYear, "FY25");
     assert.equal(m.tangibleBookValue, null);
+    assert.equal(matchesReitPriceToFfo({ ...reit, priceToFfo: m.priceToFfo }, 15), true);
+    assert.equal(matchesReitPriceToFfo({ sector: "Semiconductors", priceToFfo: 9 }, 15), false);
+    assert.equal(matchesReitPriceToFfo({ ...reit, priceToFfo: null }, 15), false);
+    assert.equal(computeFinancialSectorMetrics({ ...reit, cik: "12345" }).priceToFfo, null);
+    assert.equal(computeFinancialSectorMetrics({ ...reit, sector: "Semiconductors" }).priceToFfo, null);
+    assert.equal(computeFinancialSectorMetrics({
+      ...reit,
+      annuals: [...reit.annuals, { ...reit.annuals[0], fiscalYear: "FY26", periodEndDate: "2026-12-31" }],
+    }).priceToFfo, null);
   });
 });

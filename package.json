@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "eslint src scripts tests",
     "typecheck": "tsc --noEmit",
+    "test:browser": "playwright test",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --experimental-strip-types tests/*.test.ts",
     "ingest:edgar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-edgar.ts",
     "ingest:diffs": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/extract-filing-diffs.ts",
     "ingest:8k": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-8k.ts",
+    "ingest:proxy": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-proxy.ts",
     "ingest:form4": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-form4.ts",
     "sync:prices": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/sync-prices.ts",
     "send:alerts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/send-filing-alerts.ts",
@@ -33,13 +35,16 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.1.7",
     "@types/node": "^22.15.18",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.4",
     "drizzle-kit": "^0.31.11",
     "eslint": "^10.15.0",
     "eslint-config-next": "^16.4.6",
+    "pg": "^8.23.1",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3"
   }

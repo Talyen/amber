@@ -69,8 +69,8 @@ export default async function OpenGraphImage({
     },
     {
       label: "IMPLIED 10Y REV CAGR",
-      value: formatPct(reverseDcf.impliedRevenueCagrPct),
-      sub: `${formatPct(company.defaultDcf.wacc)} WACC | ${company.defaultDcf.terminalMultiple}x exit`,
+      value: formatPct(reverseDcf?.impliedRevenueCagrPct),
+      sub: reverseDcf ? `${formatPct(company.defaultDcf.wacc)} WACC | ${company.defaultDcf.terminalMultiple}x exit` : "Sector-specific valuation",
       accent: "#E5A03C",
     },
   ];

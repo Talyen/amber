@@ -59,6 +59,8 @@ function computeArenaFundamentals(
 } {
   let coveredW = 0;
   let wMargin = 0;
+  let growthW = 0;
+  let cashW = 0;
   let wSbc = 0;
   let wImplied = 0;
   let wDilution = 0;
@@ -68,17 +70,23 @@ function computeArenaFundamentals(
     if (!entry) continue;
     const w = p.weightPct / 100;
     coveredW += w;
-    wMargin += entry.trueFcfMargin * w;
+    if (!entry.scenarioBasis.equityLensOnly) {
+      cashW += w;
+      wMargin += entry.trueFcfMargin * w;
+    }
     wSbc += entry.sbcPctRevenue * w;
-    wImplied += entry.impliedCagr * w;
+    if (entry.impliedCagr !== null) {
+      growthW += w;
+      wImplied += entry.impliedCagr * w;
+    }
     wDilution += entry.netDilutionCagr * w;
   }
 
   if (coveredW < 0.5) return {};
   return {
-    weightedTrueFcfMargin: Number((wMargin / coveredW).toFixed(1)),
+    weightedTrueFcfMargin: cashW >= 0.5 ? Number((wMargin / cashW).toFixed(1)) : undefined,
     weightedSbcPct: Number((wSbc / coveredW).toFixed(1)),
-    weightedImpliedCagr: Number((wImplied / coveredW).toFixed(1)),
+    weightedImpliedCagr: growthW >= 0.5 ? Number((wImplied / growthW).toFixed(1)) : undefined,
     weightedDilutionCagr: Number((wDilution / coveredW).toFixed(2)),
   };
 }

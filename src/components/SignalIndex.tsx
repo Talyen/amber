@@ -43,7 +43,8 @@ import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
 import { ExploreSignalStrip } from "@/components/ExploreSignalStrip";
 import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { MethodologyModal } from "@/components/MethodologyModal";
-import { formatCurrencyCompact, formatPct } from "@/lib/finance";
+import {
+  matchesReitPriceToFfo, formatCurrencyCompact, formatPct } from "@/lib/finance";
 import {
   computeRuleOf40Score,
   DISCOVERY_LENSES,
@@ -504,6 +505,7 @@ export function SignalIndex({
     () =>
       entries.filter(
         (c) =>
+          !c.scenarioBasis.equityLensOnly &&
           c.revenue >= 250 &&
           c.trueFcfMargin <= 75 &&
           c.trueFcfMargin >= -120 &&
@@ -533,8 +535,8 @@ export function SignalIndex({
   const steepestImplied = useMemo(
     () =>
       [...leaderboardEligible]
-        .filter((c) => c.impliedCagr > 0 && c.impliedCagr < 60)
-        .sort((a, b) => b.impliedCagr - a.impliedCagr)
+        .filter((c) => c.impliedCagr !== null && c.impliedCagr > 0 && c.impliedCagr < 60)
+        .sort((a, b) => (b.impliedCagr ?? -Infinity) - (a.impliedCagr ?? -Infinity))
         .slice(0, 5),
     [leaderboardEligible]
   );
@@ -556,9 +558,9 @@ export function SignalIndex({
       if (watchlistOnly && !watchlist.has(c.ticker)) return false;
       if (activeLens && !activeLens.filter(c, lensCtx)) return false;
       if (selectedSector !== "All" && c.sector !== selectedSector) return false;
-      if (minFcfVal !== null && Number.isFinite(minFcfVal) && c.trueFcfMargin < minFcfVal) return false;
+      if (minFcfVal !== null && Number.isFinite(minFcfVal) && (c.scenarioBasis.equityLensOnly || c.trueFcfMargin < minFcfVal)) return false;
       if (maxSbcVal !== null && Number.isFinite(maxSbcVal) && c.sbcPctRevenue > maxSbcVal) return false;
-      if (maxImpVal !== null && Number.isFinite(maxImpVal) && c.impliedCagr > maxImpVal) return false;
+      if (maxImpVal !== null && Number.isFinite(maxImpVal) && (c.impliedCagr === null || c.impliedCagr > maxImpVal)) return false;
       if (maxDilVal !== null && Number.isFinite(maxDilVal) && c.netDilutionCagr > maxDilVal) return false;
       if (minCapVal !== null && Number.isFinite(minCapVal) && c.marketCap < minCapVal) return false;
       if (
@@ -585,7 +587,7 @@ export function SignalIndex({
       if (
         maxPffoVal !== null &&
         Number.isFinite(maxPffoVal) &&
-        (typeof c.priceToFfo !== "number" || c.priceToFfo > maxPffoVal)
+        !matchesReitPriceToFfo(c, maxPffoVal)
       ) {
         return false;
       }
@@ -619,8 +621,13 @@ export function SignalIndex({
         const da = materialEventSummaries[a.ticker]?.filingDate ?? "";
         const db = materialEventSummaries[b.ticker]?.filingDate ?? "";
         diff = da.localeCompare(db) || a.marketCap - b.marketCap;
-      } else if (sortKey === "fairValueUpsidePct") {
-        diff = (a.fairValueUpsidePct ?? -999) - (b.fairValueUpsidePct ?? -999);
+      } else if (sortKey === "fairValueUpsidePct" || sortKey === "impliedCagr" || sortKey === "trueFcfMargin") {
+        const metric = (row: SearchIndexEntry) => sortKey === "trueFcfMargin" && row.scenarioBasis.equityLensOnly
+          ? null : row[sortKey];
+        const first = metric(a);
+        const second = metric(b);
+        if (first == null || second == null) return Number(first == null) - Number(second == null);
+        diff = first - second;
       } else if (sortKey === "revenueCagr") {
         diff = (a.revenueCagr ?? -999) - (b.revenueCagr ?? -999);
       } else if (sortKey === "ruleOf40") {
@@ -770,7 +777,7 @@ export function SignalIndex({
               {buyInfo?.latestDate ?? "—"}
             </td>
             <td data-label="True FCF %" className="font-mono-num">
-              {formatPct(c.trueFcfMargin)}
+              {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}
             </td>
             <td data-label="Priced-In Growth" className="font-mono-num font-medium">
               {formatPct(c.impliedCagr)}
@@ -829,7 +836,7 @@ export function SignalIndex({
                 : "—"}
             </td>
             <td data-label="True FCF %" className="font-mono-num">
-              {formatPct(c.trueFcfMargin)}
+              {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}
             </td>
             <td data-label="Priced-In Growth" className="font-mono-num font-medium">
               {formatPct(c.impliedCagr)}
@@ -852,7 +859,7 @@ export function SignalIndex({
                 : "—"}
             </td>
             <td data-label="True FCF %" className="font-mono-num">
-              {formatPct(c.trueFcfMargin)}
+              {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}
             </td>
             <td
               data-label="Stock Comp %"
@@ -880,7 +887,7 @@ export function SignalIndex({
               {formatCurrencyCompact(c.trueFcf)}
             </td>
             <td data-label="True FCF %" className="font-mono-num">
-              {formatPct(c.trueFcfMargin)}
+              {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}
             </td>
             <td
               data-label="Stock Comp %"
@@ -1453,7 +1460,7 @@ export function SignalIndex({
                         </span>
                       </span>
                       <span className="font-mono-num shrink-0 font-semibold text-[var(--positive)]">
-                        {formatPct(c.trueFcfMargin)}
+                        {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}
                       </span>
                     </Link>
                   </li>

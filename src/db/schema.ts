@@ -3,6 +3,7 @@ import {
   pgTable,
   text,
   boolean,
+  date,
   doublePrecision,
   integer,
   jsonb,
@@ -43,6 +44,7 @@ export const companies = pgTable("companies", {
   sector: text("sector").notNull(),
   tagline: text("tagline").notNull(),
   price: doublePrecision("price").notNull(),
+  priceAsOf: date("price_as_of"),
   marketCap: doublePrecision("market_cap").notNull(), // $M
   cashAndEquiv: doublePrecision("cash_and_equiv").notNull(), // $M
   totalDebt: doublePrecision("total_debt").notNull(), // $M
@@ -80,7 +82,7 @@ export const annualFinancials = pgTable(
     operatingIncome: doublePrecision("operating_income"), // $M (optional)
     netIncome: doublePrecision("net_income"), // $M (optional)
     stockholdersEquity: doublePrecision("stockholders_equity"), // $M (optional, for ROIC)
-    depreciationAmortization: doublePrecision("depreciation_amortization"), // $M (optional, for REIT FFO & EBITDA)
+    depreciationAmortization: doublePrecision("depreciation_amortization"), // $M (optional, for EBITDA)
     goodwillIntangibles: doublePrecision("goodwill_intangibles"), // $M (optional, for Bank TBV / ROTCE)
     dividendsPaid: doublePrecision("dividends_paid"), // $M (optional, cash dividends paid)
     periodEndDate: text("period_end_date"), // e.g. "2025-09-27"
@@ -335,6 +337,7 @@ export const userValuationPresets = pgTable(
     exitMultiple: doublePrecision("exit_multiple").notNull(),
     thesisNote: text("thesis_note"),
     isPublic: boolean("is_public").notNull().default(false),
+    lastValuationAlertAt: timestamp("last_valuation_alert_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -353,6 +356,8 @@ export const userAlertPreferences = pgTable("user_alert_preferences", {
   includeFilingDiffs: boolean("include_filing_diffs").notNull().default(true),
   includeForm4Buys: boolean("include_form4_buys").notNull().default(true),
   includeForm8k: boolean("include_form8k").notNull().default(true),
+  includeValuationTriggers: boolean("include_valuation_triggers").notNull().default(true),
+  valuationIrrThreshold: doublePrecision("valuation_irr_threshold").notNull().default(15),
   lastDigestSentAt: timestamp("last_digest_sent_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()

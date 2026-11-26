@@ -90,6 +90,7 @@ async function run() {
     ? await db.select({
         ticker: companies.ticker,
         price: companies.price,
+        priceAsOf: companies.priceAsOf,
         marketCap: companies.marketCap,
       }).from(companies).where(inArray(companies.ticker, missingQuotes))
     : [];
@@ -120,6 +121,7 @@ async function run() {
       sector: c.sector,
       tagline: c.tagline,
       price: c.price,
+      priceAsOf: c.priceAsOf ?? null,
       marketCap: c.marketCap,
       cashAndEquiv: c.cashAndEquiv,
       totalDebt: c.totalDebt,

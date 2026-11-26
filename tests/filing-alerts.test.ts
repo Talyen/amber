@@ -84,6 +84,7 @@ test("failed dispatch retries the same delivery key and records only accepted em
   t.after(() => { neonConfig.fetchFunction = originalNeonFetch; });
   neonConfig.fetchFunction = async (_url: string, options: RequestInit) => {
     const { query } = JSON.parse(String(options.body)) as { query: string };
+    if (query.includes('from "user_alert_preferences"')) return queryResult([]);
     if (query.startsWith("select")) {
       assert.match(query, /confirmation_expires_at" is null/);
       return queryResult(
@@ -123,4 +124,59 @@ test("failed dispatch retries the same delivery key and records only accepted em
   assert.deepEqual(new Set(keys), new Set([`filing-alert/${token}/123`]));
   assert.equal(new Set(bodies).size, 1);
   assert.match(JSON.parse(bodies[0]).html, /action=unsubscribe/);
+});
+
+test("scheduled email dispatch fails when required configuration is missing", async () => {
+  await assert.rejects(
+    dispatchFilingAlerts({ databaseUrl: "postgresql://fixture:fixture@fixture.example/database", resendKey: "", requireConfig: true }),
+    /requires RESEND_API_KEY/
+  );
+});
+
+test("a failed digest recipient does not block later recipients or turn the job green", async (t) => {
+  const day = new Date().toISOString().slice(0, 10);
+  const originalNeonFetch = neonConfig.fetchFunction;
+  t.after(() => { neonConfig.fetchFunction = originalNeonFetch; });
+  const receipts: unknown[] = [];
+  let receiptAttempts = 0;
+  function result(fields: string[], rows: unknown[][]) {
+    return Response.json({ fields: fields.map((name) => ({ name, dataTypeID: 25 })), rows });
+  }
+  neonConfig.fetchFunction = async (_url: string, options: RequestInit) => {
+    const { query, params } = JSON.parse(String(options.body));
+    if (/from "(alert_subscriptions|user_valuation_presets|insider_trades)"/.test(query)) return result([], []);
+    if (query.includes('from "user_alert_preferences"')) {
+      return result([
+        "user_id", "email", "email_verified", "include_filing_diffs", "include_form4_buys",
+        "include_form8k", "include_valuation_triggers", "valuation_irr_threshold", "last_digest_sent_at",
+      ], [
+        ["first", "first@example.test", true, true, false, false, false, 15, null],
+        ["second", "second@example.test", true, true, false, false, false, 15, null],
+      ]);
+    }
+    if (query.includes('from "user_watchlists"')) return result(["ticker"], [["NVDA"]]);
+    if (query.includes('from "filing_diffs"')) {
+      return result(["ticker", "filing_type", "filing_date", "headline", "summary", "materiality"],
+        [["NVDA", "10-Q", day, "Filing", "Filing summary", "High"]]);
+    }
+    assert.match(query, /update "user_alert_preferences" set "last_digest_sent_at"/);
+    if (++receiptAttempts === 1) throw new Error("Receipt write unavailable");
+    receipts.push(params.at(-1));
+    return result([], []);
+  };
+
+  const recipients: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, options: RequestInit) => {
+    assert.equal(url, "https://api.resend.com/emails");
+    const [recipient] = JSON.parse(String(options.body)).to as string[];
+    recipients.push(recipient);
+    return new Response(null, { status: recipient === "first@example.test" ? 503 : 200 });
+  });
+  await assert.rejects(
+    dispatchFilingAlerts({ databaseUrl: "postgresql://fixture:fixture@fixture.example/database", resendKey: "fixture", wait: async () => {} }),
+    /1 watchlist digest failures need attention/
+  );
+  assert.deepEqual(recipients, ["first@example.test", "first@example.test", "first@example.test", "second@example.test"]);
+  assert.deepEqual(receipts, ["second"]);
+  assert.equal(receiptAttempts, 2);
 });

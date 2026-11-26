@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   X,
@@ -14,18 +14,26 @@ import {
   Download,
   DollarSign,
   FileDiff,
+  Link2,
   Percent,
   Trophy,
   UserCheck,
 } from "lucide-react";
+import { isFreshPriceDate } from "@/lib/market-price";
 import type { SearchIndexEntry } from "@/data/search-index";
 import { authClient } from "@/lib/auth-client";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { LockPortfolioModal } from "@/components/LockPortfolioModal";
 import { formatPct } from "@/lib/finance";
-import { exportPortfolioXRayCard } from "@/lib/export-card";
-import { parsePortfolioHoldings, serializePortfolioHoldings } from "@/lib/portfolio-link";
+import { exportPortfolioCard } from "@/lib/export-card";
+import {
+  parsePortfolioDraft,
+  parsePortfolioHoldings,
+  portfolioDraftKey,
+  portfolioWeightsUrl,
+  type PortfolioDraft,
+} from "@/lib/portfolio-link";
 import {
   computePortfolioThesisSummary,
   readAllLocalValuationPresets,
@@ -34,12 +42,19 @@ import {
 
 const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "META"];
 
-interface PortfolioXRayProps {
+interface PortfolioAnalyzerProps {
   entries: SearchIndexEntry[];
 }
 
-export function PortfolioXRay({ entries }: PortfolioXRayProps) {
+export function PortfolioAnalyzer({ entries }: PortfolioAnalyzerProps) {
   const { data: session } = authClient.useSession();
+  const sessionUserId = session?.user?.id ?? null;
+  return (
+    <PortfolioSession key={sessionUserId ? `account:${sessionUserId}` : "guest"} entries={entries} sessionUserId={sessionUserId} />
+  );
+}
+
+function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & { sessionUserId: string | null }) {
   const watchlist = useWatchlist();
   const byTicker = useMemo(
     () => new Map(entries.map((e) => [e.ticker, e])),
@@ -62,12 +77,18 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       nav: number;
     } | null;
   } | null>(null);
-  const sessionUserId = session?.user?.id ?? null;
   const myArena =
     sessionUserId && myArenaState?.userId === sessionUserId
       ? myArenaState.portfolio
       : null;
-  const [initialLocation, setInitialLocation] = useState<{ addTicker?: string; hasSharedLink?: boolean } | null>(null);
+  const [initialLocation, setInitialLocation] = useState<{
+    addTicker?: string;
+    hasSharedLink: boolean;
+    draftKey: string;
+  } | null>(null);
+  const editedVersion = useRef(0);
+  const savedVersionRef = useRef(-1);
+  const [linkStatus, setLinkStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [savedPresets, setSavedPresets] = useState<Record<string, SavedValuationPreset>>({});
   const [portfolioSaveStatus, setPortfolioSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [holdingSignals, setHoldingSignals] = useState<{
@@ -144,19 +165,39 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     };
   }, [sessionUserId]);
 
-  // Hydrate shareable ?h=AAPL:25,MSFT:25 or ?add=NVDA URL on mount
+  const applyPortfolio = useCallback((portfolio: PortfolioDraft) => {
+    setSharedTickers(portfolio.holdings.map((item) => item.ticker));
+    setInputMode(portfolio.inputMode);
+    const values = Object.fromEntries(portfolio.holdings.map((item) => [item.ticker, item.value]));
+    if (portfolio.inputMode === "dollars") setDollars(values);
+    else setWeights(values);
+  }, []);
+
   useEffect(() => {
-    if (initialLocation) return;
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
       const params = new URLSearchParams(window.location.search);
       const raw = params.get("h");
-      if (raw !== null) {
-        const parsed = parsePortfolioHoldings(raw, byTicker);
-        if (parsed.size > 0 || raw === "") {
-          setSharedTickers([...parsed.keys()]);
-          setWeights(Object.fromEntries(parsed));
+      const draftKey = portfolioDraftKey(sessionUserId, params);
+      let draft: PortfolioDraft | null = null;
+      try {
+        draft = parsePortfolioDraft(window.sessionStorage.getItem(draftKey), byTicker);
+      } catch {
+        // The portfolio still works when browser storage is unavailable.
+      }
+      if (editedVersion.current === 0) {
+        if (draft) {
+          editedVersion.current++;
+          applyPortfolio(draft);
+        } else if (raw !== null) {
+          const parsed = parsePortfolioHoldings(raw, byTicker);
+          if (parsed.size > 0 || raw === "") {
+            applyPortfolio({
+              inputMode: "weight",
+              holdings: [...parsed].map(([ticker, value]) => ({ ticker, value })),
+            });
+          }
         }
       }
 
@@ -164,44 +205,30 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
       setInitialLocation({
         addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined,
         hasSharedLink: raw !== null,
+        draftKey,
       });
     });
-    return () => {
-      active = false;
-    };
-  }, [byTicker, initialLocation]);
+    return () => { active = false; };
+  }, [applyPortfolio, byTicker, sessionUserId]);
 
-  // Hydrate account-synced working portfolio when signed in (unless viewing a shared ?h= link)
   useEffect(() => {
-    if (!sessionUserId || !initialLocation || initialLocation.hasSharedLink) return;
+    if (!sessionUserId || !initialLocation || initialLocation.hasSharedLink || editedVersion.current > 0 || savedVersionRef.current >= 0) return;
     const controller = new AbortController();
     fetch("/api/portfolio", { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
-      .then(
-        (
-          data: {
-            portfolio?: {
-              inputMode: "weight" | "dollars";
-              holdings: Array<{ ticker: string; value: number }>;
-            } | null;
-          } | null
-        ) => {
-          if (controller.signal.aborted || !data?.portfolio?.holdings?.length) return;
-          const valid = data.portfolio.holdings.filter((item) => byTicker.has(item.ticker));
-          if (valid.length === 0) return;
-          setSharedTickers(valid.map((item) => item.ticker));
-          if (data.portfolio.inputMode === "dollars") {
-            setInputMode("dollars");
-            setDollars(Object.fromEntries(valid.map((item) => [item.ticker, item.value])));
-          } else {
-            setInputMode("weight");
-            setWeights(Object.fromEntries(valid.map((item) => [item.ticker, item.value])));
-          }
+      .then((data: { portfolio?: PortfolioDraft | null } | null) => {
+        if (controller.signal.aborted || editedVersion.current > 0 || !data?.portfolio) return;
+        const valid = data.portfolio.holdings.filter((item) => byTicker.has(item.ticker));
+        if (valid.length === 0 && data.portfolio.holdings.length > 0) return;
+        const { addTicker } = initialLocation;
+        if (addTicker && !valid.some(({ ticker }) => ticker === addTicker)) {
+          valid.push({ ticker: addTicker, value: data.portfolio.inputMode === "dollars" ? 10_000 : 10 });
         }
-      )
+        applyPortfolio({ ...data.portfolio, holdings: valid });
+      })
       .catch(() => {});
     return () => controller.abort();
-  }, [sessionUserId, initialLocation, byTicker]);
+  }, [applyPortfolio, sessionUserId, initialLocation, byTicker]);
 
   const addTicker = initialLocation?.addTicker;
   const activeTickers = useMemo(() => {
@@ -239,26 +266,56 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     return () => controller.abort();
   }, [holdingsKey]);
 
+  const draft = useMemo<PortfolioDraft>(() => ({
+    inputMode,
+    holdings: holdings.map(({ ticker }) => ({
+      ticker,
+      value: Math.max(0, inputMode === "dollars" ? dollars[ticker] ?? 10_000 : weights[ticker] ?? 10),
+    })),
+  }), [holdings, inputMode, dollars, weights]);
+
+  useEffect(() => {
+    if (!initialLocation || editedVersion.current === 0 || editedVersion.current === savedVersionRef.current) return;
+    try {
+      window.sessionStorage.setItem(initialLocation.draftKey, JSON.stringify(draft));
+    } catch {
+      // Keep the in-memory draft available when storage is full or disabled.
+    }
+  }, [draft, initialLocation]);
+
+  function markPortfolioEdited() {
+    editedVersion.current++;
+    setLinkStatus("idle");
+  }
+
   async function handleSavePortfolio() {
-    if (!sessionUserId || holdings.length === 0 || portfolioSaveStatus === "saving") return;
+    if (!sessionUserId || !initialLocation || portfolioSaveStatus === "saving") return;
+    const savedVersion = editedVersion.current;
     setPortfolioSaveStatus("saving");
     try {
-      const payload = {
-        inputMode,
-        holdings: holdings.map((h) => ({
-          ticker: h.ticker,
-          value:
-            inputMode === "dollars"
-              ? Math.max(0, dollars[h.ticker] ?? 10_000)
-              : Math.max(0, weights[h.ticker] ?? 10),
-        })),
-      };
       const res = await fetch("/api/portfolio", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(draft),
       });
       if (!res.ok) throw new Error("Save failed");
+      if (!initialLocation.hasSharedLink && savedVersion === editedVersion.current) {
+        savedVersionRef.current = savedVersion;
+        try {
+          window.sessionStorage.removeItem(initialLocation.draftKey);
+          if (initialLocation.addTicker) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("add");
+            window.history.replaceState(null, "", url);
+            setInitialLocation({
+              hasSharedLink: false,
+              draftKey: portfolioDraftKey(sessionUserId, url.searchParams),
+            });
+          }
+        } catch {
+          // The account save succeeded even if browser storage is unavailable.
+        }
+      }
       setPortfolioSaveStatus("saved");
       window.setTimeout(() => setPortfolioSaveStatus("idle"), 2000);
     } catch {
@@ -287,26 +344,25 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   }, [holdings, weights, dollars, inputMode]);
   const hasAllocation = [...normalizedWeights.values()].some((weight) => weight > 0);
 
-  // Keep the address shareable once the incoming link has been applied.
-  useEffect(() => {
-    if (!initialLocation) return;
-    if (usingStarter && Object.keys(weights).length === 0 && inputMode === "weight") {
-      return;
+  async function copyWeightsLink() {
+    try {
+      const url = portfolioWeightsUrl(window.location.href, normalizedWeights);
+      await navigator.clipboard.writeText(url.href);
+      setLinkStatus("copied");
+    } catch {
+      setLinkStatus("failed");
     }
-    const url = new URL(window.location.href);
-    url.searchParams.set("h", serializePortfolioHoldings(normalizedWeights));
-    url.searchParams.delete("add");
-    if (url.href !== window.location.href) {
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-    }
-  }, [initialLocation, normalizedWeights, usingStarter, weights, inputMode]);
+  }
 
   const metrics = useMemo(() => {
     let wImplied = 0;
     let wTrueMargin = 0;
+    let growthWeight = 0;
+    let cashWeight = 0;
+    let growthCount = 0;
+    let staleQuoteCount = 0;
     let wSbcPct = 0;
     let wDilution = 0;
-    let allocatedCount = 0;
     let highGrowthCount = 0;
     let highSbcCount = 0;
     const sectorWeights = new Map<string, number>();
@@ -314,11 +370,18 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     for (const h of holdings) {
       const w = normalizedWeights.get(h.ticker) ?? 0;
       if (w <= 0) continue;
-      allocatedCount++;
-      if (h.impliedCagr >= 16) highGrowthCount++;
+      if (!isFreshPriceDate(h.priceAsOf)) staleQuoteCount++;
+      if (h.impliedCagr !== null) {
+        growthWeight += w;
+        growthCount++;
+        wImplied += h.impliedCagr * w;
+        if (h.impliedCagr >= 16) highGrowthCount++;
+      }
+      if (!h.scenarioBasis.equityLensOnly) {
+        cashWeight += w;
+        wTrueMargin += h.trueFcfMargin * w;
+      }
       if (h.sbcPctRevenue >= 12) highSbcCount++;
-      wImplied += h.impliedCagr * w;
-      wTrueMargin += h.trueFcfMargin * w;
       wSbcPct += h.sbcPctRevenue * w;
       wDilution += h.netDilutionCagr * w;
       sectorWeights.set(h.sector, (sectorWeights.get(h.sector) ?? 0) + w * 100);
@@ -326,13 +389,15 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
 
     const sectors = [...sectorWeights.entries()].sort((a, b) => b[1] - a[1]);
 
-    const valuationStance =
-      wImplied <= 10.5
+    const impliedGrowth = growthWeight > 0 ? wImplied / growthWeight : null;
+    const cashMargin = cashWeight > 0 ? wTrueMargin / cashWeight : null;
+    const valuationStance = impliedGrowth === null ? null :
+      impliedGrowth <= 10.5
         ? {
             label: "Attractive Bar",
             tone: "text-[var(--positive)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
           }
-        : wImplied <= 16
+        : impliedGrowth <= 16
           ? {
               label: "Balanced Expectations",
               tone: "text-[var(--amber)] bg-[var(--amber-soft)] ring-[var(--amber-border)]",
@@ -343,21 +408,24 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             };
 
     const flags: Array<{ tone: "warn" | "ok"; text: string }> = [];
+    if (staleQuoteCount > 0) {
+      flags.push({ tone: "warn", text: `${staleQuoteCount} allocated holdings have stale or undated closing prices.` });
+    }
     if (sectors[0] && sectors[0][1] >= 45) {
       flags.push({
         tone: "warn",
         text: `${sectors[0][1].toFixed(0)}% of your portfolio is concentrated in ${sectors[0][0]}.`,
       });
     }
-    if (wImplied >= 15) {
+    if (impliedGrowth !== null && impliedGrowth >= 15) {
       flags.push({
         tone: "warn",
-        text: `High expectations bar: ${highGrowthCount} of ${allocatedCount} holdings price in ≥16%/yr revenue growth for a decade.`,
+        text: `High expectations bar: ${highGrowthCount} of ${growthCount} covered holdings price in ≥16%/yr revenue growth for a decade.`,
       });
-    } else {
+    } else if (impliedGrowth !== null) {
       flags.push({
         tone: "ok",
-        text: `Reasonable aggregate expectations: weighted implied growth sits at ${formatPct(wImplied)}/yr.`,
+        text: `Reasonable aggregate expectations: weighted implied growth sits at ${formatPct(impliedGrowth)}/yr.`,
       });
     }
     if (highSbcCount >= 2 || wSbcPct >= 10) {
@@ -368,13 +436,15 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     } else {
       flags.push({
         tone: "ok",
-        text: `Clean earnings quality: weighted True FCF margin is ${formatPct(wTrueMargin)} with modest SBC drag (${formatPct(wSbcPct)}).`,
+        text: `Weighted SBC burden is ${formatPct(wSbcPct)} of revenue.`,
       });
     }
 
     return {
-      wImplied,
-      wTrueMargin,
+      wImplied: impliedGrowth,
+      wTrueMargin: cashMargin,
+      growthWeight,
+      cashWeight,
       wSbcPct,
       wDilution,
       sectors,
@@ -402,6 +472,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   }, [addQuery, entries, activeTickers]);
 
   function addToPortfolio(ticker: string) {
+    markPortfolioEdited();
     // Keep portfolio draft decoupled from the user's global Watchlist
     setSharedTickers((prev) => {
       const base = prev ?? activeTickers;
@@ -411,6 +482,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   }
 
   function removeFromPortfolio(ticker: string) {
+    markPortfolioEdited();
     setSharedTickers((prev) => {
       const base = prev ?? activeTickers;
       return base.filter((t) => t !== ticker);
@@ -438,6 +510,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
     }
 
     if (parsedTickers.length > 0) {
+      markPortfolioEdited();
       setSharedTickers(parsedTickers);
       setWeights(parsedWeights);
       setInputMode("weight");
@@ -447,18 +520,20 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
   }
 
   function handleExportPng() {
-    exportPortfolioXRayCard({
+    exportPortfolioCard({
       holdings: holdings.map((h) => ({
         ticker: h.ticker,
         weightPct: (normalizedWeights.get(h.ticker) ?? 0) * 100,
         impliedCagr: h.impliedCagr,
-        trueFcfMargin: h.trueFcfMargin,
+        trueFcfMargin: h.scenarioBasis.equityLensOnly ? null : h.trueFcfMargin,
       })),
       wImplied: metrics.wImplied,
       wTrueMargin: metrics.wTrueMargin,
       wSbcPct: metrics.wSbcPct,
       wDilution: metrics.wDilution,
       topSector: metrics.sectors[0] ?? null,
+      growthWeight: metrics.growthWeight,
+      cashWeight: metrics.cashWeight,
     });
   }
 
@@ -494,7 +569,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               <span className="font-mono-num text-xs font-semibold text-[var(--amber)]">
                 PORTFOLIO ANALYZER
               </span>
-              {hasAllocation && <span
+              {metrics.valuationStance && <span
                 className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${metrics.valuationStance.tone}`}
               >
                 {metrics.valuationStance.label}
@@ -562,11 +637,26 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               Quick Paste
             </button>
 
+            <button
+              type="button"
+              onClick={copyWeightsLink}
+              disabled={!hasAllocation}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            >
+              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Copy weights link
+            </button>
+            {linkStatus !== "idle" && (
+              <span role="status" className="text-xs text-[var(--text-secondary)]">
+                {linkStatus === "copied" ? "Link copied" : "Could not copy link"}
+              </span>
+            )}
+
             {sessionUserId && (
               <button
                 type="button"
                 onClick={handleSavePortfolio}
-                disabled={!hasAllocation || portfolioSaveStatus === "saving"}
+                disabled={!initialLocation || portfolioSaveStatus === "saving"}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer disabled:opacity-50"
               >
                 {portfolioSaveStatus === "saved" ? (
@@ -633,7 +723,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               {hasAllocation ? formatPct(metrics.wImplied) : "—"}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-              Priced into your holdings
+              {formatPct(metrics.growthWeight * 100, false, 0)} of allocated weight covered
             </div>
           </div>
 
@@ -645,7 +735,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               {hasAllocation ? formatPct(metrics.wTrueMargin) : "—"}
             </div>
             <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-              Cash after CapEx &amp; SBC
+              {formatPct(metrics.cashWeight * 100, false, 0)} of allocated weight covered
             </div>
           </div>
 
@@ -782,7 +872,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
             <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-xs">
               <button
                 type="button"
-                onClick={() => setInputMode("weight")}
+                onClick={() => { markPortfolioEdited(); setInputMode("weight"); }}
                 className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer ${
                   inputMode === "weight"
                     ? "bg-[var(--amber-soft)] text-[var(--amber)]"
@@ -794,7 +884,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setInputMode("dollars")}
+                onClick={() => { markPortfolioEdited(); setInputMode("dollars"); }}
                 className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer ${
                   inputMode === "dollars"
                     ? "bg-[var(--amber-soft)] text-[var(--amber)]"
@@ -868,15 +958,16 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                               min={0}
                               step={1000}
                               value={dollars[h.ticker] ?? 10000}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                markPortfolioEdited();
                                 setDollars((prev) => ({
                                   ...prev,
                                   [h.ticker]: Math.max(
                                     0,
                                     Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0
                                   ),
-                                }))
-                              }
+                                }));
+                              }}
                               aria-label={`${h.ticker} dollar allocation`}
                               className="h-7 w-24 rounded border border-[var(--border)] bg-[var(--bg)] px-2 text-right text-xs text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
                             />
@@ -892,12 +983,13 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                               max={Math.max(100, weights[h.ticker] ?? 10)}
                               step="any"
                               value={weights[h.ticker] ?? 10}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                markPortfolioEdited();
                                 setWeights((prev) => ({
                                   ...prev,
                                   [h.ticker]: e.target.valueAsNumber,
-                                }))
-                              }
+                                }));
+                              }}
                               aria-label={`${h.ticker} relative weight`}
                               className="amber-range w-20"
                             />
@@ -906,7 +998,7 @@ export function PortfolioXRay({ entries }: PortfolioXRayProps) {
                         )}
                       </td>
                       <td data-label="True FCF Margin" className="font-mono-num">
-                        {formatPct(h.trueFcfMargin)}
+                        {formatPct(h.scenarioBasis.equityLensOnly ? null : h.trueFcfMargin)}
                       </td>
                       <td
                         data-label="SBC / Rev"

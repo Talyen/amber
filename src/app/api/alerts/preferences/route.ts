@@ -9,6 +9,8 @@ export interface AlertPreferencesPayload {
   includeFilingDiffs: boolean;
   includeForm4Buys: boolean;
   includeForm8k: boolean;
+  includeValuationTriggers: boolean;
+  valuationIrrThreshold: number;
 }
 
 const DEFAULT_PREFS: AlertPreferencesPayload = {
@@ -16,7 +18,15 @@ const DEFAULT_PREFS: AlertPreferencesPayload = {
   includeFilingDiffs: true,
   includeForm4Buys: true,
   includeForm8k: true,
+  includeValuationTriggers: true,
+  valuationIrrThreshold: 15,
 };
+
+function normalizeThreshold(raw: unknown): number {
+  const value = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(value)) return DEFAULT_PREFS.valuationIrrThreshold;
+  return Math.max(5, Math.min(40, Math.round(value)));
+}
 
 export async function GET(request: Request) {
   const db = getDb();
@@ -43,6 +53,8 @@ export async function GET(request: Request) {
             includeFilingDiffs: row.includeFilingDiffs,
             includeForm4Buys: row.includeForm4Buys,
             includeForm8k: row.includeForm8k,
+            includeValuationTriggers: row.includeValuationTriggers,
+            valuationIrrThreshold: normalizeThreshold(row.valuationIrrThreshold),
           }
         : DEFAULT_PREFS,
     });
@@ -75,6 +87,8 @@ export async function PUT(request: Request) {
     includeFilingDiffs: raw.includeFilingDiffs !== false,
     includeForm4Buys: raw.includeForm4Buys !== false,
     includeForm8k: raw.includeForm8k !== false,
+    includeValuationTriggers: raw.includeValuationTriggers !== false,
+    valuationIrrThreshold: normalizeThreshold(raw.valuationIrrThreshold),
   };
 
   const now = new Date();

@@ -49,9 +49,9 @@ describe("Valuation presets validation", () => {
 
   it("computes expected return and weighted portfolio thesis summary with partial coverage", () => {
     const holdings = [
-      { ticker: "AAA", price: 100, marketCap: 10_000, netCash: 500, revenue: 2_000, trueFcfMargin: 25 },
-      { ticker: "BBB", price: 50, marketCap: 5_000, netCash: 0, revenue: 1_000, trueFcfMargin: 20 },
-      { ticker: "CCC", price: 25, marketCap: 2_500, netCash: 0, revenue: 500, trueFcfMargin: 15 },
+      { ticker: "AAA", scenarioBasis: { price: 100, dilutedShares: 100, netCash: 500, revenue: 2_000, trueFcfMargin: 25, netMargin: null, operatingMargin: null, equityLensOnly: false } },
+      { ticker: "BBB", scenarioBasis: { price: 50, dilutedShares: 100, netCash: 0, revenue: 1_000, trueFcfMargin: 20, netMargin: null, operatingMargin: null, equityLensOnly: false } },
+      { ticker: "CCC", scenarioBasis: { price: 25, dilutedShares: 100, netCash: 0, revenue: 500, trueFcfMargin: 15, netMargin: null, operatingMargin: null, equityLensOnly: false } },
     ];
     const presetA = {
       ticker: "AAA",
@@ -76,7 +76,7 @@ describe("Valuation presets validation", () => {
     assert.equal(summary.coveredCount, 1);
     assert.equal(summary.totalAllocatedCount, 2);
     assert.equal(summary.coveredWeightPct, 50);
-    assert.equal(summary.weightedIrrPct, expectedA.irrPct);
+    assert.equal(summary.weightedIrrPct, Number(expectedA.irrPct.toFixed(1)));
     assert.equal(summary.byTicker.BBB, undefined);
   });
 

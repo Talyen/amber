@@ -15,6 +15,7 @@ import { getAuth } from "@/lib/auth";
 import { isArenaHandleConflict } from "@/lib/arena-handle";
 import { arenaMonth, arenaPeriodBounds } from "@/lib/arena-period";
 import { parseArenaWeights } from "@/lib/arena-weights";
+import { isFreshPriceDate } from "@/lib/market-price";
 import { normalizeAvatarId } from "@/lib/avatars";
 
 /**
@@ -86,9 +87,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const now = new Date();
   const tickers = [...weights.keys()];
   const dbCompanies = await db
-    .select({ ticker: companies.ticker, price: companies.price })
+    .select({ ticker: companies.ticker, price: companies.price, priceAsOf: companies.priceAsOf })
     .from(companies)
     .where(inArray(companies.ticker, tickers));
 
@@ -101,17 +103,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const missingPrices = dbCompanies.filter(({ price }) => !Number.isFinite(price) || price <= 0);
+  const missingPrices = dbCompanies.filter(({ price, priceAsOf }) =>
+    !Number.isFinite(price) || price <= 0 || !isFreshPriceDate(priceAsOf, now.getTime())
+  );
   if (missingPrices.length > 0) {
     return NextResponse.json(
-      { error: `No valid closing price for: ${missingPrices.map(({ ticker }) => ticker).join(", ")}.` },
+      { error: `No recent closing price for: ${missingPrices.map(({ ticker }) => ticker).join(", ")}.` },
       { status: 422 }
     );
   }
 
   const userId = session.user.id;
 
-  const now = new Date();
   const periodKey = arenaMonth(now);
   const nextPeriodAt = new Date(arenaPeriodBounds(periodKey)!.end * 1000).toISOString();
   const activeEntry = activeArenaEntryForUser(userId, periodKey);
@@ -139,16 +142,24 @@ export async function POST(request: Request) {
       const oldPriceRows =
         oldTickers.length > 0
           ? await db
-              .select({ ticker: companies.ticker, price: companies.price })
+              .select({ ticker: companies.ticker, price: companies.price, priceAsOf: companies.priceAsOf })
               .from(companies)
               .where(inArray(companies.ticker, oldTickers))
           : [];
-      const oldPriceMap = new Map(oldPriceRows.map((c) => [c.ticker, c.price]));
+      const oldPriceMap = new Map(oldPriceRows.map((c) => [c.ticker, c]));
+      const unpriced = oldTickers.filter((ticker) => {
+        const quote = oldPriceMap.get(ticker);
+        return !quote || !Number.isFinite(quote.price) || quote.price <= 0 ||
+          !isFreshPriceDate(quote.priceAsOf, now.getTime());
+      });
+      if (unpriced.length) {
+        return NextResponse.json({ error: `No recent closing price for: ${unpriced.join(", ")}.` }, { status: 422 });
+      }
 
       // Bank current period weighted return into Time-Weighted NAV
       let periodReturnDecimal = 0;
       for (const p of oldPositions) {
-        const currentPrice = oldPriceMap.get(p.ticker) ?? p.entryPrice;
+        const currentPrice = oldPriceMap.get(p.ticker)!.price;
         const ret = p.entryPrice > 0 ? (currentPrice - p.entryPrice) / p.entryPrice : 0;
         periodReturnDecimal += ret * (p.weightPct / 100);
       }

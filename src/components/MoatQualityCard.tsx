@@ -1,7 +1,10 @@
 import {
   type CompanySnapshot,
   type ComputedAnnual,
+  computeBalanceSheetHealth,
+  formatCurrencyCompact,
   formatPct,
+  isFinancialInstitution,
 } from "@/lib/finance";
 
 interface MoatQualityCardProps {
@@ -340,6 +343,70 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
           </svg>
         </div>
       )}
+
+      {!isFinancialInstitution(company) && (() => {
+        const latest = series[series.length - 1];
+        if (!latest) return null;
+        const health = computeBalanceSheetHealth(company, latest, latestRoic);
+        return (
+          <div className="mt-4 grid grid-cols-1 gap-2.5 border-t border-[var(--border)] pt-3.5 sm:grid-cols-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+              <div className="text-[11px] text-[var(--text-muted)]">Balance Sheet</div>
+              <div className="font-mono-num mt-0.5 text-sm font-semibold text-[var(--text-primary)]">
+                {health.isNetCash ? (
+                  <span className="text-[var(--positive)]">
+                    Net Cash {formatCurrencyCompact(Math.abs(health.netDebt))}
+                  </span>
+                ) : health.netDebtToEbitda !== null ? (
+                  <span
+                    className={
+                      health.netDebtToEbitda > 3.5
+                        ? "text-[var(--negative)]"
+                        : "text-[var(--text-primary)]"
+                    }
+                  >
+                    {health.netDebtToEbitda.toFixed(1)}× Net Debt/EBITDA
+                  </span>
+                ) : (
+                  <span>Net Debt {formatCurrencyCompact(health.netDebt)}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+              <div className="text-[11px] text-[var(--text-muted)]">
+                ROIC − WACC Spread ({company.defaultDcf.wacc}% WACC)
+              </div>
+              <div
+                className={`font-mono-num mt-0.5 text-sm font-semibold ${
+                  health.roicSpreadPct === null
+                    ? "text-[var(--text-muted)]"
+                    : health.roicSpreadPct >= 5
+                      ? "text-[var(--positive)]"
+                      : health.roicSpreadPct < 0
+                        ? "text-[var(--negative)]"
+                        : "text-[var(--amber)]"
+                }`}
+              >
+                {health.roicSpreadPct !== null
+                  ? formatPct(health.roicSpreadPct, true)
+                  : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+              <div className="text-[11px] text-[var(--text-muted)]">
+                Cash Conversion (True FCF / EBIT)
+              </div>
+              <div className="font-mono-num mt-0.5 text-sm font-semibold text-[var(--text-primary)]">
+                {health.cashConversionPct !== null
+                  ? formatPct(health.cashConversionPct)
+                  : "—"}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }

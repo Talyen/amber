@@ -5,7 +5,7 @@ import { Check, Download } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
-  computeAnnualMetrics,
+  computeQuarterlyMomentum,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -14,18 +14,28 @@ import { exportTrueFcfCard } from "@/lib/export-card";
 interface TrueFcfChartProps {
   company: CompanySnapshot;
   series: ComputedAnnual[];
+  cadence?: "annual" | "quarterly";
+  onCadenceChange?: (next: "annual" | "quarterly") => void;
 }
 
-export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
-  const quarterlySeries = useMemo(
-    () =>
-      company.quarterlyFinancials && company.quarterlyFinancials.length >= 4
-        ? computeAnnualMetrics(company.quarterlyFinancials)
-        : [],
+export function TrueFcfChart({
+  company,
+  series,
+  cadence: controlledCadence,
+  onCadenceChange,
+}: TrueFcfChartProps) {
+  const momentum = useMemo(
+    () => computeQuarterlyMomentum(company.quarterlyFinancials ?? []),
     [company.quarterlyFinancials]
   );
+  const quarterlySeries = momentum.quarters;
 
-  const [cadence, setCadence] = useState<"annual" | "quarterly">("annual");
+  const [internalCadence, setInternalCadence] = useState<"annual" | "quarterly">("annual");
+  const cadence = controlledCadence ?? internalCadence;
+  const setCadence = (next: "annual" | "quarterly") => {
+    setInternalCadence(next);
+    onCadenceChange?.(next);
+  };
   const [exported, setExported] = useState(false);
   const activeSeries =
     cadence === "quarterly" && quarterlySeries.length >= 4
@@ -154,6 +164,52 @@ export function TrueFcfChart({ company, series }: TrueFcfChartProps) {
       </div>
 
       {/* Zero-CLS live readout bar synced to hovered fiscal year */}
+      {cadence === "quarterly" && quarterlySeries.length >= 4 && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2 text-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+            Quarterly Momentum
+          </span>
+          {momentum.latestYoyRevGrowthPct !== null && (
+            <span className="text-[var(--text-secondary)]">
+              {momentum.latestQuarterLabel} YoY Rev:{" "}
+              <strong
+                className={`font-mono-num ${
+                  momentum.latestYoyRevGrowthPct >= 0
+                    ? "text-[var(--positive)]"
+                    : "text-[var(--negative)]"
+                }`}
+              >
+                {formatPct(momentum.latestYoyRevGrowthPct, true)}
+              </strong>
+            </span>
+          )}
+          {momentum.ttmTrueFcfMarginPct !== null && (
+            <span className="text-[var(--text-secondary)]">
+              4Q TTM True FCF Margin:{" "}
+              <strong className="font-mono-num text-[var(--amber)]">
+                {formatPct(momentum.ttmTrueFcfMarginPct)}
+              </strong>
+            </span>
+          )}
+          {momentum.qoqShareChangePct !== null && (
+            <span className="text-[var(--text-secondary)]">
+              QoQ Shares:{" "}
+              <strong
+                className={`font-mono-num ${
+                  momentum.qoqShareChangePct > 0.5
+                    ? "text-[var(--negative)]"
+                    : momentum.qoqShareChangePct < -0.2
+                      ? "text-[var(--positive)]"
+                      : "text-[var(--text-primary)]"
+                }`}
+              >
+                {formatPct(momentum.qoqShareChangePct, true, 2)}
+              </strong>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 sm:grid-cols-5">
         <div>
           <div className="text-[11px] font-medium text-[var(--text-muted)]">

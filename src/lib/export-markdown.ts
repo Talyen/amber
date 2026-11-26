@@ -12,7 +12,7 @@ import { SITE_URL } from "@/lib/site";
 export function buildTickerMarkdown(
   company: CompanySnapshot,
   series: ComputedAnnual[],
-  impliedCagr: number,
+  impliedCagr: number | null,
   siteOrigin = SITE_URL
 ): string {
   const latest = series[series.length - 1];
@@ -30,7 +30,7 @@ export function buildTickerMarkdown(
     `- **True Free Cash Flow (${latest.fiscalYear}):** **${formatCurrencyCompact(latest.trueFcf)}** (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
     `- **Stock-Based Comp (SBC):** ${formatCurrencyCompact(latest.sbc)} (${sbcRatios.join(" | ")})`,
     `- **Net Share Dilution (4Y CAGR):** ${formatPct(dilution, true)} (${latest.dilutedShares.toLocaleString()}M diluted shares)`,
-    `- **Market-Implied 10Y Revenue CAGR:** ${formatPct(impliedCagr)}/yr`,
+    `- **Market-Implied 10Y Revenue CAGR:** ${impliedCagr === null ? "Unavailable" : `${formatPct(impliedCagr)}/yr`}`,
     "",
     "| Period | Revenue | Reported FCF | SBC | True FCF | True Margin | Shares (M) |",
     "| :--- | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -48,7 +48,7 @@ export function buildTickerMarkdown(
 export function buildTickerPlainText(
   company: CompanySnapshot,
   series: ComputedAnnual[],
-  impliedCagr: number,
+  impliedCagr: number | null,
   siteOrigin = SITE_URL
 ): string {
   const latest = series[series.length - 1];
@@ -62,7 +62,7 @@ export function buildTickerPlainText(
     `True FCF: ${formatCurrencyCompact(latest.trueFcf)} (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
     `Stock-Based Comp: ${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctRevenue)} of rev)`,
     `Share Count (4Y CAGR): ${formatPct(dilution, true)}/yr (${latest.dilutedShares.toLocaleString()}M shares)`,
-    `Implied 10Y Revenue Growth: ${formatPct(impliedCagr)}/yr`,
+    `Implied 10Y Revenue Growth: ${impliedCagr === null ? "Unavailable" : `${formatPct(impliedCagr)}/yr`}`,
     "",
     `Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) — ${siteOrigin}/t/${company.ticker}`,
   ].join("\n");
@@ -71,7 +71,7 @@ export function buildTickerPlainText(
 export function buildTickerAiContext(
   company: CompanySnapshot,
   series: ComputedAnnual[],
-  impliedCagr: number,
+  impliedCagr: number | null,
   siteOrigin = SITE_URL
 ): string {
   const latest = series[series.length - 1];
@@ -86,7 +86,7 @@ export function buildTickerAiContext(
     `- Share Price: $${company.price.toFixed(2)}`,
     `- Market Cap: ${formatCurrencyCompact(company.marketCap)} | Enterprise Value: ${formatCurrencyCompact(ev)}`,
     `- Cash & Equivalents: ${formatCurrencyCompact(company.cashAndEquiv)} | Total Debt: ${formatCurrencyCompact(company.totalDebt)}`,
-    `- Implied 10Y Revenue CAGR (Reverse DCF): ${formatPct(impliedCagr)}/yr`,
+    `- Implied 10Y Revenue CAGR (Reverse DCF): ${impliedCagr === null ? "Unavailable" : `${formatPct(impliedCagr)}/yr`}`,
     `- 4Y Net Share Dilution CAGR: ${formatPct(dilution, true)}/yr (${latest.dilutedShares.toLocaleString()}M diluted shares)`,
     "",
     `Financial History ($M):`,
@@ -130,10 +130,10 @@ export function buildComparisonMarkdown(
     "| :--- | " + items.map(() => "---:").join(" | ") + " |",
     "| Market Cap | " + items.map((i) => formatCurrencyCompact(i.marketCap)).join(" | ") + " |",
     "| Revenue | " + items.map((i) => formatCurrencyCompact(i.revenue)).join(" | ") + " |",
-    "| Reported FCF | " + items.map((i) => formatCurrencyCompact(i.reportedFcf)).join(" | ") + " |",
+    "| Reported FCF | " + items.map((i) => i.scenarioBasis.equityLensOnly ? "—" : formatCurrencyCompact(i.reportedFcf)).join(" | ") + " |",
     "| Stock-Based Comp | " + items.map((i) => formatCurrencyCompact(i.sbc)).join(" | ") + " |",
     "| **True FCF (FCF − SBC)** | " + items.map((i) => `**${formatCurrencyCompact(i.trueFcf)}**`).join(" | ") + " |",
-    "| True FCF Margin | " + items.map((i) => formatPct(i.trueFcfMargin)).join(" | ") + " |",
+    "| True FCF Margin | " + items.map((i) => formatPct(i.scenarioBasis.equityLensOnly ? null : i.trueFcfMargin)).join(" | ") + " |",
     "| SBC % of Revenue | " + items.map((i) => formatPct(i.sbcPctRevenue)).join(" | ") + " |",
     "| Net Dilution (4Y) | " + items.map((i) => formatPct(i.netDilutionCagr, true)).join(" | ") + " |",
     "| **Implied 10Y Rev CAGR** | " + items.map((i) => `**${formatPct(i.impliedCagr)}**`).join(" | ") + " |",

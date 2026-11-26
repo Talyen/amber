@@ -104,6 +104,8 @@ export function SettingsWorkspace({
     includeFilingDiffs: true,
     includeForm4Buys: true,
     includeForm8k: true,
+    includeValuationTriggers: true,
+    valuationIrrThreshold: 15,
   });
   const [savingDigest, setSavingDigest] = useState(false);
   const [digestStatus, setDigestStatus] = useState("");
@@ -630,6 +632,45 @@ export function SettingsWorkspace({
                       />
                       Form 4 Insider Buys
                     </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={digestPrefs.includeValuationTriggers}
+                        disabled={savingDigest}
+                        onChange={(e) =>
+                          handleUpdateDigest({
+                            ...digestPrefs,
+                            includeValuationTriggers: e.target.checked,
+                          })
+                        }
+                        className="accent-[var(--amber)]"
+                      />
+                      Saved Thesis IRR Targets
+                    </label>
+                    {digestPrefs.includeValuationTriggers && (
+                      <div className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] p-0.5 text-[11px]">
+                        {[12, 15, 20].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            disabled={savingDigest}
+                            onClick={() =>
+                              handleUpdateDigest({
+                                ...digestPrefs,
+                                valuationIrrThreshold: pct,
+                              })
+                            }
+                            className={`font-mono-num rounded px-1.5 py-0.5 transition-colors cursor-pointer ${
+                              digestPrefs.valuationIrrThreshold === pct
+                                ? "bg-[var(--amber-soft)] font-semibold text-[var(--amber)]"
+                                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                            }`}
+                          >
+                            ≥{pct}%
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

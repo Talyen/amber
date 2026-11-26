@@ -18,7 +18,8 @@ import {
   type SavedScenarioLens,
 } from "@/lib/valuation-presets";
 
-export const revalidate = 3600;
+// Published notes must reflect current visibility on every request.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -40,10 +41,8 @@ export default async function InvestorProfilePage({
   const { handle } = await params;
   const entries = await getArenaPortfoliosByHandle(handle);
 
-  if (entries.length === 0) notFound();
-  const benchmarks = await getArenaEntryBenchmarks(entries);
-
-  // Fetch any published Saved Theses for this investor handle
+  // Fetch user profile + any published Saved Theses for this investor handle
+  let profileOwner: { id: string; handle: string; avatarIcon: string } | null = null;
   let publishedTheses: Array<{
     ticker: string;
     name: string;
@@ -59,11 +58,20 @@ export default async function InvestorProfilePage({
   if (db) {
     try {
       const [owner] = await db
-        .select({ id: user.id })
+        .select({
+          id: user.id,
+          handle: user.handle,
+          avatarIcon: user.avatarIcon,
+        })
         .from(user)
         .where(sql`lower(${user.handle}) = lower(${handle})`)
         .limit(1);
-      if (owner) {
+      if (owner && owner.handle) {
+        profileOwner = {
+          id: owner.id,
+          handle: owner.handle,
+          avatarIcon: owner.avatarIcon,
+        };
         const rows = await db
           .select()
           .from(userValuationPresets)
@@ -115,6 +123,9 @@ export default async function InvestorProfilePage({
     }
   }
 
+  if (entries.length === 0 && publishedTheses.length === 0) notFound();
+  const benchmarks = entries.length > 0 ? await getArenaEntryBenchmarks(entries) : {};
+
   const liveEntries = entries
     .filter((e) => !e.isFinalized)
     .sort((a, b) => a.lockedAt.localeCompare(b.lockedAt));
@@ -122,8 +133,10 @@ export default async function InvestorProfilePage({
     .filter((e) => e.isFinalized)
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey));
 
-  const primary = liveEntries[0] ?? entries[0];
-  const spyForPrimary = benchmarks[primary.id];
+  const primary = liveEntries[0] ?? entries[0] ?? null;
+  const displayHandle = primary?.handle ?? profileOwner?.handle ?? handle;
+  const displayAvatar = primary?.avatarIcon ?? profileOwner?.avatarIcon ?? "compass";
+  const spyForPrimary = primary ? benchmarks[primary.id] : undefined;
   const beatCount = entries.filter(
     (e) =>
       typeof benchmarks[e.id] === "number" &&
@@ -136,23 +149,23 @@ export default async function InvestorProfilePage({
 
       <main className="mx-auto max-w-5xl px-4 pb-16 pt-8 sm:px-6">
         <Link
-          href="/arena"
+          href={primary ? "/arena" : "/"}
           className="inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--amber)]"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Arena
+          {primary ? "Back to Arena" : "Back to Explore"}
         </Link>
 
         {/* Profile Header */}
         <section className="mt-4 flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-center">
           <div className="flex items-center gap-4">
-            <ProfileAvatar icon={primary.avatarIcon} size="lg" />
+            <ProfileAvatar icon={displayAvatar} size="lg" />
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-mono-num text-2xl font-semibold tracking-[-0.025em] text-[var(--text-primary)]">
-                  {primary.handle}
+                  {displayHandle}
                 </h1>
-                {primary.isBot ? (
+                {primary?.isBot ? (
                   <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
                     <Bot className="h-3.5 w-3.5 text-[var(--amber)]" />
                     Strategy Bot ({primary.botTheme})
@@ -164,80 +177,87 @@ export default async function InvestorProfilePage({
                 )}
               </div>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                {primary.title}, {primary.positions.length} active holdings
-                {beatCount > 0 && `, beat S&P 500 in ${beatCount} period${beatCount > 1 ? "s" : ""}`}
+                {primary
+                  ? `${primary.title}, ${primary.positions.length} active holdings${
+                      beatCount > 0 ? `, beat S&P 500 in ${beatCount} period${beatCount > 1 ? "s" : ""}` : ""
+                    }`
+                  : `${publishedTheses.length} published valuation ${publishedTheses.length === 1 ? "thesis" : "theses"}`}
               </p>
             </div>
           </div>
 
-          <Link
-            href={`/arena/${primary.id}`}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
-          >
-            View Active Portfolio
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          {primary && (
+            <Link
+              href={`/arena/${primary.id}`}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)]"
+            >
+              View Active Portfolio
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </section>
 
         {/* Active Portfolio Summary */}
-        <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                Active Portfolio ({primary.periodKey})
-              </div>
-              <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">
-                {primary.title}
-              </h2>
-              <p className="mt-1 max-w-2xl text-xs text-[var(--text-secondary)]">
-                {primary.thesis}
-              </p>
-            </div>
-            <div className="text-right">
-              <div
-                className={`font-mono-num text-3xl font-semibold ${
-                  primary.totalReturnPct >= 0
-                    ? "text-[var(--positive)]"
-                    : "text-[var(--negative)]"
-                }`}
-              >
-                {formatPct(primary.totalReturnPct, true)}
-              </div>
-              {typeof spyForPrimary === "number" && (
-                <div className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                  {formatPct(primary.totalReturnPct - spyForPrimary, true)} vs SPY
+        {primary && (
+          <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  Active Portfolio ({primary.periodKey})
                 </div>
+                <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">
+                  {primary.title}
+                </h2>
+                <p className="mt-1 max-w-2xl text-xs text-[var(--text-secondary)]">
+                  {primary.thesis}
+                </p>
+              </div>
+              <div className="text-right">
+                <div
+                  className={`font-mono-num text-3xl font-semibold ${
+                    primary.totalReturnPct >= 0
+                      ? "text-[var(--positive)]"
+                      : "text-[var(--negative)]"
+                  }`}
+                >
+                  {formatPct(primary.totalReturnPct, true)}
+                </div>
+                {typeof spyForPrimary === "number" && (
+                  <div className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                    {formatPct(primary.totalReturnPct - spyForPrimary, true)} vs SPY
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {primary.positions.map((pos) =>
+                pos.ticker === "SPY" ? (
+                  <span
+                    key={pos.ticker}
+                    className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)]"
+                  >
+                    <strong className="text-[var(--text-primary)]">
+                      {pos.ticker}
+                    </strong>{" "}
+                    {Math.round(pos.weightPct)}%
+                  </span>
+                ) : (
+                  <Link
+                    key={pos.ticker}
+                    href={`/t/${pos.ticker}`}
+                    className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--amber)]"
+                  >
+                    <strong className="text-[var(--text-primary)]">
+                      {pos.ticker}
+                    </strong>{" "}
+                    {Math.round(pos.weightPct)}%
+                  </Link>
+                )
               )}
             </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {primary.positions.map((pos) =>
-              pos.ticker === "SPY" ? (
-                <span
-                  key={pos.ticker}
-                  className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)]"
-                >
-                  <strong className="text-[var(--text-primary)]">
-                    {pos.ticker}
-                  </strong>{" "}
-                  {Math.round(pos.weightPct)}%
-                </span>
-              ) : (
-                <Link
-                  key={pos.ticker}
-                  href={`/t/${pos.ticker}`}
-                  className="font-mono-num rounded bg-[var(--surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--amber)]"
-                >
-                  <strong className="text-[var(--text-primary)]">
-                    {pos.ticker}
-                  </strong>{" "}
-                  {Math.round(pos.weightPct)}%
-                </Link>
-              )
-            )}
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Published Valuation Theses */}
         {publishedTheses.length > 0 && (

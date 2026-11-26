@@ -207,12 +207,35 @@ describe("Amber finance engine", () => {
     assert.ok(Number.isFinite(scenario.irrPct));
   });
 
+  it("uses the same cash-flow schedule for fair value and expected return", () => {
+    const inputs = {
+      currentPrice: 20,
+      dilutedShares: 100,
+      baseRevenue: 1000,
+      currentTrueFcfMarginPct: 20,
+      targetTrueFcfMarginPct: 20,
+      netCash: 0,
+      revGrowthPct: 0,
+      exitMultiple: 10,
+      hurdleRatePct: 10,
+    };
+    for (const netCash of [0, 500, -500]) {
+      const value = computeFiveYearScenario({ ...inputs, netCash });
+      assert.ok(Math.abs(value.fairValueToday - (20 + netCash / 100)) < 1e-10);
+      const atFairValue = computeFiveYearScenario({ ...inputs, netCash, currentPrice: value.fairValueToday });
+      assert.ok(atFairValue.irrPct !== null && Math.abs(atFairValue.irrPct - 10) < 1e-10);
+      assert.equal(value.yr5TargetPrice, 20);
+    }
+    assert.equal(computeFiveYearScenario({ ...inputs, netCash: 2500 }).irrPct, null);
+  });
+
   it("computes Financials & REIT valuation metrics (P/B, ROE, P/E, Book Value/Share)", () => {
     assert.equal(isFinancialInstitution({ ticker: "JPM", sector: "Fintech & Data" }), true);
     assert.equal(isFinancialInstitution({ ticker: "PLD", sector: "Real Estate & REITs" }), true);
     assert.equal(isFinancialInstitution({ ticker: "NVDA", sector: "Semiconductors" }), false);
 
     const metrics = computeFinancialSectorMetrics({
+      sector: "Financials",
       marketCap: 200_000,
       annuals: [
         { ...sampleAnnuals[0], stockholdersEquity: 80_000, netIncome: 12_000, dilutedShares: 1_000 },

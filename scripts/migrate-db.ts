@@ -46,6 +46,8 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0008_dividends_paid.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0009_alert_preferences_and_digest.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0010_saved_screens_portfolios_public_theses.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0011_valuation_alerts.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0012_company_quote_date.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -145,6 +147,16 @@ async function migrate() {
   }
   console.log("[amber-migrate] Verified user_valuation_presets.");
 
+  const [quoteSchema] = await sql`
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'companies'
+        and column_name = 'price_as_of' and data_type = 'date'
+    ) as has_close_date
+  `;
+  if (!quoteSchema?.has_close_date) throw new Error("Could not verify the company quote date.");
+  console.log("[amber-migrate] Verified company quote dates.");
+
   const [sectorSchema] = await sql`
     select count(*)::int as columns
     from information_schema.columns
@@ -169,17 +181,33 @@ async function migrate() {
           and table_name = 'user_valuation_presets'
           and column_name = 'is_public'
           and udt_name = 'bool'
-      ) as has_public_theses
+      ) as has_public_theses,
+      exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'user_alert_preferences'
+          and column_name = 'valuation_irr_threshold'
+          and udt_name = 'float8'
+      ) as has_valuation_alerts,
+      exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'user_valuation_presets'
+          and column_name = 'last_valuation_alert_at'
+          and udt_name = 'timestamptz'
+      ) as has_valuation_alert_cooldown
   `;
   if (
     !featureSchema?.has_alert_prefs ||
     !featureSchema.has_saved_screens ||
     !featureSchema.has_user_portfolios ||
-    !featureSchema.has_public_theses
+    !featureSchema.has_public_theses ||
+    !featureSchema.has_valuation_alerts ||
+    !featureSchema.has_valuation_alert_cooldown
   ) {
-    throw new Error("Could not verify alert preferences, saved screens, portfolios, and public theses schema.");
+    throw new Error("Could not verify alert preferences, saved screens, portfolios, public theses, and valuation alerts schema.");
   }
-  console.log("[amber-migrate] Verified alert preferences, saved screens, portfolios, and public theses.");
+  console.log("[amber-migrate] Verified alert preferences, saved screens, portfolios, public theses, and valuation alerts.");
 }
 
 await migrate();

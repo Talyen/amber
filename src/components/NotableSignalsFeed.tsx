@@ -31,8 +31,8 @@ export function NotableSignalsFeed({ entries }: NotableSignalsFeedProps) {
     .sort((a, b) => b.trueFcfMargin - a.trueFcfMargin)[0];
 
   const topPricedForPerfection = [...eligible]
-    .filter((c) => c.impliedCagr > 0 && c.impliedCagr < 60)
-    .sort((a, b) => b.impliedCagr - a.impliedCagr)[0];
+    .filter((c) => c.impliedCagr !== null && c.impliedCagr > 0 && c.impliedCagr < 60)
+    .sort((a, b) => (b.impliedCagr ?? -Infinity) - (a.impliedCagr ?? -Infinity))[0];
 
   const stories = [
     topCashMachine && {

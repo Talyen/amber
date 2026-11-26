@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Link2 } from "lucide-react";
+import { Check, ChevronDown, Link2, Sparkles } from "lucide-react";
 import {
   type CompanySnapshot,
-  type ComputedAnnual,
-  computeFiveYearScenario,
-  computeRevenueCagr,
+  buildScenarioBasis,
+  computeScenarioProjection,
+  getScenarioDefaults,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -14,6 +15,7 @@ import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
 import {
   readLocalValuationPreset,
   writeLocalValuationPreset,
+  type CommunityThesisItem,
   type SavedScenarioLens as ValuationLens,
   type SavedValuationPreset,
 } from "@/lib/valuation-presets";
@@ -21,7 +23,6 @@ import { authClient } from "@/lib/auth-client";
 
 interface ScenarioBuilderProps {
   company: CompanySnapshot;
-  latest: ComputedAnnual;
 }
 
 function progressPct(value: number, min: number, max: number): string {
@@ -43,79 +44,64 @@ function readScenarioInput(
   return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : undefined;
 }
 
-export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
-  const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
-  const latestFy = fyOnly[fyOnly.length - 1] ?? latest;
+export function ScenarioBuilder(props: ScenarioBuilderProps) {
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+  const basis = useMemo(() => buildScenarioBasis(props.company), [props.company]);
+  const defaults = useMemo(() => getScenarioDefaults(props.company, basis), [props.company, basis]);
+  if ((basis.equityLensOnly && !defaults.hasPe) ||
+    ![basis.price, basis.dilutedShares, basis.revenue].every((n) => Number.isFinite(n) && n > 0)) {
+    return <p className="rounded-xl border border-[var(--border)] p-4 text-sm text-[var(--text-secondary)]">
+      A five-year scenario is unavailable for the reported fundamentals.
+    </p>;
+  }
+  return <ScenarioSession basis={basis} defaults={defaults} key={userId ? `account:${userId}` : "guest"} {...props} userId={userId} />;
+}
 
-  const histGrowth = Math.max(
-    1,
-    Math.min(24, Math.round(computeRevenueCagr(company.annuals)))
-  );
+function ScenarioSession({
+  company,
+  basis,
+  defaults,
+  userId,
+}: ScenarioBuilderProps & {
+  basis: ReturnType<typeof buildScenarioBasis>;
+  defaults: ReturnType<typeof getScenarioDefaults>;
+  userId?: string;
+}) {
+  const [communityTheses, setCommunityTheses] = useState<CommunityThesisItem[]>([]);
+  const [showCommunityTheses, setShowCommunityTheses] = useState(false);
+  const [communityStatus, setCommunityStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  const { hasEbit, hasPe, defaultLens, byLens, revGrowth: histGrowth } = defaults;
+  const isFinancials = basis.equityLensOnly;
+  const defaultsForLens = (lens: ValuationLens) => byLens[lens];
 
-  const capexPctRev =
-    latest.revenue > 0 ? (latest.capex / latest.revenue) * 100 : 0;
-  const currentOpMargin =
-    typeof latestFy.operatingIncome === "number" && latestFy.revenue > 0
-      ? (latestFy.operatingIncome / latestFy.revenue) * 100
-      : null;
-  const currentNetMargin =
-    typeof latestFy.netIncome === "number" && latestFy.revenue > 0
-      ? (latestFy.netIncome / latestFy.revenue) * 100
-      : null;
-
-  const hasEbit = currentOpMargin !== null && currentOpMargin > 2;
-  const hasPe = currentNetMargin !== null && currentNetMargin > 2;
-
-  // Auto-select Earnings (P/E) for Financials/Banks where EV & FCF are structurally distorted
-  const isFinancials = /financial|bank|insur/i.test(company.sector);
-
-  // Auto-select Operating Income (EBIT) lens for heavy growth-CapEx compounders (e.g. AMZN)
-  // where massive reinvestment temporarily depresses near-term Free Cash Flow
-  const isHeavyCapexCycle =
-    !isFinancials &&
-    hasEbit &&
-    capexPctRev >= 10 &&
-    currentOpMargin! > Math.max(2, latest.trueFcfMargin * 1.6);
-
-  const defaultLens: ValuationLens =
-    isFinancials && hasPe ? "pe" : isHeavyCapexCycle ? "ebit" : "fcf";
-
-  const defaultsForLens = useCallback((lens: ValuationLens) => {
-    if (lens === "ebit" && hasEbit) {
-      const m = Number(
-        Math.max(3, Math.min(55, Math.round(currentOpMargin! * 1.05 * 2) / 2)).toFixed(1)
-      );
-      const mult = histGrowth >= 12 ? 20 : histGrowth >= 7 ? 16 : 13;
-      return { margin: m, multiple: mult, currentMargin: currentOpMargin! };
-    }
-    if (lens === "pe" && hasPe) {
-      const m = Number(
-        Math.max(2, Math.min(50, Math.round(currentNetMargin! * 1.05 * 2) / 2)).toFixed(1)
-      );
-      const mult = histGrowth >= 12 ? 24 : histGrowth >= 7 ? 20 : 15;
-      return { margin: m, multiple: mult, currentMargin: currentNetMargin! };
-    }
-    const rawBaseMargin = Math.max(
-      1,
-      company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct
-    );
-    const m = Number(
-      Math.max(1, Math.min(55, Math.round(rawBaseMargin * 2) / 2)).toFixed(1)
-    );
-    return {
-      margin: m,
-      multiple: company.defaultDcf.terminalMultiple,
-      currentMargin: latest.trueFcfMargin,
-    };
-  }, [company.defaultDcf, currentNetMargin, currentOpMargin, hasEbit, hasPe, histGrowth, latest.trueFcfMargin]);
+  useEffect(() => {
+    if (!showCommunityTheses) return;
+    const controller = new AbortController();
+    fetch(`/api/community-theses?ticker=${encodeURIComponent(company.ticker)}`, {
+      cache: "no-store", signal: controller.signal,
+    })
+      .then((response): Promise<CommunityThesisItem[]> => {
+        if (!response.ok) throw new Error("Community theses unavailable");
+        return response.json();
+      })
+      .then((theses) => {
+        if (controller.signal.aborted) return;
+        setCommunityTheses(theses);
+        setCommunityStatus("loaded");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCommunityStatus("failed");
+      });
+    return () => controller.abort();
+  }, [company.ticker, showCommunityTheses]);
 
   const [lens, setLens] = useState<ValuationLens>(defaultLens);
   const lensDefaults = defaultsForLens(lens);
+  const currentMargin = lens === "pe" ? basis.netMargin : lens === "ebit" ? basis.operatingMargin : basis.trueFcfMargin;
   const baseMargin = lensDefaults.margin;
   const baseMultiple = lensDefaults.multiple;
 
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id;
   const [revGrowth, setRevGrowth] = useState(histGrowth);
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
@@ -127,18 +113,25 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
   const [copiedThesis, setCopiedThesis] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "failed">("idle");
   const editedThesis = useRef(false);
+  const [unavailableSharedLens, setUnavailableSharedLens] = useState(false);
+  const supportsLens = useCallback((candidate: string | null): candidate is ValuationLens =>
+    (candidate === "fcf" && !isFinancials) || (candidate === "ebit" && hasEbit) || (candidate === "pe" && hasPe),
+  [hasEbit, hasPe, isFinancials]);
 
   const applySavedThesis = useCallback((preset: SavedValuationPreset) => {
-    if (preset.lens === "fcf" || (preset.lens === "ebit" && hasEbit) || (preset.lens === "pe" && hasPe)) {
-      setLens(preset.lens);
+    setThesisNote(preset.thesisNote ?? "");
+    setIsPublicThesis(preset.isPublic === true);
+    if (!supportsLens(preset.lens)) {
+      setUnavailableSharedLens(true);
+      return;
     }
+    setUnavailableSharedLens(false);
+    setLens(preset.lens);
     setRevGrowth(preset.revGrowth);
     setTargetMargin(preset.targetMargin);
     setExitMultiple(preset.exitMultiple);
-    setThesisNote(preset.thesisNote ?? "");
-    setIsPublicThesis(preset.isPublic === true);
     setActivePreset("custom");
-  }, [hasEbit, hasPe]);
+  }, [supportsLens]);
 
   // Hydrate shared thesis query params (?tab=dcf&lens=fcf&rev=15&m=28&exit=22)
   useEffect(() => {
@@ -154,13 +147,13 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       const exitParam = readScenarioInput(params, "exit", MULTIPLE_RANGE);
       let loaded = false;
 
-      if (
-        (lensParam === "fcf" ||
-          (lensParam === "ebit" && hasEbit) ||
-          (lensParam === "pe" && hasPe))
-      ) {
+      if (supportsLens(lensParam)) {
         setLens(lensParam);
         loaded = true;
+      } else if (lensParam !== null) {
+        setUnavailableSharedLens(true);
+        setFromSharedLink(true);
+        return;
       }
       if (revParam !== undefined) {
         setRevGrowth(revParam);
@@ -180,13 +173,13 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
         return;
       }
 
-      const local = readLocalValuationPreset(company.ticker);
+      const local = readLocalValuationPreset(company.ticker, userId);
       if (local) applySavedThesis(local);
     });
     return () => {
       active = false;
     };
-  }, [company.ticker, hasEbit, hasPe, applySavedThesis]);
+  }, [company.ticker, supportsLens, applySavedThesis, userId]);
 
   useEffect(() => {
     if (!userId || !restoredThesis || fromSharedLink || editedThesis.current) return;
@@ -196,7 +189,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
       .then((data: { preset?: SavedValuationPreset | null } | null) => {
         const preset = data?.preset;
         if (controller.signal.aborted || !preset || editedThesis.current) return;
-        const local = readLocalValuationPreset(company.ticker);
+        const local = readLocalValuationPreset(company.ticker, userId);
         if (local?.owner === userId && Date.parse(local.updatedAt) > Date.parse(preset.updatedAt)) return;
         writeLocalValuationPreset({ ...preset, owner: userId });
         applySavedThesis(preset);
@@ -295,64 +288,21 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
     }
   }
 
-  const projection = useMemo(
-    () =>
-      computeFiveYearScenario({
-        currentPrice: company.price,
-        dilutedShares: latest.dilutedShares,
-        baseRevenue: latest.revenue,
-        currentTrueFcfMarginPct: lensDefaults.currentMargin,
-        netCash: lens === "pe" ? 0 : company.cashAndEquiv - company.totalDebt,
-        revGrowthPct: revGrowth,
-        targetTrueFcfMarginPct: targetMargin,
-        exitMultiple,
-        hurdleRatePct: 10,
-      }),
-    [
-      company.price,
-      company.cashAndEquiv,
-      company.totalDebt,
-      latest.dilutedShares,
-      latest.revenue,
-      lensDefaults.currentMargin,
-      lens,
-      revGrowth,
-      targetMargin,
-      exitMultiple,
-    ]
-  );
+  const projection = useMemo(() => computeScenarioProjection(basis, {
+    lens, revGrowth, targetMargin, exitMultiple,
+  })!, [basis, lens, revGrowth, targetMargin, exitMultiple]);
 
-  // Baseline 3-model Fair Value comparison strip (so users see all lenses at a glance)
   const modelStrip = useMemo(() => {
-    const lenses: Array<{ id: ValuationLens; label: string; enabled: boolean }> = [
-      { id: "fcf", label: "True FCF", enabled: true },
-      { id: "ebit", label: "EBIT", enabled: hasEbit },
-      { id: "pe", label: "P/E", enabled: hasPe },
-    ];
-    return lenses
-      .filter((m) => m.enabled)
-      .map((m) => {
-        const d = defaultsForLens(m.id);
-        const res = computeFiveYearScenario({
-          currentPrice: company.price,
-          dilutedShares: latest.dilutedShares,
-          baseRevenue: latest.revenue,
-          currentTrueFcfMarginPct: d.currentMargin,
-          netCash: m.id === "pe" ? 0 : company.cashAndEquiv - company.totalDebt,
-          revGrowthPct: histGrowth,
-          targetTrueFcfMarginPct: d.margin,
-          exitMultiple: d.multiple,
-          hurdleRatePct: 10,
-        });
-        return {
-          id: m.id,
-          label: m.label,
-          fairValue: res.fairValueToday,
-          upsidePct: res.upsidePct,
-        };
+    const labels = { fcf: "True FCF", ebit: "EBIT", pe: "P/E" };
+    const lenses: ValuationLens[] = ["fcf", "ebit", "pe"];
+    return lenses.flatMap((id) => {
+      const { margin, multiple } = byLens[id];
+      const result = computeScenarioProjection(basis, {
+        lens: id, revGrowth: histGrowth, targetMargin: margin, exitMultiple: multiple,
       });
-  }, [company.price, company.cashAndEquiv, company.totalDebt, latest.dilutedShares, latest.revenue,
-    defaultsForLens, hasEbit, hasPe, histGrowth]);
+      return result ? [{ id, label: labels[id], fairValue: result.fairValueToday, upsidePct: result.upsidePct }] : [];
+    });
+  }, [basis, byLens, histGrowth]);
 
   const verdict =
     projection.upsidePct >= 12
@@ -484,6 +434,12 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           )}
         </div>
 
+        {unavailableSharedLens && (
+          <p role="status" className="mt-3 text-xs text-[var(--text-secondary)]">
+            This thesis uses an unavailable valuation model. The studio shows the current base case.
+          </p>
+        )}
+
         {/* Valuation Methodology Selector */}
         {(hasEbit || hasPe) && (
           <div className="mt-4">
@@ -494,7 +450,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
                   Auto-selected (Financials)
                 </span>
               )}
-              {isHeavyCapexCycle && lens === "ebit" && (
+              {defaultLens === "ebit" && lens === "ebit" && (
                 <span className="text-[var(--amber)]">
                   Auto-selected (heavy growth CapEx)
                 </span>
@@ -503,7 +459,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             <div className="inline-flex w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] p-0.5 text-xs">
               {(
                 [
-                  { id: "fcf" as const, label: "True FCF", enabled: true },
+                  { id: "fcf" as const, label: "True FCF", enabled: !isFinancials },
                   { id: "ebit" as const, label: "Operating (EBIT)", enabled: hasEbit },
                   { id: "pe" as const, label: "Earnings (P/E)", enabled: hasPe },
                 ]
@@ -624,7 +580,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             />
             <div className="font-mono-num mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
               <span>1%</span>
-              <span>Now: {formatPct(lensDefaults.currentMargin, false, 1)}</span>
+              <span>Now: {formatPct(currentMargin, false, 1)}</span>
               <span>55%</span>
             </div>
           </div>
@@ -760,7 +716,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             {lens === "ebit" ? "operating" : lens === "pe" ? "net profit" : "real cash"} margin and trades at{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in 5 years, shares reach{" "}
             <strong className="font-mono-num text-[var(--text-primary)]">${projection.yr5TargetPrice.toFixed(2)}</strong>, worth{" "}
-            <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today if you require a 10%/yr return.
+            <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today at a 10%/yr target return, including interim cash flows and today’s net cash adjustment.
           </p>
 
           {modelStrip.length >= 2 && (
@@ -794,7 +750,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
           <div>
             <div className="text-[11px] text-[var(--text-muted)]">Expected Return / yr</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
-              {formatPct(projection.irrPct, true)}
+              {projection.irrPct === null ? "—" : formatPct(projection.irrPct, true)}
             </div>
           </div>
           <div>
@@ -810,7 +766,7 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-[var(--text-muted)]">Year-5 True FCF</div>
+            <div className="text-[11px] text-[var(--text-muted)]">{lens === "ebit" ? "Year-5 EBIT" : lens === "pe" ? "Year-5 Net Income" : "Year-5 True FCF"}</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
               {formatCurrencyCompact(projection.yr5TrueFcf)}
             </div>
@@ -818,6 +774,112 @@ export function ScenarioBuilder({ company, latest }: ScenarioBuilderProps) {
         </div>
       </section>
     </div>
+
+      <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <button
+          type="button"
+          onClick={() => {
+            setCommunityTheses([]);
+            setCommunityStatus("loading");
+            setShowCommunityTheses((prev) => !prev);
+          }}
+          aria-expanded={showCommunityTheses}
+          className="flex w-full items-center justify-between gap-2 text-left cursor-pointer"
+        >
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
+            <Sparkles className="h-3.5 w-3.5 text-[var(--amber)]" aria-hidden="true" />
+            Community Theses
+
+          </span>
+          <ChevronDown
+            className={`h-3.5 w-3.5 text-[var(--text-muted)] transition-transform ${
+              showCommunityTheses ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {showCommunityTheses && communityStatus === "loading" && (
+          <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">Loading public theses…</p>
+        )}
+        {showCommunityTheses && communityStatus === "loaded" && communityTheses.length === 0 && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">No published theses for this company.</p>
+        )}
+        {showCommunityTheses && communityStatus === "failed" && (
+          <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">Public theses are temporarily unavailable.</p>
+        )}
+        {showCommunityTheses && communityTheses.length > 0 && (
+          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {communityTheses.map((item) => {
+              const itemProj = computeScenarioProjection(basis, item);
+              const itemIrr = itemProj?.irrPct ?? null;
+              return (
+                <div
+                  key={`${item.handle}-${item.updatedAt}`}
+                  className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          href={`/u/${encodeURIComponent(item.handle)}`}
+                          className="font-mono-num truncate text-xs font-semibold text-[var(--text-primary)] hover:text-[var(--amber)]"
+                        >
+                          {item.handle}
+                        </Link>
+                        <span className="font-mono-num rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
+                          {item.lens.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="font-mono-num mt-0.5 text-[11px] text-[var(--text-muted)]">
+                        {item.revGrowth}% rev · {item.targetMargin}% margin · {item.exitMultiple}x
+                      </div>
+                    </div>
+                    <span
+                      className={`font-mono-num shrink-0 text-xs font-semibold ${
+                        (itemIrr ?? -Infinity) >= 12
+                          ? "text-[var(--positive)]"
+                          : (itemIrr ?? -Infinity) >= 8
+                            ? "text-[var(--amber)]"
+                            : "text-[var(--negative)]"
+                      }`}
+                    >
+                      {itemIrr === null ? "—" : `${formatPct(itemIrr, true)}/yr`}
+                    </span>
+                  </div>
+
+                  {item.thesisNote && (
+                    <p className="line-clamp-2 text-xs text-[var(--text-secondary)]">
+                      {item.thesisNote}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between border-t border-[var(--border)] pt-2 text-[11px]">
+                    <span className="font-mono-num text-[var(--text-muted)]">
+                      {itemProj ? `FV $${itemProj.fairValueToday.toFixed(0)}` : "Projection unavailable"}
+                    </span>
+                    {itemProj && <button
+                      type="button"
+                      onClick={() => {
+                        editedThesis.current = true;
+                        setUnavailableSharedLens(false);
+                        setActivePreset("custom");
+                        setLens(item.lens);
+                        setRevGrowth(item.revGrowth);
+                        setTargetMargin(item.targetMargin);
+                        setExitMultiple(item.exitMultiple);
+                      }}
+                      className="font-medium text-[var(--amber)] hover:underline cursor-pointer"
+                    >
+                      Load into model →
+                    </button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -1,16 +1,20 @@
 /** Send periodic filing alerts and watchlist digests to confirmed subscribers. */
+import { isFreshPriceDate } from "../src/lib/market-price.ts";
+import { buildScenarioBasis } from "../src/lib/finance.ts";
 import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import {
   alertSubscriptions,
+  annualFinancials,
   companies,
   filingDiffs,
   insiderTrades,
   user,
   userAlertPreferences,
+  userValuationPresets,
   userWatchlists,
 } from "../src/db/schema.ts";
 import {
@@ -22,24 +26,34 @@ import {
   sendAlertEmail,
   type WatchlistDigestItem,
 } from "../src/lib/alert-email.ts";
+import {
+  evaluateValuationTriggers,
+  type PresetValuationEntry,
+  type SavedScenarioLens,
+} from "../src/lib/valuation-presets.ts";
 
 const MATERIALITY_RANK: Record<string, number> = { High: 0, Medium: 1, Watch: 2 };
 
 export async function dispatchFilingAlerts({
   databaseUrl = process.env.DATABASE_URL,
   resendKey = process.env.RESEND_API_KEY,
-  fromEmail = process.env.ALERT_FROM_EMAIL ?? defaultAlertSender,
+  fromEmail = process.env.ALERT_FROM_EMAIL || defaultAlertSender,
   siteUrl = process.env.AMBER_PROD_URL ?? "https://amber-theta-three.vercel.app",
   wait = sleep,
+  requireConfig = false,
 }: {
   databaseUrl?: string;
   resendKey?: string;
   fromEmail?: string;
   siteUrl?: string;
   wait?: (ms: number) => Promise<void>;
+  requireConfig?: boolean;
 } = {}) {
   if (!databaseUrl || !resendKey) {
-    console.log("[amber-alerts] Skipping email dispatch (DATABASE_URL or RESEND_API_KEY not set).");
+    const missing = [!databaseUrl && "DATABASE_URL", !resendKey && "RESEND_API_KEY"].filter(Boolean);
+    const message = `Email dispatch requires ${missing.join(" and ")}.`;
+    if (requireConfig) throw new Error(message);
+    console.log(`[amber-alerts] ${message}`);
     return;
   }
 
@@ -158,39 +172,138 @@ export async function dispatchFilingAlerts({
 
   // Dispatch daily Watchlist Digests for opted-in verified users
   let digestsSent = 0;
-  try {
-    const digestCooldown = new Date(Date.now() - 20 * 60 * 60 * 1000);
-    const digestCutoffDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const todayIso = new Date().toISOString().slice(0, 10);
+  let digestFailures = 0;
+  const digestCooldown = new Date(Date.now() - 20 * 60 * 60 * 1000);
+  const digestCutoffDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todayIso = new Date().toISOString().slice(0, 10);
 
-    const subscribers = await db
-      .select({
-        userId: userAlertPreferences.userId,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        includeFilingDiffs: userAlertPreferences.includeFilingDiffs,
-        includeForm4Buys: userAlertPreferences.includeForm4Buys,
-        includeForm8k: userAlertPreferences.includeForm8k,
-        lastDigestSentAt: userAlertPreferences.lastDigestSentAt,
-      })
-      .from(userAlertPreferences)
-      .innerJoin(user, eq(userAlertPreferences.userId, user.id))
-      .where(and(
-        eq(userAlertPreferences.watchlistDigest, true),
-        eq(user.emailVerified, true),
-      ));
+  const subscribers = await db
+    .select({
+      userId: userAlertPreferences.userId,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      includeFilingDiffs: userAlertPreferences.includeFilingDiffs,
+      includeForm4Buys: userAlertPreferences.includeForm4Buys,
+      includeForm8k: userAlertPreferences.includeForm8k,
+      includeValuationTriggers: userAlertPreferences.includeValuationTriggers,
+      valuationIrrThreshold: userAlertPreferences.valuationIrrThreshold,
+      lastDigestSentAt: userAlertPreferences.lastDigestSentAt,
+    })
+    .from(userAlertPreferences)
+    .innerJoin(user, eq(userAlertPreferences.userId, user.id))
+    .where(and(
+      eq(userAlertPreferences.watchlistDigest, true),
+      eq(user.emailVerified, true),
+    ));
 
-    for (const sub of subscribers) {
-      if (sub.lastDigestSentAt && sub.lastDigestSentAt > digestCooldown) continue;
+  for (const sub of subscribers) {
+    if (sub.lastDigestSentAt && sub.lastDigestSentAt > digestCooldown) continue;
+    try {
       const watchedRows = await db
         .select({ ticker: userWatchlists.ticker })
         .from(userWatchlists)
         .where(eq(userWatchlists.userId, sub.userId));
       const tickers = watchedRows.map((r) => r.ticker);
-      if (tickers.length === 0) continue;
 
       const items: WatchlistDigestItem[] = [];
-      if (sub.includeFilingDiffs || sub.includeForm8k) {
+      const triggeredPresetIds: string[] = [];
+
+      if (sub.includeValuationTriggers) {
+        const presetRows = await db
+          .select({
+            id: userValuationPresets.id,
+            ticker: userValuationPresets.ticker,
+            lens: userValuationPresets.lens,
+            revGrowth: userValuationPresets.revGrowth,
+            targetMargin: userValuationPresets.targetMargin,
+            exitMultiple: userValuationPresets.exitMultiple,
+            thesisNote: userValuationPresets.thesisNote,
+            lastValuationAlertAt: userValuationPresets.lastValuationAlertAt,
+            updatedAt: userValuationPresets.updatedAt,
+          })
+          .from(userValuationPresets)
+          .where(eq(userValuationPresets.userId, sub.userId));
+
+        if (presetRows.length > 0) {
+          const presetTickers = presetRows.map((p) => p.ticker);
+          const companyRows = await db
+            .select({
+              ticker: companies.ticker,
+              price: companies.price,
+              priceAsOf: companies.priceAsOf,
+              sector: companies.sector,
+              cashAndEquiv: companies.cashAndEquiv,
+              totalDebt: companies.totalDebt,
+            })
+            .from(companies)
+            .where(inArray(companies.ticker, presetTickers));
+
+          const annualRows = await db
+            .select({
+              ticker: annualFinancials.ticker,
+              fiscalYear: annualFinancials.fiscalYear,
+              dilutedShares: annualFinancials.dilutedShares,
+              revenue: annualFinancials.revenue,
+              operatingCashFlow: annualFinancials.operatingCashFlow,
+              capex: annualFinancials.capex,
+              sbc: annualFinancials.sbc,
+              operatingIncome: annualFinancials.operatingIncome,
+              netIncome: annualFinancials.netIncome,
+            })
+            .from(annualFinancials)
+            .where(inArray(annualFinancials.ticker, presetTickers))
+            .orderBy(asc(annualFinancials.sortOrder));
+
+          const annualsByTicker = new Map<string, typeof annualRows>();
+          for (const row of annualRows) {
+            const annuals = annualsByTicker.get(row.ticker) ?? [];
+            annuals.push(row);
+            annualsByTicker.set(row.ticker, annuals);
+          }
+
+          const entriesByTicker = new Map<string, PresetValuationEntry>();
+          for (const company of companyRows) {
+            const annuals = annualsByTicker.get(company.ticker);
+            if (annuals?.length && isFreshPriceDate(company.priceAsOf)) {
+              entriesByTicker.set(company.ticker, {
+                ticker: company.ticker,
+                scenarioBasis: buildScenarioBasis({ ...company, annuals }),
+              });
+            }
+          }
+
+          const hits = evaluateValuationTriggers(
+            presetRows.map((p) => ({
+              id: p.id,
+              ticker: p.ticker,
+              lens: (p.lens === "ebit" || p.lens === "pe" ? p.lens : "fcf") as SavedScenarioLens,
+              revGrowth: p.revGrowth,
+              targetMargin: p.targetMargin,
+              exitMultiple: p.exitMultiple,
+              thesisNote: p.thesisNote,
+              lastValuationAlertAt: p.lastValuationAlertAt,
+              updatedAt: p.updatedAt.toISOString(),
+            })),
+            entriesByTicker,
+            sub.valuationIrrThreshold
+          );
+
+          for (const hit of hits.slice(0, 6)) {
+            triggeredPresetIds.push(hit.presetId);
+            items.push({
+              ticker: hit.ticker,
+              kind: "Valuation Target",
+              date: todayIso,
+              headline: `${hit.ticker} at $${hit.price.toFixed(2)} implies +${hit.irrPct.toFixed(1)}%/yr (Fair Value $${hit.fairValueToday.toFixed(2)})`,
+              detail: hit.thesisNote
+                ? `Your ${hit.lens.toUpperCase()} thesis crossed your ${sub.valuationIrrThreshold}% IRR threshold — "${hit.thesisNote}"`
+                : `Your saved ${hit.lens.toUpperCase()} thesis crossed your ${sub.valuationIrrThreshold}% IRR target.`,
+            });
+          }
+        }
+      }
+
+      if (tickers.length > 0 && (sub.includeFilingDiffs || sub.includeForm8k)) {
         const recentDiffs = await db
           .select({
             ticker: filingDiffs.ticker,
@@ -222,7 +335,7 @@ export async function dispatchFilingAlerts({
         }
       }
 
-      if (sub.includeForm4Buys) {
+      if (tickers.length > 0 && sub.includeForm4Buys) {
         const recentBuys = await db
           .select({
             ticker: insiderTrades.ticker,
@@ -265,22 +378,46 @@ export async function dispatchFilingAlerts({
         }),
       }, wait);
 
-      await db
-        .update(userAlertPreferences)
-        .set({ lastDigestSentAt: new Date() })
+      const sentAt = new Date();
+      const recordDigest = db.update(userAlertPreferences)
+        .set({ lastDigestSentAt: sentAt })
         .where(eq(userAlertPreferences.userId, sub.userId));
+      for (let attempt = 0; ; attempt++) {
+        try {
+          if (triggeredPresetIds.length > 0) {
+            await db.batch([
+              recordDigest,
+              db.update(userValuationPresets)
+                .set({ lastValuationAlertAt: sentAt })
+                .where(inArray(userValuationPresets.id, triggeredPresetIds)),
+            ]);
+          } else {
+            await recordDigest;
+          }
+          break;
+        } catch {
+          if (attempt >= 2) throw new Error("Could not record accepted digest delivery");
+          await wait(500 * 2 ** attempt);
+        }
+      }
       digestsSent++;
+    } catch (error) {
+      digestFailures++;
+      const detail = error instanceof Error && !("query" in error) ? error.message : "Database error";
+      console.warn(`[amber-alerts] Watchlist digest delivery failed: ${detail}.`);
     }
-    if (subscribers.length > 0) {
-      console.log(`[amber-alerts] Dispatched ${digestsSent}/${subscribers.length} watchlist digests.`);
-    }
-  } catch (error) {
-    console.warn("[amber-alerts] Watchlist digest pass skipped:", error instanceof Error ? error.message : error);
+  }
+  if (subscribers.length > 0) {
+    console.log(`[amber-alerts] Dispatched ${digestsSent}/${subscribers.length} watchlist digests.`);
   }
 
-  if (failed > 0) throw new Error(`${failed} filing alert deliveries need attention.`);
+  const deliveryErrors = [
+    failed > 0 && `${failed} filing alert deliveries need attention.`,
+    digestFailures > 0 && `${digestFailures} watchlist digest failures need attention.`,
+  ].filter(Boolean);
+  if (deliveryErrors.length > 0) throw new Error(deliveryErrors.join(" "));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await dispatchFilingAlerts();
+  await dispatchFilingAlerts({ requireConfig: process.argv.includes("--require-config") });
 }

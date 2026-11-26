@@ -618,7 +618,7 @@ export function SignalFeed({
                               <span>
                                 True FCF %{" "}
                                 <strong className="font-mono-num text-[var(--text-primary)]">
-                                  {formatPct(heroCompany.trueFcfMargin)}
+                                  {formatPct(heroCompany.scenarioBasis.equityLensOnly ? null : heroCompany.trueFcfMargin)}
                                 </strong>
                               </span>
                               <span>
@@ -1226,7 +1226,7 @@ export function SignalFeed({
                                     }`}
                                   >
                                     {formatCurrencyCompact(c.trueFcf)} (
-                                    {formatPct(c.trueFcfMargin)})
+                                    {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)})
                                   </strong>
                                 </span>
                                 <span>

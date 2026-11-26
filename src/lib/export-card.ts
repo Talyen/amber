@@ -401,11 +401,11 @@ export interface ComparisonExportItem {
   ticker: string;
   name: string;
   marketCap: number;
-  trueFcf: number;
-  trueFcfMargin: number;
+  trueFcf: number | null;
+  trueFcfMargin: number | null;
   sbcPctRevenue: number;
   netDilutionCagr: number;
-  impliedCagr: number;
+  impliedCagr: number | null;
 }
 
 export function exportComparisonCard(items: ComparisonExportItem[]) {
@@ -474,13 +474,13 @@ export function exportComparisonCard(items: ComparisonExportItem[]) {
     },
     {
       label: "True FCF (FCF − SBC)",
-      format: (i) => formatCurrencyCompact(i.trueFcf),
-      color: (i) => (i.trueFcf >= 0 ? theme.amber : theme.negativeBar),
+      format: (i) => i.trueFcf === null ? "—" : formatCurrencyCompact(i.trueFcf),
+      color: (i) => ((i.trueFcf ?? 0) >= 0 ? theme.amber : theme.negativeBar),
     },
     {
       label: "True FCF Margin",
       format: (i) => formatPct(i.trueFcfMargin),
-      color: (i) => (i.trueFcfMargin >= 0 ? theme.textPrimary : theme.negativeBar),
+      color: (i) => ((i.trueFcfMargin ?? 0) >= 0 ? theme.textPrimary : theme.negativeBar),
     },
     {
       label: "SBC Burden (% Revenue)",
@@ -538,15 +538,17 @@ export function exportComparisonCard(items: ComparisonExportItem[]) {
 }
 
 export interface PortfolioExportPayload {
-  holdings: Array<{ ticker: string; weightPct: number; impliedCagr: number; trueFcfMargin: number }>;
-  wImplied: number;
-  wTrueMargin: number;
+  holdings: Array<{ ticker: string; weightPct: number; impliedCagr: number | null; trueFcfMargin: number | null }>;
+  wImplied: number | null;
+  wTrueMargin: number | null;
+  growthWeight: number;
+  cashWeight: number;
   wSbcPct: number;
   wDilution: number;
   topSector: [string, number] | null;
 }
 
-export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
+export function exportPortfolioCard(payload: PortfolioExportPayload) {
   const fundedHoldings = payload.holdings.filter(({ weightPct }) => weightPct > 0);
   fundedHoldings.sort((a, b) => b.weightPct - a.weightPct);
   const width = 1200;
@@ -586,8 +588,8 @@ export function exportPortfolioXRayCard(payload: PortfolioExportPayload) {
 
   // 4 KPI boxes
   const kpis = [
-    { label: "WEIGHTED IMPLIED 10Y GROWTH", val: formatPct(payload.wImplied), color: theme.amber },
-    { label: "WEIGHTED TRUE FCF MARGIN", val: formatPct(payload.wTrueMargin), color: theme.textPrimary },
+    { label: `IMPLIED 10Y GROWTH · ${formatPct(payload.growthWeight * 100, false, 0)} COVERED`, val: formatPct(payload.wImplied), color: theme.amber },
+    { label: `TRUE FCF MARGIN · ${formatPct(payload.cashWeight * 100, false, 0)} COVERED`, val: formatPct(payload.wTrueMargin), color: theme.textPrimary },
     { label: "WEIGHTED SBC BURDEN", val: formatPct(payload.wSbcPct), color: theme.sbcBar },
     {
       label: "WEIGHTED NET DILUTION",

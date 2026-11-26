@@ -11,12 +11,17 @@ import { exportFinancialLedgerCsv } from "@/lib/export-csv";
 interface FinancialLedgerTableProps {
   ticker: string;
   series: ComputedAnnual[];
+  cadence?: "annual" | "quarterly";
+  yoyRevByPeriod?: Record<string, number | null>;
 }
 
 export function FinancialLedgerTable({
   ticker,
   series,
+  cadence = "annual",
+  yoyRevByPeriod,
 }: FinancialLedgerTableProps) {
+  const isQuarterly = cadence === "quarterly";
   return (
     <div className="mt-5">
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -24,7 +29,7 @@ export function FinancialLedgerTable({
           id="ledger-caption"
           className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
         >
-          {ticker} Cash Flow &amp; Dilution Ledger (SEC 10-K / 10-Q)
+          {ticker} {isQuarterly ? "Quarterly " : ""}Cash Flow &amp; Dilution Ledger (SEC 10-K / 10-Q)
         </h3>
         <div className="flex items-center gap-3">
           <span className="hidden text-[11px] text-[var(--text-muted)] sm:inline">
@@ -50,7 +55,7 @@ export function FinancialLedgerTable({
         <table className="amber-table">
           <thead>
             <tr>
-              <th scope="col">Fiscal Year</th>
+              <th scope="col">{isQuarterly ? "Quarter" : "Fiscal Year"}</th>
               <th scope="col">Revenue</th>
               <th scope="col">Op. Cash Flow</th>
               <th scope="col">CapEx</th>
@@ -62,13 +67,24 @@ export function FinancialLedgerTable({
             </tr>
           </thead>
           <tbody>
-            {[...series].reverse().map((row) => (
+            {[...series].reverse().map((row) => {
+              const yoy = isQuarterly ? yoyRevByPeriod?.[row.fiscalYear] ?? null : null;
+              return (
               <tr key={row.fiscalYear}>
                 <th scope="row" className="font-mono-num">
                   {row.fiscalYear}
                 </th>
                 <td data-label="Revenue" className="font-mono-num">
-                  {formatCurrencyCompact(row.revenue)}
+                  <span>{formatCurrencyCompact(row.revenue)}</span>
+                  {yoy !== null && (
+                    <span
+                      className={`ml-1.5 text-[10px] ${
+                        yoy >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"
+                      }`}
+                    >
+                      {formatPct(yoy, true, 0)}
+                    </span>
+                  )}
                 </td>
                 <td data-label="Op. Cash Flow" className="font-mono-num">
                   {formatCurrencyCompact(row.operatingCashFlow)}
@@ -121,7 +137,8 @@ export function FinancialLedgerTable({
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -12,7 +12,7 @@ High-signal fundamental analysis for long-term investors. Built for visual clari
   - **Filing Diff Radar & Insider Radar:** Structured 10-K/10-Q prose diffs, Form 8-K material events, and Form 4 open-market insider purchases with SEC accession attribution and email filing alerts.
 - **Signal Feed (`/feed`):** Unified market intelligence stream combining prioritized 10-K/10-Q filing diffs, 8-K events, executive Form 4 buys, and curated watchlist news.
 - **Compare Studio (`/compare`):** Side-by-side multi-company fundamental comparisons with indexed 5-year history charts and shareable URLs.
-- **Portfolio X-Ray (`/portfolio`):** Weight- or dollar-based portfolio analysis showing aggregate priced-in growth, True FCF quality, SBC drag, sector concentration, and weighted expected returns from your Saved Theses.
+- **Portfolio Analyzer (`/portfolio`):** Weight- or dollar-based portfolio analysis showing aggregate priced-in growth, True FCF quality, SBC drag, sector concentration, and weighted expected returns from your Saved Theses.
 - **Arena (`/arena`):** Time-weighted monthly and yearly paper-portfolio leaderboards with server-locked entry prices, rebalance history, and strategy benchmark bots.
 
 ## Stack
@@ -34,8 +34,11 @@ Open [http://localhost:3000](http://localhost:3000) to explore Amber locally.
 Run the pull request verification suite locally:
 
 ```bash
-pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm exec playwright install chromium
+pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:browser
 ```
+
+Set `AMBER_TEST_POSTGRES_URL` to a disposable local Postgres server and put `psql` on your PATH to include the Postgres concurrency and browser API tests.
 
 ## Company Coverage
 
@@ -46,7 +49,9 @@ The nightly job screens up to 900 Nasdaq and NYSE issuers from the SEC ticker di
 
 ## Production Releases
 
-`pnpm release` applies and verifies the reviewed SQL migrations in `drizzle/` using the linked Vercel project's production environment, then deploys Amber. Git pushes do not auto-deploy. After deploying, run `pnpm smoke:prod -- --vercel` to verify core production routes. See [AGENTS.md](AGENTS.md) for release ownership and verification rules.
+Set a sending-scoped `RESEND_API_KEY` in GitHub Actions for nightly dispatch and in Vercel production for subscription confirmation. Both use `alerts@amber.finance` by default. To use a different verified Resend sender, set `ALERT_FROM_EMAIL` in GitHub Actions variables and Vercel production. The scheduled workflow reports missing mail configuration and unresolved digest deliveries as failures.
+
+`pnpm release` applies and verifies the reviewed SQL migrations in `drizzle/` using the linked Vercel project's production environment, then deploys Amber. Git pushes do not auto-deploy. When first applying `0012_company_quote_date.sql`, run a successful quote sync against production before using Arena publish or rebalance. A date is recorded only after a verified close is fetched. After deploying, run `pnpm smoke:prod -- --vercel` to verify core production routes. See [AGENTS.md](AGENTS.md) for release ownership and verification rules.
 
 ## License
 

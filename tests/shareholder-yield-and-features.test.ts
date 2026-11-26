@@ -13,6 +13,7 @@ import { readExploreLink, writeExploreLink } from "../src/lib/explore-link.ts";
 
 test("computeShareholderYieldMetrics combines buybacks and dividends net of SBC", () => {
   const result = computeShareholderYieldMetrics({
+    sector: "Industrials & Materials",
     marketCap: 100_000,
     annuals: [
       {
@@ -38,8 +39,7 @@ test("computeShareholderYieldMetrics combines buybacks and dividends net of SBC"
   assert.equal(result.totalShareholderYieldPct, 5);
   // True FCF = 9000 - 1000 - 500 = 7500 -> 3000 / 7500 = 40%
   assert.equal(result.dividendPayoutTrueFcfPct, 40);
-  // FFO = 4000 + 2000 = 6000 -> 3000 / 6000 = 50%
-  assert.equal(result.dividendPayoutFfoPct, 50);
+  assert.equal(result.dividendPayoutFfoPct, null);
 });
 
 test("renderFilingAlertHtml embeds Filing Diff Radar highlights and escapes HTML", () => {

@@ -22,6 +22,13 @@ import { writeCompanyData } from "./write-company-data.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 import { normalizeCompanyName } from "../src/lib/company-name.ts";
 import {
+  DEFAULT_USD_PER_UNIT,
+  detectReportingCurrency,
+  fetchLiveFxRates,
+  getUsdConversionRate,
+  type FxRateMap,
+} from "../src/lib/fx-rates.ts";
+import {
   type AnnualFinancials,
   type CompanySnapshot,
   type FilingDiffItem,
@@ -97,6 +104,21 @@ const CURATED_META: Record<string, CuratedMeta> = {
 
 // Explicit ordinary-shares-per-ADR multipliers for 20-F foreign ADR issuers
 export const ADR_SHARE_RATIO: Record<string, number> = {
+  TSM: 5,
+  ASML: 1,
+  NVO: 1,
+  SAP: 1,
+  SONY: 1,
+  // AZN has traded ordinary shares directly on NYSE since February 2026.
+  SNY: 0.5, // Sanofi: each U.S. depositary share represents half an ordinary share.
+  NVS: 1,
+  TM: 10,
+  HMC: 3,
+  BP: 6,
+  TTE: 1,
+  UL: 1,
+  BUD: 1,
+  INFY: 1,
   LTM: 2000,
   BABA: 8,
   AMX: 20,
@@ -151,6 +173,7 @@ const PRIORITY_TICKERS = [
   "SNAP", "ESTC", "BILL", "MNDY", "CELH", "LULU", "DECK", "PODD", "DXCM", "REGN",
   "VRTX", "CRSP", "FISV", "FIS", "GPN", "XYZ", "ROST", "TGT", "DG", "DLTR",
   "PWR", "EMR", "GLW", "ITW", "COR", "GWW", "MPWR", "PCAR", "ETR", "BKR", "CARR",
+  "TSM", "ASML", "NVO", "SAP", "SONY", "NVS", "AZN", "TM", "SE", "BN", "CNI",
 ];
 
 interface SecDirectoryResponse {
@@ -431,8 +454,9 @@ function daysBetween(start: string, end: string): number {
 function extractAnnualSeries(
   facts: CompanyFactsResponse,
   tagCandidates: string[],
-  unit: "USD" | "shares",
-  requireDuration = true
+  unit: string,
+  requireDuration = true,
+  fxScale = 1
 ): Map<string, XbrlFactUnit> {
   const gaap = facts.facts?.["us-gaap"];
   const ifrs = facts.facts?.["ifrs-full"];
@@ -467,13 +491,14 @@ function extractAnnualSeries(
         if (days < 330 || days > 400) continue;
       }
 
+      const scaled = fxScale === 1 ? e : { ...e, val: e.val * fxScale };
       const existing = merged.get(e.end);
       if (
         !existing ||
         priority < existing.priority ||
         (priority === existing.priority && e.filed > existing.filed)
       ) {
-        merged.set(e.end, { ...e, priority });
+        merged.set(e.end, { ...scaled, priority });
       }
     }
   });
@@ -484,7 +509,8 @@ function extractAnnualSeries(
 function instantSeries(
   facts: CompanyFactsResponse,
   tagCandidates: string[],
-  unit: "USD" | "shares"
+  unit: string,
+  fxScale = 1
 ): Map<string, XbrlFactUnit> {
   const byEnd = new Map<string, XbrlFactUnit>();
   for (const tag of tagCandidates) {
@@ -493,8 +519,9 @@ function instantSeries(
       for (const entry of facts.facts?.[taxonomy]?.[tag]?.units?.[unit] ?? []) {
         if (entry.start || !/^(10-[KQ]|20-F|40-F)(\/A)?$/.test(entry.form) ||
             !Number.isFinite(entry.val) || entry.val < 0) continue;
+        const scaled = fxScale === 1 ? entry : { ...entry, val: entry.val * fxScale };
         const saved = byTag.get(entry.end);
-        if (!saved || entry.filed > saved.filed) byTag.set(entry.end, entry);
+        if (!saved || entry.filed > saved.filed) byTag.set(entry.end, scaled);
       }
     }
     for (const [end, entry] of byTag) {
@@ -504,8 +531,12 @@ function instantSeries(
   return byEnd;
 }
 
-function balanceSheetByPeriod(facts: CompanyFactsResponse) {
-  const series = (tags: string[]) => instantSeries(facts, tags, "USD");
+function balanceSheetByPeriod(
+  facts: CompanyFactsResponse,
+  currency = "USD",
+  fxScale = 1
+) {
+  const series = (tags: string[]) => instantSeries(facts, tags, currency, fxScale);
   const combinedCash = series(["CashCashEquivalentsAndShortTermInvestments"]);
   const cash = series(["CashAndCashEquivalentsAtCarryingValue", "CashAndCashEquivalents"]);
   const investments = series([
@@ -799,14 +830,16 @@ export function selectCoverageCandidates(
 export function extractSingleQuarterMap(
   facts: CompanyFactsResponse,
   tags: string[],
-  unit: "USD" | "shares"
+  unit: string,
+  fxScale = 1
 ): Map<string, number> {
   const quarters = new Map<string, number>();
   const gaap = facts.facts?.["us-gaap"];
-  if (!gaap) return quarters;
+  const ifrs = facts.facts?.["ifrs-full"];
+  if (!gaap && !ifrs) return quarters;
 
   for (const tag of tags) {
-    const entries = gaap[tag]?.units?.[unit] ?? [];
+    const entries = gaap?.[tag]?.units?.[unit] ?? ifrs?.[tag]?.units?.[unit] ?? [];
     const standalone = new Map<string, XbrlFactUnit>();
     const byStart = new Map<string, Map<string, XbrlFactUnit>>();
 
@@ -847,7 +880,7 @@ export function extractSingleQuarterMap(
 
     // Tags are ordered by preference. An alternate tag can fill a gap.
     for (const [end, value] of forTag) {
-      if (!quarters.has(end)) quarters.set(end, value);
+      if (!quarters.has(end)) quarters.set(end, value * fxScale);
     }
   }
 
@@ -864,15 +897,17 @@ function formatQuarterLabel(isoEnd: string): string {
 function extractQuarterlySeries(
   facts: CompanyFactsResponse,
   fallbackShares: number,
-  ticker: string
+  ticker: string,
+  currency = "USD",
+  fxScale = 1
 ): AnnualFinancials[] {
-  const revMap = extractSingleQuarterMap(facts, REVENUE_TAGS, "USD");
+  const revMap = extractSingleQuarterMap(facts, REVENUE_TAGS, currency, fxScale);
   if (revMap.size < 4) return [];
 
-  const ocfMap = extractSingleQuarterMap(facts, OPERATING_CASH_FLOW_TAGS, "USD");
-  const capexMap = extractSingleQuarterMap(facts, CAPEX_TAGS, "USD");
-  const sbcMap = extractSingleQuarterMap(facts, SBC_TAGS, "USD");
-  const buybackMap = extractSingleQuarterMap(facts, BUYBACK_TAGS, "USD");
+  const ocfMap = extractSingleQuarterMap(facts, OPERATING_CASH_FLOW_TAGS, currency, fxScale);
+  const capexMap = extractSingleQuarterMap(facts, CAPEX_TAGS, currency, fxScale);
+  const sbcMap = extractSingleQuarterMap(facts, SBC_TAGS, currency, fxScale);
+  const buybackMap = extractSingleQuarterMap(facts, BUYBACK_TAGS, currency, fxScale);
   const shareMap = extractSingleQuarterMap(
     facts,
     ["WeightedAverageNumberOfDilutedSharesOutstanding"],
@@ -933,7 +968,8 @@ export function hasNewCoverageInputs(snapshot: EdgarSnapshot, now = Date.now()):
 export async function ingestCandidate(
   candidate: DirectoryCandidate,
   curatedMap: Map<string, CompanySnapshot>,
-  existingMap: Map<string, EdgarSnapshot>
+  existingMap: Map<string, EdgarSnapshot>,
+  fxRates: FxRateMap = DEFAULT_USD_PER_UNIT
 ): Promise<EdgarSnapshot | null> {
   const curated = curatedMap.get(candidate.ticker);
   const existing = existingMap.get(candidate.ticker);
@@ -942,12 +978,14 @@ export async function ingestCandidate(
   try {
     const facts = await fetchCompanyFacts(candidate.cik);
     const supplements = FILING_SUPPLEMENTS[candidate.cik];
+    const reportingCurrency = detectReportingCurrency(facts, REVENUE_TAGS);
+    const fxScale = getUsdConversionRate(reportingCurrency, fxRates);
 
-    const revMap = extractAnnualSeries(facts, REVENUE_TAGS, "USD");
-    const ocfMap = extractAnnualSeries(facts, OPERATING_CASH_FLOW_TAGS, "USD");
-    const capexMap = extractAnnualSeries(facts, CAPEX_TAGS, "USD");
-    const sbcMap = extractAnnualSeries(facts, SBC_TAGS, "USD");
-    const buybackMap = extractAnnualSeries(facts, BUYBACK_TAGS, "USD");
+    const revMap = extractAnnualSeries(facts, REVENUE_TAGS, reportingCurrency, true, fxScale);
+    const ocfMap = extractAnnualSeries(facts, OPERATING_CASH_FLOW_TAGS, reportingCurrency, true, fxScale);
+    const capexMap = extractAnnualSeries(facts, CAPEX_TAGS, reportingCurrency, true, fxScale);
+    const sbcMap = extractAnnualSeries(facts, SBC_TAGS, reportingCurrency, true, fxScale);
+    const buybackMap = extractAnnualSeries(facts, BUYBACK_TAGS, reportingCurrency, true, fxScale);
     const sharesMap = extractAnnualSeries(
       facts,
       [
@@ -1025,49 +1063,62 @@ export async function ingestCandidate(
     const grossProfitMap = extractAnnualSeries(
       facts,
       GROSS_PROFIT_TAGS,
-      "USD"
+      reportingCurrency,
+      true,
+      fxScale
     );
     const costOfRevMap = extractAnnualSeries(
       facts,
       COST_OF_REVENUE_TAGS,
-      "USD"
+      reportingCurrency,
+      true,
+      fxScale
     );
     const rdMap = extractAnnualSeries(
       facts,
       RD_TAGS,
-      "USD"
+      reportingCurrency,
+      true,
+      fxScale
     );
     const sgaMap = extractAnnualSeries(
       facts,
       SGA_TAGS,
-      "USD"
+      reportingCurrency,
+      true,
+      fxScale
     );
     const opIncMap = extractAnnualSeries(
       facts,
       OPERATING_INCOME_TAGS,
-      "USD"
+      reportingCurrency,
+      true,
+      fxScale
     );
     const netIncMap = extractAnnualSeries(
       facts,
       NET_INCOME_TAGS,
-      "USD"
+      reportingCurrency,
+      true,
+      fxScale
     );
     const equityMap = extractAnnualSeries(
       facts,
       EQUITY_TAGS,
-      "USD",
-      false
+      reportingCurrency,
+      false,
+      fxScale
     );
-    const daMap = extractAnnualSeries(facts, DA_TAGS, "USD");
-    const dividendMap = extractAnnualSeries(facts, DIVIDEND_TAGS, "USD");
-    const goodwillMap = extractAnnualSeries(facts, GOODWILL_TAGS, "USD", false);
-    const intangiblesMap = extractAnnualSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, "USD", false);
-    const goodwillAndIntangiblesMap = extractAnnualSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, "USD", false);
-    const equityInstantSeries = instantSeries(facts, EQUITY_TAGS, "USD");
-    const goodwillInstantSeries = instantSeries(facts, GOODWILL_TAGS, "USD");
-    const intangiblesInstantSeries = instantSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, "USD");
-    const goodwillAndIntangiblesInstantSeries = instantSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, "USD");
-    const balanceSheet = balanceSheetByPeriod(facts);
+    const daMap = extractAnnualSeries(facts, DA_TAGS, reportingCurrency, true, fxScale);
+    const dividendMap = extractAnnualSeries(facts, DIVIDEND_TAGS, reportingCurrency, true, fxScale);
+    const goodwillMap = extractAnnualSeries(facts, GOODWILL_TAGS, reportingCurrency, false, fxScale);
+    const intangiblesMap = extractAnnualSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, reportingCurrency, false, fxScale);
+    const goodwillAndIntangiblesMap = extractAnnualSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, reportingCurrency, false, fxScale);
+    const equityInstantSeries = instantSeries(facts, EQUITY_TAGS, reportingCurrency, fxScale);
+    const goodwillInstantSeries = instantSeries(facts, GOODWILL_TAGS, reportingCurrency, fxScale);
+    const intangiblesInstantSeries = instantSeries(facts, INTANGIBLES_EXCL_GOODWILL_TAGS, reportingCurrency, fxScale);
+    const goodwillAndIntangiblesInstantSeries = instantSeries(facts, GOODWILL_AND_INTANGIBLES_TAGS, reportingCurrency, fxScale);
+    const balanceSheet = balanceSheetByPeriod(facts, reportingCurrency, fxScale);
     const latestEndByYear = new Map(
       [...revMap.keys()].filter((end) => ocfMap.has(end)).sort()
         .map((end) => [end.slice(0, 4), end])
@@ -1381,7 +1432,9 @@ export async function ingestCandidate(
       quarterlyFinancials: extractQuarterlySeries(
         facts,
         latestComputed.dilutedShares,
-        candidate.ticker
+        candidate.ticker,
+        reportingCurrency,
+        fxScale
       ),
       defaultDcf,
     };
@@ -1420,18 +1473,21 @@ async function run() {
   const existingMap = new Map(existingList.map((c) => [c.ticker, c]));
   const curatedMap = new Map(PILOT_TICKERS.map((c) => [c.ticker, c]));
 
-  console.log("[amber-ingest] Fetching official SEC EDGAR ticker directory...");
-  const directory = await fetchSecJson<SecDirectoryResponse>("https://www.sec.gov/files/company_tickers_exchange.json");
+  console.log("[amber-ingest] Fetching official SEC EDGAR ticker directory & FX rates...");
+  const [directory, fxRates] = await Promise.all([
+    fetchSecJson<SecDirectoryResponse>("https://www.sec.gov/files/company_tickers_exchange.json"),
+    fetchLiveFxRates(),
+  ]);
   const candidates = selectCoverageCandidates(directory.data, UNIVERSE_LIMIT, [...existingMap.keys()]);
   console.log(
-    `[amber-ingest] Ingesting live SEC EDGAR 10-K XBRL for ${candidates.length} candidates...`
+    `[amber-ingest] Ingesting live SEC EDGAR 10-K/20-F XBRL for ${candidates.length} candidates...`
   );
 
   const companies: EdgarSnapshot[] = [];
   let incompleteNewCoverage = 0;
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
-    const snap = await ingestCandidate(c, curatedMap, existingMap);
+    const snap = await ingestCandidate(c, curatedMap, existingMap, fxRates);
     if (snap) {
       if (existingMap.has(c.ticker) || curatedMap.has(c.ticker) || hasNewCoverageInputs(snap)) {
         companies.push(snap);
