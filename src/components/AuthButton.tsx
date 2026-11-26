@@ -129,11 +129,25 @@ export function AuthButton() {
     return () => window.removeEventListener("amber:profile-updated", fetchProfile);
   }, [sessionUserId]);
 
+  function loadProviders() {
+    if (providers !== null) return;
+    fetch("/api/auth/providers")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ProviderAvailability | null) => {
+        if (data) setProviders(data);
+        else setProviders({ google: false, github: false, magicLink: false });
+      })
+      .catch(() => {
+        setProviders({ google: false, github: false, magicLink: false });
+      });
+  }
+
   function openModal() {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     setError("");
     setMagicSentTo(null);
+    loadProviders();
     dialog.showModal();
   }
 
@@ -146,22 +160,7 @@ export function AuthButton() {
     const onOpen = () => openModal();
     window.addEventListener("amber:open-auth", onOpen);
     return () => window.removeEventListener("amber:open-auth", onOpen);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/auth/providers")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: ProviderAvailability | null) => {
-        if (active && data) setProviders(data);
-      })
-      .catch(() => {
-        if (active) setProviders({ google: false, github: false });
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  });
 
   async function handleSocial(provider: "google" | "github") {
     setError("");

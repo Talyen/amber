@@ -10,7 +10,7 @@ import {
 } from "@/data/repository";
 import { getTrendingTickers } from "@/lib/trending";
 
-export const revalidate = 900;
+export const revalidate = 21600;
 
 export default async function HomePage() {
   const [entries, trending, insiderBuySummaries, materialEventSummaries] =

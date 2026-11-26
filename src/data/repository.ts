@@ -595,7 +595,7 @@ export async function getFilingDiffsForTickers(
       }));
     },
     ["amber-ticker-filing-diffs-v1", key, String(limit)],
-    { revalidate: 900, tags: ["filings", "companies"] }
+    { revalidate: 3600, tags: ["filings", "companies"] }
   );
 
   try {
@@ -639,7 +639,7 @@ export async function getInsiderTradesForTickers(
       }));
     },
     ["amber-ticker-insiders-v1", key, String(limit)],
-    { revalidate: 900, tags: ["insiders"] }
+    { revalidate: 3600, tags: ["insiders"] }
   );
 
   try {
@@ -655,7 +655,7 @@ export async function getInsiderBuySummaries() {
   const cachedFetch = unstable_cache(
     () => queryInsiderBuySummaries(db, new Date()),
     ["amber-insider-buy-summaries-v2"],
-    { revalidate: 900, tags: ["insiders"] }
+    { revalidate: 3600, tags: ["insiders"] }
   );
   try {
     return await cachedFetch();
@@ -670,7 +670,7 @@ export async function getMaterialEventSummaries() {
   const cachedFetch = unstable_cache(
     () => queryMaterialEventSummaries(db, new Date()),
     ["amber-material-event-summaries-v2"],
-    { revalidate: 900, tags: ["filings"] }
+    { revalidate: 3600, tags: ["filings"] }
   );
   try {
     return await cachedFetch();

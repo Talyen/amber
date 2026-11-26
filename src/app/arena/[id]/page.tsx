@@ -15,7 +15,7 @@ import {
 import { formatPct } from "@/lib/finance";
 import { arenaPortfolioAnalysisHref } from "@/lib/portfolio-link";
 
-export const revalidate = 3600;
+export const revalidate = 21600;
 
 export async function generateMetadata({
   params,

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, Bot, Calendar, Info, Trophy } from "lucide-react";
 import type { ArenaPortfolioView } from "@/data/arena-repository";
-import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CommunityThesesPanel } from "@/components/CommunityThesesPanel";
@@ -15,7 +14,6 @@ interface ArenaLeaderboardProps {
   portfolios: ArenaPortfolioView[];
   benchmarks: Record<string, number>;
   entryBenchmarks: Record<string, number>;
-  searchIndex?: SearchIndexEntry[];
 }
 
 type Timeframe = "monthly" | "yearly" | "all";
@@ -46,7 +44,6 @@ export function ArenaLeaderboard({
   portfolios,
   benchmarks,
   entryBenchmarks,
-  searchIndex = [],
 }: ArenaLeaderboardProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -463,7 +460,7 @@ export function ArenaLeaderboard({
             ))
           )}
         </section>
-        {searchIndex.length > 0 && <CommunityThesesPanel entries={searchIndex} />}
+        <CommunityThesesPanel />
         <SiteFooter />
       </main>
     </div>

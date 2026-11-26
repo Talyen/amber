@@ -5,9 +5,9 @@ import {
   getSearchIndex,
 } from "@/data/repository";
 import { getCachedMarketNews } from "@/lib/market-news";
-import { SignalFeed } from "@/components/SignalFeed";
+import { SignalFeed, type FeedCompanyEntry } from "@/components/SignalFeed";
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Feed | SEC Filings, 8-K Events & Insider Trades",
@@ -16,12 +16,24 @@ export const metadata: Metadata = {
 };
 
 export default async function FeedPage() {
-  const [entries, insiders, diffs, marketNews] = await Promise.all([
+  const [fullEntries, insiders, diffs, marketNews] = await Promise.all([
     getSearchIndex(),
     getRecentMarketInsiders(),
     getRecentFilingDiffs(160),
     getCachedMarketNews(),
   ]);
+  const entries: FeedCompanyEntry[] = fullEntries.map((e) => ({
+    ticker: e.ticker,
+    name: e.name,
+    sector: e.sector,
+    marketCap: e.marketCap,
+    lastFilingDate: e.lastFilingDate,
+    trueFcf: e.trueFcf,
+    trueFcfMargin: e.trueFcfMargin,
+    sbcPctRevenue: e.sbcPctRevenue,
+    impliedCagr: e.impliedCagr,
+    equityLensOnly: Boolean(e.scenarioBasis?.equityLensOnly),
+  }));
   return (
     <SignalFeed
       entries={entries}

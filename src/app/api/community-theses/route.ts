@@ -2,13 +2,22 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { user, userValuationPresets } from "@/db/schema";
-import type { CommunityThesisItem } from "@/lib/valuation-presets";
+import { getSearchIndex } from "@/data/repository";
+import {
+  computePresetExpectedReturn,
+  type CommunityThesisItem,
+} from "@/lib/valuation-presets";
 
 export const dynamic = "force-dynamic";
-const headers = { "Cache-Control": "private, no-store" };
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1800",
+};
 
 export interface MarketCommunityThesisItem extends CommunityThesisItem {
   ticker: string;
+  companyName: string;
+  irrPct: number | null;
+  fairValueToday: number | null;
 }
 
 export async function GET(request: Request) {
@@ -16,55 +25,79 @@ export async function GET(request: Request) {
   const db = getDb();
 
   if (!rawTicker) {
-    if (!db) return NextResponse.json([], { headers });
-    const rows = await db
-      .select({
-        ticker: userValuationPresets.ticker,
-        handle: user.handle,
-        avatarIcon: user.avatarIcon,
-        lens: userValuationPresets.lens,
-        revGrowth: userValuationPresets.revGrowth,
-        targetMargin: userValuationPresets.targetMargin,
-        exitMultiple: userValuationPresets.exitMultiple,
-        thesisNote: userValuationPresets.thesisNote,
-        updatedAt: userValuationPresets.updatedAt,
-      })
-      .from(userValuationPresets)
-      .innerJoin(user, eq(user.id, userValuationPresets.userId))
-      .where(
-        and(
-          eq(userValuationPresets.isPublic, true),
-          isNotNull(user.handle)
+    if (!db) return NextResponse.json([], { headers: CACHE_HEADERS });
+    const [rows, searchIndex] = await Promise.all([
+      db
+        .select({
+          ticker: userValuationPresets.ticker,
+          handle: user.handle,
+          avatarIcon: user.avatarIcon,
+          lens: userValuationPresets.lens,
+          revGrowth: userValuationPresets.revGrowth,
+          targetMargin: userValuationPresets.targetMargin,
+          exitMultiple: userValuationPresets.exitMultiple,
+          thesisNote: userValuationPresets.thesisNote,
+          updatedAt: userValuationPresets.updatedAt,
+        })
+        .from(userValuationPresets)
+        .innerJoin(user, eq(user.id, userValuationPresets.userId))
+        .where(
+          and(
+            eq(userValuationPresets.isPublic, true),
+            isNotNull(user.handle)
+          )
         )
-      )
-      .orderBy(desc(userValuationPresets.updatedAt))
-      .limit(12);
+        .orderBy(desc(userValuationPresets.updatedAt))
+        .limit(12),
+      getSearchIndex(),
+    ]);
 
-    const theses: MarketCommunityThesisItem[] = rows.flatMap((row) =>
-      row.handle
-        ? [
+    const byTicker = new Map(searchIndex.map((e) => [e.ticker, e]));
+
+    const theses: MarketCommunityThesisItem[] = rows.flatMap((row) => {
+      if (!row.handle) return [];
+      const lens = row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf";
+      const entry = byTicker.get(row.ticker);
+      const updatedAt = row.updatedAt.toISOString();
+      const proj = entry
+        ? computePresetExpectedReturn(
             {
               ticker: row.ticker,
-              handle: row.handle,
-              avatarIcon: row.avatarIcon,
-              lens: row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf",
+              lens,
               revGrowth: row.revGrowth,
               targetMargin: row.targetMargin,
               exitMultiple: row.exitMultiple,
               thesisNote: row.thesisNote,
-              updatedAt: row.updatedAt.toISOString(),
+              updatedAt,
             },
-          ]
-        : []
-    );
-    return NextResponse.json(theses, { headers });
+            entry
+          )
+        : null;
+      return [
+        {
+          ticker: row.ticker,
+          companyName: entry?.name ?? row.ticker,
+          handle: row.handle,
+          avatarIcon: row.avatarIcon,
+          lens,
+          revGrowth: row.revGrowth,
+          targetMargin: row.targetMargin,
+          exitMultiple: row.exitMultiple,
+          thesisNote: row.thesisNote,
+          updatedAt,
+          irrPct: proj?.irrPct ?? null,
+          fairValueToday: proj?.fairValueToday ?? null,
+        },
+      ];
+    });
+    return NextResponse.json(theses, { headers: CACHE_HEADERS });
   }
 
   if (!/^[A-Z0-9.-]{1,10}$/.test(rawTicker)) {
-    return NextResponse.json({ error: "Invalid ticker." }, { status: 400, headers });
+    return NextResponse.json({ error: "Invalid ticker." }, { status: 400 });
   }
 
-  if (!db) return NextResponse.json([], { headers });
+  if (!db) return NextResponse.json([], { headers: CACHE_HEADERS });
 
   const rows = await db
     .select({
@@ -101,5 +134,5 @@ export async function GET(request: Request) {
         ]
       : []
   );
-  return NextResponse.json(theses, { headers });
+  return NextResponse.json(theses, { headers: CACHE_HEADERS });
 }

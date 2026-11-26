@@ -37,8 +37,16 @@ export async function POST(request: Request) {
   }
 
   revalidateTag("companies");
+  revalidateTag("filings");
+  revalidateTag("insiders");
+  revalidateTag("arena");
   revalidatePath("/");
+  revalidatePath("/feed");
+  revalidatePath("/arena");
+  revalidatePath("/portfolio");
+  revalidatePath("/compare");
   revalidatePath("/api/search-index");
+  revalidatePath("/api/search-index/compact");
 
   for (const ticker of tickers) {
     revalidateTag(`ticker-${ticker}`);

@@ -14,7 +14,7 @@ let inFlightSearchIndex: Promise<SearchIndexEntry[] | null> | null = null;
 function loadSearchIndex(): Promise<SearchIndexEntry[] | null> {
   if (cachedSearchIndex) return Promise.resolve(cachedSearchIndex);
   if (!inFlightSearchIndex) {
-    inFlightSearchIndex = fetch("/api/search-index")
+    inFlightSearchIndex = fetch("/api/search-index/compact")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: SearchIndexEntry[] | null) => {
         if (Array.isArray(data) && data.length > 0) {

@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSearchIndex } from "@/data/repository";
 
-export const revalidate = 900;
+export const revalidate = 21600;
 
 /**
- * Lightweight edge-cached search index across all Neon-backed companies.
- * Enables 0ms client-side Cmd+K search even when scaled to 5,000+ tickers
- * without bundling the full dataset into client JS.
+ * Full edge-cached search index across all Neon-backed companies.
  */
 export async function GET() {
   const index = await getSearchIndex();
   return NextResponse.json(index, {
     headers: {
-      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600",
+      "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=86400",
     },
   });
 }

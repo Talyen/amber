@@ -8,7 +8,7 @@ import {
 import { SignalIndex } from "@/components/SignalIndex";
 import { DISCOVERY_LENSES } from "@/lib/insights";
 
-export const revalidate = 3600;
+export const revalidate = 21600;
 
 export function generateStaticParams() {
   return DISCOVERY_LENSES.map((lens) => ({ slug: lens.id }));

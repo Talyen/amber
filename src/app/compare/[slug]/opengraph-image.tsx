@@ -3,6 +3,8 @@ import { getSearchIndex } from "@/data/repository";
 import { resolveComparisonTickers } from "@/lib/compare";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
+export const revalidate = 86400;
+
 export const size = {
   width: 1200,
   height: 630,

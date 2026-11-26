@@ -1,31 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/search-index";
 import type { MarketCommunityThesisItem } from "@/app/api/community-theses/route";
-import { computePresetExpectedReturn } from "@/lib/valuation-presets";
 import { formatPct } from "@/lib/finance";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 
-interface CommunityThesesPanelProps {
-  entries: SearchIndexEntry[];
-}
-
-export function CommunityThesesPanel({ entries }: CommunityThesesPanelProps) {
+export function CommunityThesesPanel() {
   const [theses, setTheses] = useState<MarketCommunityThesisItem[]>([]);
   const [loaded, setLoaded] = useState(false);
-
-  const byTicker = useMemo(
-    () => new Map(entries.map((e) => [e.ticker, e])),
-    [entries]
-  );
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/community-theses", {
-      cache: "no-store",
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -66,22 +54,7 @@ export function CommunityThesesPanel({ entries }: CommunityThesesPanelProps) {
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {theses.slice(0, 9).map((item) => {
-          const entry = byTicker.get(item.ticker);
-          const proj = entry
-            ? computePresetExpectedReturn(
-                {
-                  ticker: item.ticker,
-                  lens: item.lens,
-                  revGrowth: item.revGrowth,
-                  targetMargin: item.targetMargin,
-                  exitMultiple: item.exitMultiple,
-                  thesisNote: item.thesisNote,
-                  updatedAt: item.updatedAt,
-                },
-                entry
-              )
-            : null;
-          const irr = proj?.irrPct ?? null;
+          const irr = item.irrPct;
 
           return (
             <div
@@ -99,7 +72,7 @@ export function CommunityThesesPanel({ entries }: CommunityThesesPanelProps) {
                         {item.ticker}
                       </span>
                       <span className="truncate text-xs text-[var(--text-secondary)]">
-                        {entry?.name ?? item.ticker}
+                        {item.companyName}
                       </span>
                     </Link>
                     <div className="font-mono-num mt-0.5 text-[11px] text-[var(--text-muted)]">
@@ -140,7 +113,7 @@ export function CommunityThesesPanel({ entries }: CommunityThesesPanelProps) {
                   href={`/t/${item.ticker}?tab=dcf&model=scenario&lens=${item.lens}&rev=${item.revGrowth}&m=${item.targetMargin}&exit=${item.exitMultiple}`}
                   className="shrink-0 font-medium text-[var(--amber)] hover:underline"
                 >
-                  {proj ? `FV $${proj.fairValueToday.toFixed(0)} →` : "Open model →"}
+                  {item.fairValueToday !== null ? `FV $${item.fairValueToday.toFixed(0)} →` : "Open model →"}
                 </Link>
               </div>
             </div>

@@ -12,7 +12,6 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/search-index";
 import type {
   MarketFilingDiffItem,
   MarketInsiderFeedItem,
@@ -29,8 +28,21 @@ import { UpcomingFilingsPanel } from "@/components/UpcomingFilingsPanel";
 import { computeUpcomingFilings } from "@/lib/filing-calendar";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
+export interface FeedCompanyEntry {
+  ticker: string;
+  name: string;
+  sector: string;
+  marketCap: number;
+  lastFilingDate: string;
+  trueFcf: number;
+  trueFcfMargin: number;
+  sbcPctRevenue: number;
+  impliedCagr: number | null;
+  equityLensOnly: boolean;
+}
+
 interface SignalFeedProps {
-  entries: SearchIndexEntry[];
+  entries: FeedCompanyEntry[];
   insiders: MarketInsiderFeedItem[];
   diffs?: MarketFilingDiffItem[];
   initialTrending?: TrendingTickerItem[];
@@ -737,7 +749,7 @@ export function SignalFeed({
                               <span>
                                 True FCF %{" "}
                                 <strong className="font-mono-num text-[var(--text-primary)]">
-                                  {formatPct(heroCompany.scenarioBasis.equityLensOnly ? null : heroCompany.trueFcfMargin)}
+                                  {formatPct(heroCompany.equityLensOnly ? null : heroCompany.trueFcfMargin)}
                                 </strong>
                               </span>
                               <span>
@@ -1277,7 +1289,7 @@ export function SignalFeed({
                                     }`}
                                   >
                                     {formatCurrencyCompact(c.trueFcf)} (
-                                    {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)})
+                                    {formatPct(c.equityLensOnly ? null : c.trueFcfMargin)})
                                   </strong>
                                 </span>
                                 <span>
