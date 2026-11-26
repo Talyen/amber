@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -40,10 +41,14 @@ import {
 } from "@/lib/saved-screens";
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
-import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
 import { ExploreSignalStrip } from "@/components/ExploreSignalStrip";
 import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { SiteFooter } from "@/components/SiteFooter";
+
+const ExploreScreenerDrawer = dynamic(
+  () => import("@/components/ExploreScreenerDrawer").then((m) => m.ExploreScreenerDrawer),
+  { ssr: false }
+);
 import {
   matchesReitPriceToFfo, formatCurrencyCompact, formatPct } from "@/lib/finance";
 import {
@@ -230,6 +235,8 @@ function sortableKeys(lensId: string | null) {
 export function SignalIndex({
   entries = [],
   initialLensId = null,
+  featuredDiffs: preselectedDiffs,
+  featuredInsiderBuy: preselectedInsiderBuy,
   recentDiffs = [],
   recentInsiders = [],
   trendingTickers = [],
@@ -238,6 +245,8 @@ export function SignalIndex({
 }: {
   entries?: SearchIndexEntry[];
   initialLensId?: string | null;
+  featuredDiffs?: MarketFilingDiffItem[];
+  featuredInsiderBuy?: MarketInsiderFeedItem | null;
   recentDiffs?: MarketFilingDiffItem[];
   recentInsiders?: MarketInsiderFeedItem[];
   trendingTickers?: string[];
@@ -699,7 +708,7 @@ export function SignalIndex({
     const eventInfo = materialEventSummaries[c.ticker];
 
     return (
-      <tr key={c.ticker}>
+      <tr key={c.ticker} className="cv-row">
         <th scope="row">
           <div className="inline-flex items-center gap-2">
             <button
@@ -965,16 +974,20 @@ export function SignalIndex({
     );
   }
 
-  const { featuredDiffs, featuredInsiderBuy } = useMemo(
-    () =>
-      selectFeaturedSignals({
-        diffs: recentDiffs,
-        insiders: recentInsiders,
-        entries,
-        trendingTickers,
-      }),
-    [recentDiffs, recentInsiders, entries, trendingTickers]
-  );
+  const { featuredDiffs, featuredInsiderBuy } = useMemo(() => {
+    if (preselectedDiffs !== undefined) {
+      return {
+        featuredDiffs: preselectedDiffs,
+        featuredInsiderBuy: preselectedInsiderBuy ?? null,
+      };
+    }
+    return selectFeaturedSignals({
+      diffs: recentDiffs,
+      insiders: recentInsiders,
+      entries,
+      trendingTickers,
+    });
+  }, [preselectedDiffs, preselectedInsiderBuy, recentDiffs, recentInsiders, entries, trendingTickers]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">

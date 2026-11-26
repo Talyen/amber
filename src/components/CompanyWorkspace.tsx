@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Banknote,
@@ -32,13 +33,7 @@ import {
   isFinancialInstitution as checkFinancialInstitution,
   isReit as checkIsReit,
 } from "@/lib/finance";
-import {
-  buildTickerAiContext,
-  buildTickerMarkdown,
-  buildTickerPlainText,
-} from "@/lib/export-markdown";
 import { isFreshPriceDate } from "@/lib/market-price";
-import { exportTrueFcfCard } from "@/lib/export-card";
 import { valuationModelFromUrl } from "@/lib/valuation-link";
 import { useWatchlist } from "@/lib/watchlist";
 import type { SearchIndexEntry } from "@/data/search-index";
@@ -47,21 +42,23 @@ import { TopNav } from "@/components/TopNav";
 import { CompanyBriefing } from "@/components/CompanyBriefing";
 import { MoatQualityCard } from "@/components/MoatQualityCard";
 import { RevenueSankey } from "@/components/RevenueSankey";
-import { TrueFcfChart } from "@/components/TrueFcfChart";
-import { TrueFcfWaterfall } from "@/components/TrueFcfWaterfall";
-import { BuybackRealityCard } from "@/components/BuybackRealityCard";
-import { FinancialLedgerTable } from "@/components/FinancialLedgerTable";
-import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
-import { ScenarioBuilder } from "@/components/ScenarioBuilder";
-import { PriceVsFundamentalsChart } from "@/components/PriceVsFundamentalsChart";
-import { HistoricalValuationBands } from "@/components/HistoricalValuationBands";
-import { FilingDiffRadar } from "@/components/FilingDiffRadar";
-import { FilingAlertModal } from "@/components/FilingAlertModal";
-import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
+import type { InsiderTradeItem } from "@/components/InsiderRadar";
 import { MetricHint } from "@/components/MetricHint";
 import { SectorPeersTable } from "@/components/SectorPeersTable";
 import { SiteFooter } from "@/components/SiteFooter";
 import { buildCompanyBriefing } from "@/lib/insights";
+
+const TrueFcfChart = dynamic(() => import("@/components/TrueFcfChart").then((m) => m.TrueFcfChart));
+const TrueFcfWaterfall = dynamic(() => import("@/components/TrueFcfWaterfall").then((m) => m.TrueFcfWaterfall));
+const BuybackRealityCard = dynamic(() => import("@/components/BuybackRealityCard").then((m) => m.BuybackRealityCard));
+const FinancialLedgerTable = dynamic(() => import("@/components/FinancialLedgerTable").then((m) => m.FinancialLedgerTable));
+const ReverseDcfStudio = dynamic(() => import("@/components/ReverseDcfStudio").then((m) => m.ReverseDcfStudio));
+const ScenarioBuilder = dynamic(() => import("@/components/ScenarioBuilder").then((m) => m.ScenarioBuilder));
+const PriceVsFundamentalsChart = dynamic(() => import("@/components/PriceVsFundamentalsChart").then((m) => m.PriceVsFundamentalsChart));
+const HistoricalValuationBands = dynamic(() => import("@/components/HistoricalValuationBands").then((m) => m.HistoricalValuationBands));
+const FilingDiffRadar = dynamic(() => import("@/components/FilingDiffRadar").then((m) => m.FilingDiffRadar));
+const FilingAlertModal = dynamic(() => import("@/components/FilingAlertModal").then((m) => m.FilingAlertModal));
+const InsiderRadar = dynamic(() => import("@/components/InsiderRadar").then((m) => m.InsiderRadar));
 
 type ActiveTab = "overview" | "fcf" | "dcf" | "diffs" | "insiders";
 
@@ -399,6 +396,7 @@ export function CompanyWorkspace({
                       role="menuitem"
                       onClick={async () => {
                         try {
+                          const { buildTickerPlainText } = await import("@/lib/export-markdown");
                           await navigator.clipboard.writeText(
                             buildTickerPlainText(
                               company,
@@ -432,6 +430,7 @@ export function CompanyWorkspace({
                       role="menuitem"
                       onClick={async () => {
                         try {
+                          const { buildTickerMarkdown } = await import("@/lib/export-markdown");
                           await navigator.clipboard.writeText(
                             buildTickerMarkdown(
                               company,
@@ -465,6 +464,7 @@ export function CompanyWorkspace({
                       role="menuitem"
                       onClick={async () => {
                         try {
+                          const { buildTickerAiContext } = await import("@/lib/export-markdown");
                           await navigator.clipboard.writeText(
                             buildTickerAiContext(
                               company,
@@ -498,7 +498,8 @@ export function CompanyWorkspace({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => {
+                      onClick={async () => {
+                        const { exportTrueFcfCard } = await import("@/lib/export-card");
                         exportTrueFcfCard(company, series);
                         setCopyMenuOpen(false);
                       }}

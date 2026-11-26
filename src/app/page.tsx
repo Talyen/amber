@@ -8,6 +8,7 @@ import {
   getRecentMarketInsiders,
   getSearchIndex,
 } from "@/data/repository";
+import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { getTrendingTickers } from "@/lib/trending";
 
 export const revalidate = 21600;
@@ -41,12 +42,18 @@ export default async function HomePage() {
     ...fallbackInsiders.filter((fi) => !seenInsiderIds.has(fi.id)),
   ];
 
+  const { featuredDiffs, featuredInsiderBuy } = selectFeaturedSignals({
+    diffs: recentDiffs,
+    insiders: recentInsiders,
+    entries,
+    trendingTickers: trendingSyms,
+  });
+
   return (
     <SignalIndex
       entries={entries}
-      recentDiffs={recentDiffs}
-      recentInsiders={recentInsiders}
-      trendingTickers={trendingSyms}
+      featuredDiffs={featuredDiffs}
+      featuredInsiderBuy={featuredInsiderBuy}
       insiderBuySummaries={insiderBuySummaries}
       materialEventSummaries={materialEventSummaries}
     />

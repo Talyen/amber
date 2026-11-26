@@ -527,3 +527,14 @@ dialog.amber-dialog::backdrop {
     background: var(--scrollbar-track);
   }
 }
+
+/* Skip layout/paint for off-screen table rows and feed cards */
+.cv-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+
+.cv-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}

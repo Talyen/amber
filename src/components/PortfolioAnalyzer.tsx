@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
@@ -27,10 +28,15 @@ import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { MetricHint } from "@/components/MetricHint";
-import { LockPortfolioModal } from "@/components/LockPortfolioModal";
-import { PortfolioStressPanel } from "@/components/PortfolioStressPanel";
 import { formatPct } from "@/lib/finance";
-import { exportPortfolioCard } from "@/lib/export-card";
+
+const LockPortfolioModal = dynamic(
+  () => import("@/components/LockPortfolioModal").then((m) => m.LockPortfolioModal),
+  { ssr: false }
+);
+const PortfolioStressPanel = dynamic(
+  () => import("@/components/PortfolioStressPanel").then((m) => m.PortfolioStressPanel)
+);
 import {
   parsePortfolioDraft,
   parsePortfolioHoldings,
@@ -590,7 +596,8 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
     }
   }
 
-  function handleExportPng() {
+  async function handleExportPng() {
+    const { exportPortfolioCard } = await import("@/lib/export-card");
     exportPortfolioCard({
       holdings: holdings.map((h) => ({
         ticker: h.ticker,

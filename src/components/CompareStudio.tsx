@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, FileSpreadsheet, Link2, Plus, Share2, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
 import { SiteFooter } from "@/components/SiteFooter";
-import { CompareHistoryCharts } from "@/components/CompareHistoryCharts";
 import { DEFAULT_COMPARE_TICKERS } from "@/lib/compare";
 import type { CompareCompanyHistory } from "@/lib/compare-history";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
-import { exportComparisonCard } from "@/lib/export-card";
 import { exportComparisonCsv } from "@/lib/export-csv";
-import { buildComparisonMarkdown } from "@/lib/export-markdown";
+
+const CompareHistoryCharts = dynamic(
+  () => import("@/components/CompareHistoryCharts").then((m) => m.CompareHistoryCharts)
+);
 
 const MAX_COMPARE_TICKERS = 5;
 
@@ -222,6 +224,7 @@ export function CompareStudio({
                   role="menuitem"
                   onClick={async () => {
                     try {
+                      const { buildComparisonMarkdown } = await import("@/lib/export-markdown");
                       await navigator.clipboard.writeText(
                         buildComparisonMarkdown(selectedItems, window.location.origin)
                       );
@@ -253,7 +256,8 @@ export function CompareStudio({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => {
+                  onClick={async () => {
+                    const { exportComparisonCard } = await import("@/lib/export-card");
                     exportComparisonCard(
                       selectedItems.map((item) =>
                         item.scenarioBasis.equityLensOnly

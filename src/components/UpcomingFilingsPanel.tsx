@@ -126,7 +126,7 @@ export function UpcomingFilingsPanel({
             {items.slice(0, 60).map((item) => (
               <tr
                 key={item.ticker}
-                className="transition-colors hover:bg-[var(--surface-subtle)]/60"
+                className="cv-row transition-colors hover:bg-[var(--surface-subtle)]/60"
               >
                 <td className="px-4 py-2.5">
                   <Link
