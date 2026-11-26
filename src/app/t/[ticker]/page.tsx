@@ -69,7 +69,7 @@ export default async function TickerPage({ params }: TickerPageProps) {
         Math.abs(a.marketCap - company.marketCap) -
         Math.abs(b.marketCap - company.marketCap)
     )
-    .slice(0, 4);
+    .slice(0, 5);
 
   const { latest, enterpriseValue, netDilutionCagr, reverseDcf } =
     computeCompanyValuation(company);

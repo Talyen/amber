@@ -111,5 +111,5 @@ jobs:
           fi
 
       - name: Report incomplete filing ingestion or alert delivery
-        if: ${{ !cancelled() && (steps.ingest_8k.outcome == 'failure' || steps.send_alerts.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.ingest_8k.outcome == 'failure' || steps.ingest_proxy.outcome == 'failure' || steps.send_alerts.outcome == 'failure') }}
         run: exit 1

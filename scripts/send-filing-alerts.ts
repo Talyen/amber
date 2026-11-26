@@ -1,6 +1,6 @@
 /** Send periodic filing alerts and watchlist digests to confirmed subscribers. */
 import { isFreshPriceDate } from "../src/lib/market-price.ts";
-import { buildScenarioBasis } from "../src/lib/finance.ts";
+import { buildScenarioBasis, computeRevenueCagr } from "../src/lib/finance.ts";
 import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { neon } from "@neondatabase/serverless";
@@ -27,6 +27,7 @@ import {
   type WatchlistDigestItem,
 } from "../src/lib/alert-email.ts";
 import {
+  computeThesisDrift,
   evaluateValuationTriggers,
   type PresetValuationEntry,
   type SavedScenarioLens,
@@ -231,6 +232,7 @@ export async function dispatchFilingAlerts({
               ticker: companies.ticker,
               price: companies.price,
               priceAsOf: companies.priceAsOf,
+              lastFilingDate: companies.lastFilingDate,
               sector: companies.sector,
               cashAndEquiv: companies.cashAndEquiv,
               totalDebt: companies.totalDebt,
@@ -247,6 +249,7 @@ export async function dispatchFilingAlerts({
               operatingCashFlow: annualFinancials.operatingCashFlow,
               capex: annualFinancials.capex,
               sbc: annualFinancials.sbc,
+              buybacks: annualFinancials.buybacks,
               operatingIncome: annualFinancials.operatingIncome,
               netIncome: annualFinancials.netIncome,
             })
@@ -262,28 +265,35 @@ export async function dispatchFilingAlerts({
           }
 
           const entriesByTicker = new Map<string, PresetValuationEntry>();
+          const filingDateByTicker = new Map<string, string>();
           for (const company of companyRows) {
             const annuals = annualsByTicker.get(company.ticker);
+            if (company.lastFilingDate) {
+              filingDateByTicker.set(company.ticker, company.lastFilingDate);
+            }
             if (annuals?.length && isFreshPriceDate(company.priceAsOf)) {
               entriesByTicker.set(company.ticker, {
                 ticker: company.ticker,
+                revenueCagr: computeRevenueCagr(annuals),
                 scenarioBasis: buildScenarioBasis({ ...company, annuals }),
               });
             }
           }
 
+          const normalizedPresets = presetRows.map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            lens: (p.lens === "ebit" || p.lens === "pe" ? p.lens : "fcf") as SavedScenarioLens,
+            revGrowth: p.revGrowth,
+            targetMargin: p.targetMargin,
+            exitMultiple: p.exitMultiple,
+            thesisNote: p.thesisNote,
+            lastValuationAlertAt: p.lastValuationAlertAt,
+            updatedAt: p.updatedAt.toISOString(),
+          }));
+
           const hits = evaluateValuationTriggers(
-            presetRows.map((p) => ({
-              id: p.id,
-              ticker: p.ticker,
-              lens: (p.lens === "ebit" || p.lens === "pe" ? p.lens : "fcf") as SavedScenarioLens,
-              revGrowth: p.revGrowth,
-              targetMargin: p.targetMargin,
-              exitMultiple: p.exitMultiple,
-              thesisNote: p.thesisNote,
-              lastValuationAlertAt: p.lastValuationAlertAt,
-              updatedAt: p.updatedAt.toISOString(),
-            })),
+            normalizedPresets,
             entriesByTicker,
             sub.valuationIrrThreshold
           );
@@ -299,6 +309,24 @@ export async function dispatchFilingAlerts({
                 ? `Your ${hit.lens.toUpperCase()} thesis crossed your ${sub.valuationIrrThreshold}% IRR threshold — "${hit.thesisNote}"`
                 : `Your saved ${hit.lens.toUpperCase()} thesis crossed your ${sub.valuationIrrThreshold}% IRR target.`,
             });
+          }
+
+          // Surface Thesis Drift when a fresh filing lands and actuals trail saved assumptions
+          for (const preset of normalizedPresets) {
+            const filingDate = filingDateByTicker.get(preset.ticker);
+            if (!filingDate || filingDate < digestCutoffDate) continue;
+            const entry = entriesByTicker.get(preset.ticker);
+            if (!entry) continue;
+            const drift = computeThesisDrift(preset, entry);
+            if (drift?.status === "trailing") {
+              items.push({
+                ticker: preset.ticker,
+                kind: "Thesis Drift",
+                date: filingDate,
+                headline: `${preset.ticker} actuals trail your saved ${preset.lens.toUpperCase()} thesis`,
+                detail: drift.summary,
+              });
+            }
           }
         }
       }

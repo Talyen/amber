@@ -24,6 +24,7 @@ import {
   computeCompanyValuation,
   computeFinancialSectorMetrics,
   computeQuarterlyMomentum,
+  computeShareholderYieldMetrics,
   formatCurrencyCompact,
   formatPct,
   isFinancialInstitution as checkFinancialInstitution,
@@ -56,6 +57,7 @@ import { FilingDiffRadar } from "@/components/FilingDiffRadar";
 import { FilingAlertModal } from "@/components/FilingAlertModal";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
 import { MethodologyModal } from "@/components/MethodologyModal";
+import { SectorPeersTable } from "@/components/SectorPeersTable";
 import { buildCompanyBriefing } from "@/lib/insights";
 
 type ActiveTab = "overview" | "fcf" | "dcf" | "diffs" | "insiders";
@@ -199,6 +201,10 @@ export function CompanyWorkspace({
   const financialMetrics = useMemo(
     () => (isFinancialInstitution ? computeFinancialSectorMetrics(company) : null),
     [company, isFinancialInstitution]
+  );
+  const shareholderYield = useMemo(
+    () => computeShareholderYieldMetrics(company),
+    [company]
   );
   const sectorValuationMultiple = isReitCompany ? financialMetrics?.priceToFfo : financialMetrics?.priceToTbv;
   const evToTrueFcf =
@@ -847,61 +853,25 @@ export function CompanyWorkspace({
                   />
                   <MoatQualityCard company={company} series={series} />
 
-                  {sectorPeers.length > 0 && (
-                    <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-                          Closest {company.sector} Peers
-                        </h3>
-                        <Link
-                          href={`/compare?t=${[
-                            company.ticker,
-                            ...sectorPeers.slice(0, 3).map((p) => p.ticker),
-                          ].join(",")}`}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-[var(--amber)] hover:underline"
-                        >
-                          <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
-                          Compare all 4
-                        </Link>
-                      </div>
-
-                      <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {sectorPeers.map((peer) => (
-                          <Link
-                            key={peer.ticker}
-                            href={`/t/${peer.ticker}`}
-                            className="group rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3.5 transition-colors hover:border-[var(--amber-border)]"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono-num text-xs font-bold text-[var(--amber)]">
-                                {peer.ticker}
-                              </span>
-                              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                                {formatCurrencyCompact(peer.marketCap)}
-                              </span>
-                            </div>
-                            <div className="mt-0.5 truncate text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--amber)]">
-                              {peer.name}
-                            </div>
-                            <div className="mt-2.5 flex items-center justify-between border-t border-[var(--border)] pt-2 text-[11px]">
-                              <span className="text-[var(--text-muted)]">
-                                True FCF{" "}
-                                <strong className="font-mono-num text-[var(--text-primary)]">
-                                  {formatPct(peer.scenarioBasis.equityLensOnly ? null : peer.trueFcfMargin)}
-                                </strong>
-                              </span>
-                              <span className="text-[var(--text-muted)]">
-                                10Y{" "}
-                                <strong className="font-mono-num text-[var(--amber)]">
-                                  {formatPct(peer.impliedCagr)}
-                                </strong>
-                              </span>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                  <SectorPeersTable
+                    current={{
+                      ticker: company.ticker,
+                      name: company.name,
+                      sector: company.sector,
+                      marketCap: company.marketCap,
+                      revenueCagr: briefing.revenueCagr,
+                      trueFcfMargin: isFinancialInstitution ? null : latest.trueFcfMargin,
+                      sbcPctRevenue: latest.sbcPctRevenue,
+                      netDilutionCagr,
+                      impliedCagr: impliedGrowth,
+                      priceToTbv: financialMetrics?.priceToTbv ?? null,
+                      rotcePct: financialMetrics?.rotcePct ?? null,
+                      priceToFfo: financialMetrics?.priceToFfo ?? null,
+                      shareholderYieldPct: shareholderYield.totalShareholderYieldPct,
+                    }}
+                    peers={sectorPeers}
+                    sectorBenchmark={sectorBenchmark}
+                  />
                 </div>
               )}
             </div>

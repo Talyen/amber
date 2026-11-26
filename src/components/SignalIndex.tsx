@@ -29,6 +29,7 @@ import { useWatchlist } from "@/lib/watchlist";
 import { authClient } from "@/lib/auth-client";
 import {
   computePresetExpectedReturn,
+  computeThesisDrift,
   readAllLocalValuationPresets,
   type SavedValuationPreset,
 } from "@/lib/valuation-presets";
@@ -732,18 +733,35 @@ export function SignalIndex({
                 {c.name}
               </span>
             </Link>
-            {watchlistOnly && savedTheses[c.ticker] && (
-              <Link
-                href={`/t/${c.ticker}?tab=dcf&model=scenario`}
-                title={
-                  savedTheses[c.ticker].thesisNote ??
-                  `Saved ${savedTheses[c.ticker].lens.toUpperCase()} thesis`
-                }
-                className="rounded border border-[var(--amber-border)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--amber)] hover:opacity-90"
-              >
-                Thesis
-              </Link>
-            )}
+            {watchlistOnly && savedTheses[c.ticker] && (() => {
+              const preset = savedTheses[c.ticker];
+              const drift = computeThesisDrift(preset, c);
+              const badgeClass =
+                drift?.status === "trailing"
+                  ? "border-[var(--negative)]/40 bg-[var(--negative)]/10 text-[var(--negative)]"
+                  : drift?.status === "ahead"
+                    ? "border-[var(--positive)]/40 bg-[var(--positive)]/10 text-[var(--positive)]"
+                    : "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]";
+              const label =
+                drift?.status === "trailing"
+                  ? "Thesis · Trailing"
+                  : drift?.status === "ahead"
+                    ? "Thesis · Ahead"
+                    : "Thesis";
+              const tooltipParts = [
+                drift?.summary,
+                preset.thesisNote ?? `Saved ${preset.lens.toUpperCase()} thesis`,
+              ].filter(Boolean);
+              return (
+                <Link
+                  href={`/t/${c.ticker}?tab=dcf&model=scenario`}
+                  title={tooltipParts.join(" — ")}
+                  className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold hover:opacity-90 ${badgeClass}`}
+                >
+                  {label}
+                </Link>
+              );
+            })()}
           </div>
         </th>
         <td data-label="Mkt Cap" className="font-mono-num">

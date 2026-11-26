@@ -94,7 +94,7 @@ export function renderFilingAlertHtml(params: {
 
 export interface WatchlistDigestItem {
   ticker: string;
-  kind: "10-K/10-Q Diff" | "8-K Event" | "Form 4 Buy" | "Valuation Target";
+  kind: "10-K/10-Q Diff" | "8-K Event" | "Form 4 Buy" | "Valuation Target" | "Thesis Drift";
   date: string;
   headline: string;
   detail: string;

@@ -25,6 +25,7 @@ import { authClient } from "@/lib/auth-client";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { LockPortfolioModal } from "@/components/LockPortfolioModal";
+import { PortfolioStressPanel } from "@/components/PortfolioStressPanel";
 import { formatPct } from "@/lib/finance";
 import { exportPortfolioCard } from "@/lib/export-card";
 import {
@@ -458,6 +459,21 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
     [holdings, normalizedWeights, savedPresets]
   );
 
+  const allFlags = useMemo(() => {
+    if (thesisSummary.trailingCount <= 0) return metrics.flags;
+    const trailingTickers = Object.values(thesisSummary.driftByTicker)
+      .filter((d) => d.status === "trailing")
+      .map((d) => d.ticker)
+      .slice(0, 4);
+    return [
+      {
+        tone: "warn" as const,
+        text: `Thesis drift detected: ${thesisSummary.trailingCount} holding${thesisSummary.trailingCount === 1 ? "" : "s"} (${trailingTickers.join(", ")}) currently trail your saved growth or margin assumptions.`,
+      },
+      ...metrics.flags,
+    ];
+  }, [metrics.flags, thesisSummary]);
+
   const suggestions = useMemo(() => {
     const q = addQuery.trim().toLowerCase();
     if (!q) return [];
@@ -812,7 +828,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
               Portfolio Reality Check
             </h2>
             <ul className="mt-3.5 space-y-2.5">
-              {metrics.flags.map((flag, i) => (
+              {allFlags.map((flag, i) => (
                 <li
                   key={i}
                   className="flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-[var(--text-secondary)]"
@@ -852,6 +868,17 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
             </div>
           </section>
         </div>}
+
+        {/* Portfolio Stress Test & SBC Attribution */}
+        {hasAllocation && (
+          <PortfolioStressPanel
+            holdings={holdings}
+            normalizedWeights={normalizedWeights}
+            savedPresets={savedPresets}
+            inputMode={inputMode}
+            totalDollars={totalDollars}
+          />
+        )}
 
         {/* Holdings Allocation Table */}
         <section className="mt-6">
@@ -931,6 +958,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
                 {holdings.map((h) => {
                   const pct = (normalizedWeights.get(h.ticker) ?? 0) * 100;
                   const thesis = thesisSummary.byTicker[h.ticker];
+                  const drift = thesisSummary.driftByTicker[h.ticker];
                   return (
                     <tr key={h.ticker}>
                       <th scope="row">
@@ -1017,26 +1045,40 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
                       </td>
                       <td data-label="Saved Thesis" className="font-mono-num">
                         {thesis ? (
-                          <Link
-                            href={`/t/${h.ticker}?tab=dcf&model=scenario`}
-                            title={thesis.thesisNote ?? `${thesis.lens.toUpperCase()} thesis — Fair value $${thesis.fairValueToday.toFixed(2)}`}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold hover:border-[var(--amber-border)]"
-                          >
-                            <span
-                              className={
-                                thesis.irrPct >= 12
-                                  ? "text-[var(--positive)]"
-                                  : thesis.irrPct >= 8
-                                    ? "text-[var(--amber)]"
-                                    : "text-[var(--negative)]"
-                              }
+                          <div className="inline-flex flex-col items-end gap-0.5">
+                            <Link
+                              href={`/t/${h.ticker}?tab=dcf&model=scenario`}
+                              title={[drift?.summary, thesis.thesisNote ?? `${thesis.lens.toUpperCase()} thesis — Fair value $${thesis.fairValueToday.toFixed(2)}`].filter(Boolean).join(" — ")}
+                              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-semibold hover:border-[var(--amber-border)]"
                             >
-                              {formatPct(thesis.irrPct, true)}/yr
-                            </span>
-                            <span className="text-[10px] uppercase text-[var(--text-muted)]">
-                              {thesis.lens}
-                            </span>
-                          </Link>
+                              <span
+                                className={
+                                  thesis.irrPct >= 12
+                                    ? "text-[var(--positive)]"
+                                    : thesis.irrPct >= 8
+                                      ? "text-[var(--amber)]"
+                                      : "text-[var(--negative)]"
+                                }
+                              >
+                                {formatPct(thesis.irrPct, true)}/yr
+                              </span>
+                              <span className="text-[10px] uppercase text-[var(--text-muted)]">
+                                {thesis.lens}
+                              </span>
+                            </Link>
+                            {drift && drift.status !== "on_track" && (
+                              <span
+                                title={drift.summary}
+                                className={`text-[10px] font-medium ${
+                                  drift.status === "trailing"
+                                    ? "text-[var(--negative)]"
+                                    : "text-[var(--positive)]"
+                                }`}
+                              >
+                                {drift.status === "trailing" ? "Trailing thesis" : "Ahead of thesis"}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <Link
                             href={`/t/${h.ticker}?tab=dcf&model=scenario`}

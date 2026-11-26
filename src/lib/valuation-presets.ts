@@ -113,7 +113,116 @@ export function writeLocalValuationPreset(preset: LocalValuationPreset): boolean
 
 export interface PresetValuationEntry {
   ticker: string;
+  revenueCagr?: number;
   scenarioBasis: ScenarioBasis;
+}
+
+export type ThesisDriftStatus = "ahead" | "on_track" | "trailing";
+
+export interface ThesisDrift {
+  ticker: string;
+  lens: SavedScenarioLens;
+  actualRevGrowthPct: number | null;
+  targetRevGrowthPct: number;
+  revGrowthGapPct: number | null;
+  actualMarginPct: number | null;
+  targetMarginPct: number;
+  marginGapPct: number | null;
+  status: ThesisDriftStatus;
+  summary: string;
+}
+
+export function computeThesisDrift(
+  preset: SavedValuationPreset,
+  entry: PresetValuationEntry
+): ThesisDrift | null {
+  const actualRevGrowthPct =
+    typeof entry.revenueCagr === "number" && Number.isFinite(entry.revenueCagr)
+      ? Number(entry.revenueCagr.toFixed(1))
+      : null;
+
+  const rawActualMargin =
+    preset.lens === "fcf"
+      ? entry.scenarioBasis.equityLensOnly
+        ? null
+        : entry.scenarioBasis.trueFcfMargin
+      : preset.lens === "ebit"
+        ? entry.scenarioBasis.operatingMargin
+        : entry.scenarioBasis.netMargin;
+  const actualMarginPct =
+    typeof rawActualMargin === "number" && Number.isFinite(rawActualMargin)
+      ? Number(rawActualMargin.toFixed(1))
+      : null;
+
+  if (actualRevGrowthPct === null && actualMarginPct === null) return null;
+
+  const revGrowthGapPct =
+    actualRevGrowthPct !== null
+      ? Number((actualRevGrowthPct - preset.revGrowth).toFixed(1))
+      : null;
+  const marginGapPct =
+    actualMarginPct !== null
+      ? Number((actualMarginPct - preset.targetMargin).toFixed(1))
+      : null;
+
+  const revTrailing = revGrowthGapPct !== null && revGrowthGapPct <= -4;
+  const marginTrailing = marginGapPct !== null && marginGapPct <= -3;
+  const revAhead = revGrowthGapPct !== null && revGrowthGapPct >= 4;
+  const marginAhead = marginGapPct !== null && marginGapPct >= 3;
+
+  const status: ThesisDriftStatus =
+    revTrailing || marginTrailing
+      ? "trailing"
+      : revAhead || marginAhead
+        ? "ahead"
+        : "on_track";
+
+  const marginLabel =
+    preset.lens === "fcf" ? "True FCF" : preset.lens === "ebit" ? "EBIT" : "Net";
+
+  let summary: string;
+  if (status === "trailing") {
+    const parts: string[] = [];
+    if (revTrailing && actualRevGrowthPct !== null && revGrowthGapPct !== null) {
+      parts.push(
+        `${actualRevGrowthPct.toFixed(1)}% rev CAGR trails ${preset.revGrowth.toFixed(1)}% thesis (${revGrowthGapPct.toFixed(1)} pts)`
+      );
+    }
+    if (marginTrailing && actualMarginPct !== null && marginGapPct !== null) {
+      parts.push(
+        `${actualMarginPct.toFixed(1)}% ${marginLabel} margin trails ${preset.targetMargin.toFixed(1)}% target (${marginGapPct.toFixed(1)} pts)`
+      );
+    }
+    summary = parts.join("; ");
+  } else if (status === "ahead") {
+    const parts: string[] = [];
+    if (revAhead && actualRevGrowthPct !== null && revGrowthGapPct !== null) {
+      parts.push(
+        `${actualRevGrowthPct.toFixed(1)}% rev CAGR ahead of ${preset.revGrowth.toFixed(1)}% thesis (+${revGrowthGapPct.toFixed(1)} pts)`
+      );
+    }
+    if (marginAhead && actualMarginPct !== null && marginGapPct !== null) {
+      parts.push(
+        `${actualMarginPct.toFixed(1)}% ${marginLabel} margin ahead of ${preset.targetMargin.toFixed(1)}% target (+${marginGapPct.toFixed(1)} pts)`
+      );
+    }
+    summary = parts.join("; ");
+  } else {
+    summary = `Actuals tracking close to your ${preset.revGrowth.toFixed(1)}% growth / ${preset.targetMargin.toFixed(1)}% ${marginLabel} margin thesis.`;
+  }
+
+  return {
+    ticker: preset.ticker,
+    lens: preset.lens,
+    actualRevGrowthPct,
+    targetRevGrowthPct: preset.revGrowth,
+    revGrowthGapPct,
+    actualMarginPct,
+    targetMarginPct: preset.targetMargin,
+    marginGapPct,
+    status,
+    summary,
+  };
 }
 
 export interface PresetExpectedReturn {
@@ -151,6 +260,8 @@ export interface PortfolioThesisSummary {
   weightedIrrPct: number | null;
   weightedUpsidePct: number | null;
   byTicker: Record<string, PresetExpectedReturn>;
+  driftByTicker: Record<string, ThesisDrift>;
+  trailingCount: number;
 }
 
 export function computePortfolioThesisSummary(
@@ -163,17 +274,26 @@ export function computePortfolioThesisSummary(
   let coveredWeight = 0;
   let weightedIrrSum = 0;
   let weightedUpsideSum = 0;
+  let trailingCount = 0;
   const byTicker: Record<string, PresetExpectedReturn> = {};
+  const driftByTicker: Record<string, ThesisDrift> = {};
 
   for (const h of holdings) {
     const w = normalizedWeights.get(h.ticker) ?? 0;
     const preset = presetsByTicker[h.ticker];
     const computed = preset ? computePresetExpectedReturn(preset, h) : null;
+    const drift = preset ? computeThesisDrift(preset, h) : null;
     if (computed) {
       byTicker[h.ticker] = computed;
     }
+    if (drift) {
+      driftByTicker[h.ticker] = drift;
+    }
     if (w <= 0) continue;
     totalAllocatedCount++;
+    if (drift?.status === "trailing") {
+      trailingCount++;
+    }
     if (computed) {
       coveredCount++;
       coveredWeight += w;
@@ -191,6 +311,8 @@ export function computePortfolioThesisSummary(
     weightedUpsidePct:
       coveredWeight > 0 ? Number((weightedUpsideSum / coveredWeight).toFixed(1)) : null,
     byTicker,
+    driftByTicker,
+    trailingCount,
   };
 }
 
