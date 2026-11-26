@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { isFinancialInstitution, isReit } from "../src/lib/finance.ts";
 import { isFreshPriceDate, meetsQuoteCoverage, MIN_QUOTE_COVERAGE } from "../src/lib/market-price.ts";
+import { summarizeSearchIndexCoverage } from "../src/lib/coverage-health.ts";
 
 const DEFAULT_BASE_URL = "https://amber-theta-three.vercel.app";
 const baseUrl = (process.env.AMBER_PROD_URL ?? DEFAULT_BASE_URL).replace(/\/$/, "");
@@ -81,7 +82,8 @@ async function run() {
         continue;
       }
       if (check.checkIndex) {
-        const errors = searchIndexHealthErrors(JSON.parse(body));
+        const parsed = JSON.parse(body);
+        const errors = searchIndexHealthErrors(parsed);
         if (errors.length) {
           const samples = errors.slice(0, 5);
           if (errors.length > samples.length) samples.push(`${errors.length - samples.length} more issues.`);
@@ -89,6 +91,10 @@ async function run() {
           failures++;
           continue;
         }
+        const cov = summarizeSearchIndexCoverage(parsed);
+        console.log(
+          `[smoke-prod] COV  ${cov.totalCompanies} cos | ${cov.freshQuotes} fresh quotes | ${cov.dividendPayers} div | ${cov.banksWithTbv} banks(P/TBV) | ${cov.reitsWithFfo} REITs(FFO) | ${cov.recentFilings90d} filed ≤90d`
+        );
       }
       if (check.expectSubstring && !body.includes(check.expectSubstring)) {
         console.error(`[smoke-prod] FAIL ${check.path}: missing expected marker "${check.expectSubstring}"`);

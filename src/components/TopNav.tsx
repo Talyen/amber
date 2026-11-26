@@ -1,12 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import {
-  Check,
   GitCompareArrows,
   LayoutGrid,
-  Link2,
   Moon,
   PieChart,
   Rss,
@@ -46,21 +43,9 @@ const NAV_LINKS: Array<{
 
 export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
   const currentRoute = activeRoute ?? (activeTicker ? "ticker" : "index");
-  const [copied, setCopied] = useState(false);
   const theme = useTheme();
   const systemDark = useSystemDark();
   const isDark = theme === "dark" || (theme === "system" && systemDark);
-
-  async function handleCopyLink() {
-    const url = window.location.href;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // Clipboard may be unavailable in restricted contexts
-    }
-  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--bg)]/90 backdrop-blur-md">
@@ -107,25 +92,6 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
 
         <div className="flex items-center gap-2 shrink-0">
           <CommandSearch variant="nav" />
-
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            aria-label={copied ? "Link copied" : "Share current page link"}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 sm:px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
-                <span className="hidden sm:inline">Copied</span>
-              </>
-            ) : (
-              <>
-                <Link2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Share</span>
-              </>
-            )}
-          </button>
 
           <button
             type="button"

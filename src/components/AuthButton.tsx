@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
-import { LogIn, LogOut, Settings, X } from "lucide-react";
+import { ChevronDown, LogIn, LogOut, Mail, Settings, User, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 interface ProviderAvailability {
   google: boolean;
   github: boolean;
+  magicLink?: boolean;
 }
 
 export function openAuthDialog() {
@@ -55,9 +56,13 @@ function GitHubIcon() {
 export function AuthButton() {
   const { data: session, isPending } = authClient.useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const lightDismiss = useDialogLightDismiss(dialogRef);
 
-  const [submitting, setSubmitting] = useState<"google" | "github" | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [submitting, setSubmitting] = useState<"google" | "github" | "magicLink" | null>(null);
+  const [magicEmail, setMagicEmail] = useState("");
+  const [magicSentTo, setMagicSentTo] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [providers, setProviders] = useState<ProviderAvailability | null>(null);
   const [profileState, setProfileState] = useState<{
@@ -128,6 +133,7 @@ export function AuthButton() {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     setError("");
+    setMagicSentTo(null);
     dialog.showModal();
   }
 
@@ -175,7 +181,53 @@ export function AuthButton() {
     }
   }
 
+  async function handleMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    const cleaned = magicEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setError("");
+    setSubmitting("magicLink");
+    try {
+      const res = await authClient.signIn.magicLink({
+        email: cleaned,
+        callbackURL: window.location.href,
+      });
+      if (res?.error) {
+        setError(res.error.message ?? "Could not send sign-in link.");
+        setSubmitting(null);
+        return;
+      }
+      setMagicSentTo(cleaned);
+      setSubmitting(null);
+    } catch {
+      setError("Could not send sign-in link. Please try again.");
+      setSubmitting(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
   async function handleSignOut() {
+    setMenuOpen(false);
     try {
       window.localStorage.removeItem("amber-profile-handle");
     } catch {
@@ -195,34 +247,86 @@ export function AuthButton() {
   }
 
   if (session?.user) {
-    const displayLabel = userHandle || "Settings";
+    const displayLabel = userHandle || "Account";
     return (
-      <div className="inline-flex items-center gap-1">
-        <Link
-          href="/settings"
-          title="Account & Profile Settings"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
-        >
-          <Settings className="h-3.5 w-3.5 text-[var(--amber)]" />
-          <span className="hidden max-w-[110px] truncate md:inline">
-            {displayLabel}
-          </span>
-        </Link>
+      <div ref={menuRef} className="relative">
         <button
           type="button"
-          onClick={handleSignOut}
-          title="Sign out"
-          aria-label="Sign out"
-          className="inline-flex h-8 items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+          onClick={() => setMenuOpen((prev) => !prev)}
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label="Account menu"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
         >
-          <LogOut className="h-3.5 w-3.5" />
-          <span className="hidden lg:inline">Sign Out</span>
+          <User className="h-3.5 w-3.5 text-[var(--amber)]" aria-hidden="true" />
+          <span className="hidden max-w-[110px] truncate sm:inline">
+            {displayLabel}
+          </span>
+          <ChevronDown
+            className={`h-3 w-3 opacity-65 transition-transform ${menuOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
         </button>
+
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 z-40 mt-1.5 w-48 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-1.5 shadow-xl"
+          >
+            {session.user.email && (
+              <div className="border-b border-[var(--border)] px-2.5 py-2">
+                <div className="truncate text-xs font-semibold text-[var(--text-primary)]">
+                  {displayLabel}
+                </div>
+                <div className="truncate text-[11px] text-[var(--text-muted)]">
+                  {session.user.email}
+                </div>
+              </div>
+            )}
+
+            <div className="py-1">
+              {userHandle && (
+                <Link
+                  href={`/u/${encodeURIComponent(userHandle)}`}
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+                >
+                  <User className="h-3.5 w-3.5" aria-hidden="true" />
+                  Public Profile
+                </Link>
+              )}
+              <Link
+                href="/settings"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+              >
+                <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+                Settings &amp; Alerts
+              </Link>
+            </div>
+
+            <div className="border-t border-[var(--border)] pt-1">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleSignOut}
+                aria-label="Sign out"
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--negative)] cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  const anyConfigured = Boolean(providers?.google || providers?.github);
+  const anySocialConfigured = Boolean(providers?.google || providers?.github);
+  const anyConfigured = Boolean(anySocialConfigured || providers?.magicLink);
 
   return (
     <>
@@ -264,7 +368,7 @@ export function AuthButton() {
         </div>
 
         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-          Sign in with Google or GitHub to sync your watchlist across devices, manage filing alerts, and publish your Arena portfolio. Amber never stores passwords.
+          Sign in to sync your watchlist, saved valuation theses, filing alerts, and Arena portfolio across devices. Amber never stores passwords.
         </p>
 
         <div className="mt-5 space-y-2.5">
@@ -298,6 +402,51 @@ export function AuthButton() {
                     ? "Redirecting to GitHub…"
                     : "Continue with GitHub"}
                 </button>
+              )}
+
+              {providers.magicLink && anySocialConfigured && (
+                <div className="relative my-3 flex items-center">
+                  <div className="flex-1 border-t border-[var(--border)]" />
+                  <span className="px-2.5 text-[11px] text-[var(--text-muted)]">or</span>
+                  <div className="flex-1 border-t border-[var(--border)]" />
+                </div>
+              )}
+
+              {providers.magicLink && (
+                magicSentTo ? (
+                  <div
+                    role="status"
+                    className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] p-3 text-xs leading-relaxed text-[var(--text-primary)]"
+                  >
+                    <div className="font-semibold">Check your inbox</div>
+                    <p className="mt-0.5 text-[var(--text-secondary)]">
+                      We sent a one-time sign-in link to{" "}
+                      <strong className="text-[var(--text-primary)]">{magicSentTo}</strong>. It expires in 10 minutes.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleMagicLink} className="space-y-2">
+                    <input
+                      type="email"
+                      value={magicEmail}
+                      onChange={(e) => setMagicEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      aria-label="Email address for sign-in link"
+                      className="h-10 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber)] focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submitting !== null}
+                      className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] transition-colors hover:bg-[var(--cta-bg-hover)] cursor-pointer disabled:opacity-50"
+                    >
+                      <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                      {submitting === "magicLink"
+                        ? "Sending link…"
+                        : "Email me a sign-in link"}
+                    </button>
+                  </form>
+                )
               )}
             </>
           ) : (

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Link2, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Link2, Sparkles } from "lucide-react";
 import {
   type CompanySnapshot,
   buildScenarioBasis,
@@ -13,12 +13,16 @@ import {
 } from "@/lib/finance";
 import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
 import {
+  appendLocalThesisHistory,
+  readLocalThesisHistory,
   readLocalValuationPreset,
   writeLocalValuationPreset,
   type CommunityThesisItem,
   type SavedScenarioLens as ValuationLens,
   type SavedValuationPreset,
+  type ThesisHistoryEntry,
 } from "@/lib/valuation-presets";
+import { ThesisHistoryPanel } from "@/components/ThesisHistoryPanel";
 import { authClient } from "@/lib/auth-client";
 
 interface ScenarioBuilderProps {
@@ -71,6 +75,7 @@ function ScenarioSession({
   const [communityTheses, setCommunityTheses] = useState<CommunityThesisItem[]>([]);
   const [showCommunityTheses, setShowCommunityTheses] = useState(false);
   const [communityStatus, setCommunityStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  const [thesisHistory, setThesisHistory] = useState<ThesisHistoryEntry[]>([]);
   const { hasEbit, hasPe, defaultLens, byLens, revGrowth: histGrowth } = defaults;
   const isFinancials = basis.equityLensOnly;
   const defaultsForLens = (lens: ValuationLens) => byLens[lens];
@@ -175,6 +180,7 @@ function ScenarioSession({
 
       const local = readLocalValuationPreset(company.ticker, userId);
       if (local) applySavedThesis(local);
+      setThesisHistory(readLocalThesisHistory(company.ticker, userId));
     });
     return () => {
       active = false;
@@ -182,13 +188,17 @@ function ScenarioSession({
   }, [company.ticker, supportsLens, applySavedThesis, userId]);
 
   useEffect(() => {
-    if (!userId || !restoredThesis || fromSharedLink || editedThesis.current) return;
+    if (!userId || !restoredThesis) return;
     const controller = new AbortController();
-    fetch(`/api/valuation-presets?ticker=${encodeURIComponent(company.ticker)}`, { signal: controller.signal })
+    fetch(`/api/valuation-presets?ticker=${encodeURIComponent(company.ticker)}&history=1`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { preset?: SavedValuationPreset | null } | null) => {
+      .then((data: { preset?: SavedValuationPreset | null; history?: ThesisHistoryEntry[] } | null) => {
+        if (controller.signal.aborted) return;
+        if (Array.isArray(data?.history) && data.history.length > 0) {
+          setThesisHistory(data.history);
+        }
         const preset = data?.preset;
-        if (controller.signal.aborted || !preset || editedThesis.current) return;
+        if (!preset || fromSharedLink || editedThesis.current) return;
         const local = readLocalValuationPreset(company.ticker, userId);
         if (local?.owner === userId && Date.parse(local.updatedAt) > Date.parse(preset.updatedAt)) return;
         writeLocalValuationPreset({ ...preset, owner: userId });
@@ -218,6 +228,20 @@ function ScenarioSession({
       updatedAt: new Date().toISOString(),
     };
     const storedLocally = writeLocalValuationPreset({ ...payload, owner: userId });
+    const localSnapshot: ThesisHistoryEntry = {
+      id: `local-${Date.now()}`,
+      ticker: company.ticker,
+      lens: payload.lens,
+      revGrowth: payload.revGrowth,
+      targetMargin: payload.targetMargin,
+      exitMultiple: payload.exitMultiple,
+      thesisNote: payload.thesisNote ?? null,
+      priceAtSave: Number.isFinite(company.price) ? company.price : null,
+      filingDateAtSave: company.lastFiling.date,
+      createdAt: payload.updatedAt,
+    };
+    const nextLocalHistory = appendLocalThesisHistory(localSnapshot, userId);
+    setThesisHistory((prev) => (prev.length > nextLocalHistory.length ? prev : nextLocalHistory));
     if (!userId) {
       setSaveStatus(storedLocally ? "saved" : "failed");
       return;
@@ -232,6 +256,13 @@ function ScenarioSession({
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error("Could not sync thesis.");
+      const data = (await response.json()) as { historyEntry?: ThesisHistoryEntry };
+      if (data?.historyEntry) {
+        setThesisHistory((prev) => [
+          data.historyEntry!,
+          ...prev.filter((item) => item.id !== data.historyEntry!.id && item.id !== localSnapshot.id),
+        ].slice(0, 15));
+      }
       setSaveStatus("saved");
     } catch {
       setSaveStatus(storedLocally ? "local" : "failed");
@@ -405,35 +436,6 @@ function ScenarioSession({
           </p>
         )}
 
-        <div className="mt-3 space-y-2">
-          <input
-            type="text"
-            value={thesisNote}
-            maxLength={240}
-            onChange={(e) => {
-              editedThesis.current = true;
-              setThesisNote(e.target.value);
-            }}
-            placeholder="Optional 1-line thesis note (shown in Portfolio & Watchlist)…"
-            aria-label="Optional thesis note"
-            className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-          />
-          {userId && (
-            <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPublicThesis}
-                onChange={(e) => {
-                  editedThesis.current = true;
-                  setIsPublicThesis(e.target.checked);
-                }}
-                className="accent-[var(--amber)]"
-              />
-              Showcase this thesis on my public investor profile
-            </label>
-          )}
-        </div>
-
         {unavailableSharedLens && (
           <p role="status" className="mt-3 text-xs text-[var(--text-secondary)]">
             This thesis uses an unavailable valuation model. The studio shows the current base case.
@@ -492,13 +494,13 @@ function ScenarioSession({
                 key={kind}
                 type="button"
                 onClick={() => applyPreset(kind)}
-                className={`rounded-lg border py-2 text-xs font-semibold capitalize transition-colors cursor-pointer ${
+                className={`rounded-lg border py-1.5 text-xs font-semibold capitalize transition-colors cursor-pointer ${
                   active
                     ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
                     : "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                 }`}
               >
-                {kind} Case
+                {kind}
               </button>
             );
           })}
@@ -512,7 +514,7 @@ function ScenarioSession({
                 htmlFor="sc-growth"
                 className="font-medium text-[var(--text-primary)]"
               >
-                Annual Revenue Growth (Next 5Y)
+                5Y Rev Growth
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {formatPct(revGrowth, true, 0)}
@@ -543,7 +545,7 @@ function ScenarioSession({
             </div>
           </div>
 
-          {/* Year-5 True FCF Margin */}
+          {/* Year-5 Margin */}
           <div>
             <div className="mb-1.5 flex items-center justify-between text-xs">
               <label
@@ -551,10 +553,10 @@ function ScenarioSession({
                 className="font-medium text-[var(--text-primary)]"
               >
                 {lens === "ebit"
-                  ? "Year-5 Operating Margin (EBIT)"
+                  ? "Yr-5 EBIT %"
                   : lens === "pe"
-                    ? "Year-5 Net Profit Margin"
-                    : "Year-5 Real Cash Margin (True FCF)"}
+                    ? "Yr-5 Net Margin"
+                    : "Yr-5 True FCF %"}
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {formatPct(targetMargin, false, 1)}
@@ -593,10 +595,10 @@ function ScenarioSession({
                 className="font-medium text-[var(--text-primary)]"
               >
                 {lens === "ebit"
-                  ? "Year-5 Valuation Multiple (EV / EBIT)"
+                  ? "Exit Multiple (EV/EBIT)"
                   : lens === "pe"
-                    ? "Year-5 Valuation Multiple (P/E)"
-                    : "Year-5 Valuation Multiple (EV / True FCF)"}
+                    ? "Exit Multiple (P/E)"
+                    : "Exit Multiple (EV/FCF)"}
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {exitMultiple}x
@@ -626,6 +628,36 @@ function ScenarioSession({
               <span>45x (Premium)</span>
             </div>
           </div>
+        </div>
+
+        {/* Thesis Note & Public Showcase — model first, annotate below */}
+        <div className="mt-5 space-y-2 border-t border-[var(--border)] pt-4">
+          <input
+            type="text"
+            value={thesisNote}
+            maxLength={240}
+            onChange={(e) => {
+              editedThesis.current = true;
+              setThesisNote(e.target.value);
+            }}
+            placeholder="Optional 1-line thesis note (shown in Portfolio & Watchlist)…"
+            aria-label="Optional thesis note"
+            className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+          />
+          {userId && (
+            <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isPublicThesis}
+                onChange={(e) => {
+                  editedThesis.current = true;
+                  setIsPublicThesis(e.target.checked);
+                }}
+                className="accent-[var(--amber)]"
+              />
+              Showcase this thesis on my public investor profile
+            </label>
+          )}
         </div>
       </section>
 
@@ -708,16 +740,34 @@ function ScenarioSession({
             </div>
           </div>
 
-          <p className="mt-3.5 text-xs leading-relaxed text-[var(--text-secondary)]">
-            If <strong className="text-[var(--text-primary)]">{company.name}</strong> grows revenue{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{formatPct(revGrowth, true, 0)}/yr</strong> to{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{formatCurrencyCompact(projection.yr5Rev)}</strong> at a{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{targetMargin}%</strong>{" "}
-            {lens === "ebit" ? "operating" : lens === "pe" ? "net profit" : "real cash"} margin and trades at{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">{exitMultiple}x</strong> in 5 years, shares reach{" "}
-            <strong className="font-mono-num text-[var(--text-primary)]">${projection.yr5TargetPrice.toFixed(2)}</strong>, worth{" "}
-            <strong className={`font-mono-num ${verdict.color}`}>${projection.fairValueToday.toFixed(2)}</strong> today at a 10%/yr target return, including interim cash flows and today’s net cash adjustment.
-          </p>
+          {/* Visual 3-Step Valuation Flow (replaces 4-line prose paragraph) */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[var(--text-muted)]">Today</span>
+              <strong className="font-mono-num text-[var(--text-primary)]">
+                ${company.price.toFixed(2)}
+              </strong>
+            </div>
+            <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[var(--text-muted)]">5Y Target</span>
+              <strong className="font-mono-num text-[var(--amber)]">
+                ${projection.yr5TargetPrice.toFixed(2)}
+              </strong>
+              {projection.irrPct !== null && (
+                <span className="font-mono-num text-[11px] text-[var(--text-secondary)]">
+                  ({formatPct(projection.irrPct, true)}/yr)
+                </span>
+              )}
+            </div>
+            <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[var(--text-muted)]">Fair Value (10%)</span>
+              <strong className={`font-mono-num ${verdict.color}`}>
+                ${projection.fairValueToday.toFixed(2)}
+              </strong>
+            </div>
+          </div>
 
           {modelStrip.length >= 2 && (
             <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
@@ -774,6 +824,21 @@ function ScenarioSession({
         </div>
       </section>
     </div>
+
+      <ThesisHistoryPanel
+        entries={thesisHistory}
+        onRestore={(entry) => {
+          if (!supportsLens(entry.lens)) return;
+          editedThesis.current = true;
+          setUnavailableSharedLens(false);
+          setActivePreset("custom");
+          setLens(entry.lens);
+          setRevGrowth(entry.revGrowth);
+          setTargetMargin(entry.targetMargin);
+          setExitMultiple(entry.exitMultiple);
+          setThesisNote(entry.thesisNote ?? "");
+        }}
+      />
 
       <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
         <button

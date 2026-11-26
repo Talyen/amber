@@ -9,5 +9,6 @@ export async function GET() {
     github: Boolean(
       authAvailable && process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
     ),
+    magicLink: Boolean(authAvailable && process.env.RESEND_API_KEY),
   });
 }

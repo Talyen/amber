@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Download, FileSpreadsheet, Plus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Copy, Download, FileSpreadsheet, Link2, Plus, Share2, X } from "lucide-react";
 import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
+import { SiteFooter } from "@/components/SiteFooter";
 import { CompareHistoryCharts } from "@/components/CompareHistoryCharts";
 import { DEFAULT_COMPARE_TICKERS } from "@/lib/compare";
 import type { CompareCompanyHistory } from "@/lib/compare-history";
@@ -43,8 +44,29 @@ export function CompareStudio({
       : DEFAULT_COMPARE_TICKERS
   );
   const [addQuery, setAddQuery] = useState("");
-  const [copiedMd, setCopiedMd] = useState(false);
+  const [activeSuggestionIdx, setActiveSuggestionIdx] = useState(0);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const [restoredSelection, setRestoredSelection] = useState(false);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setExportMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [exportMenuOpen]);
 
   // Hydrate ?t=PLTR,SNOW,NOW from URL on mount
   useEffect(() => {
@@ -150,52 +172,104 @@ export function CompareStudio({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div ref={exportMenuRef} className="relative shrink-0">
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(
-                    buildComparisonMarkdown(selectedItems, window.location.origin)
-                  );
-                  setCopiedMd(true);
-                  window.setTimeout(() => setCopiedMd(false), 1800);
-                } catch {
-                  // Ignore clipboard errors
-                }
-              }}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+              onClick={() => setExportMenuOpen((prev) => !prev)}
+              aria-expanded={exportMenuOpen}
+              aria-haspopup="menu"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
             >
-              {copiedMd ? (
+              {exportFeedback ? (
                 <>
                   <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
-                  Copied MD
+                  {exportFeedback}
                 </>
               ) : (
                 <>
-                  <Copy className="h-3.5 w-3.5" />
-                  Reddit / MD
+                  <Share2 className="h-3.5 w-3.5" />
+                  Share / Export
+                  <ChevronDown className="h-3.5 w-3.5 opacity-75" />
                 </>
               )}
             </button>
-            <button
-              type="button"
-              onClick={() => exportComparisonCsv(selectedItems)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => exportComparisonCard(selectedItems.map((item) => item.scenarioBasis.equityLensOnly
-      ? { ...item, trueFcf: null, trueFcfMargin: null }
-      : item))}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export PNG
-            </button>
+
+            {exportMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 z-40 mt-1.5 w-52 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-1.5 shadow-xl"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(window.location.href);
+                      setExportFeedback("Link Copied");
+                      setExportMenuOpen(false);
+                      window.setTimeout(() => setExportFeedback(null), 1800);
+                    } catch {
+                      // Ignore clipboard errors
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                >
+                  <Link2 className="h-3.5 w-3.5 text-[var(--amber)]" />
+                  Copy comparison link
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        buildComparisonMarkdown(selectedItems, window.location.origin)
+                      );
+                      setExportFeedback("Copied MD");
+                      setExportMenuOpen(false);
+                      window.setTimeout(() => setExportFeedback(null), 1800);
+                    } catch {
+                      // Ignore clipboard errors
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                >
+                  <Copy className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
+                  Copy Markdown table
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    exportComparisonCsv(selectedItems);
+                    setExportMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
+                  Download CSV
+                </button>
+                <div className="my-1 border-t border-[var(--border)]" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    exportComparisonCard(
+                      selectedItems.map((item) =>
+                        item.scenarioBasis.equityLensOnly
+                          ? { ...item, trueFcf: null, trueFcfMargin: null }
+                          : item
+                      )
+                    );
+                    setExportMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
+                  Export PNG card
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -236,11 +310,22 @@ export function CompareStudio({
                   <input
                     type="text"
                     value={addQuery}
-                    onChange={(e) => setAddQuery(e.target.value)}
+                    onChange={(e) => {
+                      setAddQuery(e.target.value);
+                      setActiveSuggestionIdx(0);
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && suggestions[0]) {
+                      if (e.key === "ArrowDown" && suggestions.length > 0) {
                         e.preventDefault();
-                        addTicker(suggestions[0].ticker);
+                        setActiveSuggestionIdx((prev) => (prev + 1) % suggestions.length);
+                      } else if (e.key === "ArrowUp" && suggestions.length > 0) {
+                        e.preventDefault();
+                        setActiveSuggestionIdx((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+                      } else if (e.key === "Enter" && suggestions[activeSuggestionIdx]) {
+                        e.preventDefault();
+                        addTicker(suggestions[activeSuggestionIdx].ticker);
+                      } else if (e.key === "Escape") {
+                        setAddQuery("");
                       }
                     }}
                     placeholder="Add ticker…"
@@ -251,12 +336,17 @@ export function CompareStudio({
 
                 {suggestions.length > 0 && (
                   <ul className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-xl">
-                    {suggestions.map((s) => (
+                    {suggestions.map((s, idx) => (
                       <li key={s.ticker}>
                         <button
                           type="button"
+                          onMouseEnter={() => setActiveSuggestionIdx(idx)}
                           onClick={() => addTicker(s.ticker)}
-                          className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-[var(--surface-subtle)] cursor-pointer"
+                          className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs cursor-pointer ${
+                            idx === activeSuggestionIdx
+                              ? "bg-[var(--amber-soft)]"
+                              : "hover:bg-[var(--surface-subtle)]"
+                          }`}
                         >
                           <span className="font-mono-num font-semibold text-[var(--amber)]">
                             {s.ticker}
@@ -272,7 +362,7 @@ export function CompareStudio({
               </div>
             ) : (
               <span className="font-mono-num rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
-                4 / 4 max (remove one to swap)
+                {selectedItems.length} / {MAX_COMPARE_TICKERS} max (remove one to swap)
               </span>
             )}
           </div>
@@ -360,10 +450,10 @@ export function CompareStudio({
             </div>
           </div>
 
-          {/* SBC Burden */}
+          {/* Stock Comp % */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-              SBC Burden (% of Revenue)
+              Stock Comp % (% of Revenue)
             </div>
             <div className="mt-4 space-y-3.5">
               {selectedItems.map((item) => (
@@ -389,10 +479,10 @@ export function CompareStudio({
             </div>
           </div>
 
-          {/* Implied 10Y Revenue CAGR */}
+          {/* Priced-In Growth */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-              Implied 10Y Revenue CAGR
+              Priced-In Growth (10Y Rev CAGR)
             </div>
             <div className="mt-4 space-y-3.5">
               {selectedItems.map((item) => (
@@ -515,7 +605,7 @@ export function CompareStudio({
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">Implied 10Y Revenue CAGR</th>
+                  <th scope="row">Priced-In Growth (10Y)</th>
                   {selectedItems.map((i) => (
                     <td
                       key={i.ticker}
@@ -536,17 +626,7 @@ export function CompareStudio({
           initialHistory={initialHistory}
         />
 
-        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
-          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--text-primary)]">
-              Terms
-            </Link>
-          </div>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

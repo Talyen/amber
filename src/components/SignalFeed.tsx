@@ -24,6 +24,9 @@ import type {
 import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
+import { SiteFooter } from "@/components/SiteFooter";
+import { UpcomingFilingsPanel } from "@/components/UpcomingFilingsPanel";
+import { computeUpcomingFilings } from "@/lib/filing-calendar";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
 interface SignalFeedProps {
@@ -38,6 +41,7 @@ type FeedScope = "watchlist" | "market";
 type FeedFilter =
   | "all"
   | "diffs"
+  | "upcoming"
   | "headlines"
   | "filings"
   | "insider-buys"
@@ -365,10 +369,20 @@ export function SignalFeed({
     ? entryByTicker.get(heroPrimaryTicker) ?? null
     : null;
 
+  const upcomingFilings = useMemo(() => {
+    const base = selectedTicker
+      ? entries.filter((e) => e.ticker === selectedTicker)
+      : watchlistOnly
+        ? entries.filter((e) => watchlist.has(e.ticker))
+        : entries;
+    return computeUpcomingFilings(base, nowMs, 30);
+  }, [entries, selectedTicker, watchlistOnly, watchlist, nowMs]);
+
   const showFrontPage = filter === "all" || filter === "headlines";
   const showWire = (filter === "all" || filter === "headlines") && wirePool.length > 0;
   const showDiffs = filter === "all" || filter === "diffs";
   const showFilings = filter === "all" || filter === "filings";
+  const showUpcoming = filter === "upcoming";
   const showInsiders =
     filter === "all" || filter === "insider-buys" || filter === "insider-sells";
 
@@ -532,11 +546,105 @@ export function SignalFeed({
           </section>
         ) : (
           <>
+            {/* Section Filter Bar — immediately accessible under masthead */}
+            <nav
+              aria-label="Feed sections"
+              className="mt-4 flex flex-wrap items-center gap-1.5"
+            >
+              {(
+                [
+                  { id: "all", label: "All" },
+                  {
+                    id: "diffs",
+                    label:
+                      scopedDiffs.length > 0
+                        ? `Filings & 8-Ks (${scopedDiffs.length})`
+                        : "Filings & 8-Ks",
+                  },
+                  {
+                    id: "upcoming",
+                    label:
+                      upcomingFilings.length > 0
+                        ? `Upcoming (${upcomingFilings.length})`
+                        : "Upcoming",
+                  },
+                  {
+                    id: "insider-buys",
+                    label:
+                      buyCount > 0
+                        ? `Insider Buys (${buyCount})`
+                        : "Insider Buys",
+                  },
+                  {
+                    id: "insider-sells",
+                    label:
+                      sellCount > 0
+                        ? `Insider Sales (${sellCount})`
+                        : "Insider Sales",
+                  },
+                  {
+                    id: "headlines",
+                    label:
+                      headlines.length > 0
+                        ? `Market Wire (${headlines.length})`
+                        : "Market Wire",
+                  },
+                  { id: "filings", label: "Filing Dates" },
+                ] as const
+              ).map((tab) => {
+                const active = filter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFilter(tab.id)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                      active
+                        ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                        : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+
+              {selectedTicker && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTicker(null)}
+                  className="ml-1 inline-flex items-center gap-1 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 py-1.5 text-xs font-semibold text-[var(--amber)] cursor-pointer"
+                >
+                  Filtered: {selectedTicker}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </nav>
+
+            {/* Upcoming Filings Catalyst Strip (compact in Watchlist All view, full table in Upcoming tab) */}
+            {showUpcoming ? (
+              <UpcomingFilingsPanel
+                items={upcomingFilings}
+                watchlistOnly={watchlistOnly}
+              />
+            ) : (
+              filter === "all" &&
+              watchlistOnly &&
+              upcomingFilings.length > 0 && (
+                <UpcomingFilingsPanel
+                  items={upcomingFilings}
+                  watchlistOnly={watchlistOnly}
+                  compact
+                  onViewAll={() => setFilter("upcoming")}
+                />
+              )
+            )}
+
             {/* FRONT PAGE: Asymmetric Broadsheet Above the Fold */}
             {showFrontPage && (
               <section
                 aria-label="Front page lead stories"
-                className="mt-6 grid grid-cols-1 gap-6 border-b border-[var(--border)] pb-7 lg:grid-cols-12 lg:gap-0 lg:divide-x lg:divide-[var(--border)]"
+                className="mt-5 grid grid-cols-1 gap-6 border-b border-[var(--border)] pb-7 lg:grid-cols-12 lg:gap-0 lg:divide-x lg:divide-[var(--border)]"
               >
                 {/* Left 8 Columns: Hero Lead Story + 2 Secondary Stories */}
                 <div className="lg:col-span-8 lg:pr-7">
@@ -550,11 +658,22 @@ export function SignalFeed({
                     </div>
                   ) : !heroStory ? (
                     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-5 py-10 text-center text-xs text-[var(--text-secondary)]">
-                      No matching Tier-1 or Tier-2 headlines right now for{" "}
-                      <span className="font-semibold text-[var(--text-primary)]">
-                        {selectedTicker ?? (watchlistOnly ? "your watchlist" : "this view")}
-                      </span>
-                      .
+                      <p>
+                        No recent headlines found for{" "}
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {selectedTicker ?? (watchlistOnly ? "your watchlist" : "this view")}
+                        </span>
+                        .
+                      </p>
+                      {watchlistOnly && !selectedTicker && (
+                        <button
+                          type="button"
+                          onClick={() => setScope("market")}
+                          className="mt-3 inline-flex h-8 items-center rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+                        >
+                          Switch to All Market
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -770,74 +889,6 @@ export function SignalFeed({
                 </aside>
               </section>
             )}
-
-            {/* Section Filter Bar */}
-            <nav
-              aria-label="Feed sections"
-              className="mt-5 flex flex-wrap items-center gap-1.5"
-            >
-              {(
-                [
-                  { id: "all", label: "All" },
-                  {
-                    id: "diffs",
-                    label:
-                      scopedDiffs.length > 0
-                        ? `Filings & 8-Ks (${scopedDiffs.length})`
-                        : "Filings & 8-Ks",
-                  },
-                  {
-                    id: "insider-buys",
-                    label:
-                      buyCount > 0
-                        ? `Insider Buys (${buyCount})`
-                        : "Insider Buys",
-                  },
-                  {
-                    id: "insider-sells",
-                    label:
-                      sellCount > 0
-                        ? `Insider Sales (${sellCount})`
-                        : "Insider Sales",
-                  },
-                  {
-                    id: "headlines",
-                    label:
-                      headlines.length > 0
-                        ? `Market Wire (${headlines.length})`
-                        : "Market Wire",
-                  },
-                  { id: "filings", label: "Filing Dates" },
-                ] as const
-              ).map((tab) => {
-                const active = filter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setFilter(tab.id)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                      active
-                        ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                        : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-
-              {selectedTicker && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedTicker(null)}
-                  className="ml-1 inline-flex items-center gap-1 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 py-1.5 text-xs font-semibold text-[var(--amber)] cursor-pointer"
-                >
-                  Filtered: {selectedTicker}
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </nav>
 
             {/* MARKET WIRE: 2-Column Editorial News List */}
             {showWire && (
@@ -1256,17 +1307,7 @@ export function SignalFeed({
           </>
         )}
 
-        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
-          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--text-primary)]">
-              Terms
-            </Link>
-          </div>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

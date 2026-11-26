@@ -72,21 +72,17 @@ export function BuybackRealityCard({
               detail: `Buybacks and cash dividends were roughly offset by reported SBC expense in ${latest.fiscalYear}.`,
             };
 
+  const returned = latest.buybacks + latestDividends;
+  const tugTotal = Math.max(1, returned + latest.sbc);
+  const returnedPct = returned > 0 ? Math.max(3, (returned / tugTotal) * 100) : 0;
+  const sbcPct = latest.sbc > 0 ? Math.max(3, (latest.sbc / tugTotal) * 100) : 0;
+
   return (
     <section className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-            {hasDividends
-              ? "Shareholder Return & Buyback Reality (Buybacks + Dividends − SBC)"
-              : "Buyback Reality Check (Buybacks − SBC)"}
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            {hasDividends
-              ? "Combines cash dividends and share repurchases, net of stock-based compensation dilution."
-              : "Compares share repurchase spending with reported stock-based compensation expense."}
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+          Capital Return vs. SBC
+        </h3>
 
         <span
           className={`inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${verdict.tone}`}
@@ -94,6 +90,40 @@ export function BuybackRealityCard({
           {verdict.label}
         </span>
       </div>
+
+      {/* Visual Tug-of-War: Capital Returned vs. SBC Dilution */}
+      {(returned > 0 || latest.sbc > 0) && (
+        <div className="mt-3.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-3.5 py-2.5">
+          <div className="font-mono-num flex items-center justify-between text-[11px]">
+            <span className="text-[var(--text-secondary)]">
+              Returned{" "}
+              <strong className="text-[var(--positive)]">
+                +{formatCurrencyCompact(returned)}
+              </strong>
+            </span>
+            <span className="text-[var(--text-secondary)]">
+              SBC{" "}
+              <strong className="text-[var(--sbc)]">
+                −{formatCurrencyCompact(latest.sbc)}
+              </strong>
+            </span>
+          </div>
+          <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-[var(--border)]">
+            {returnedPct > 0 && (
+              <div
+                className="h-full bg-[var(--positive)]"
+                style={{ width: `${returnedPct}%` }}
+              />
+            )}
+            {sbcPct > 0 && (
+              <div
+                className="h-full bg-[var(--sbc)]"
+                style={{ width: `${sbcPct}%` }}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       <div
         className={`mt-4 grid grid-cols-2 gap-3 ${
@@ -165,10 +195,6 @@ export function BuybackRealityCard({
           </div>
         </div>
       </div>
-
-      <p className="mt-3 text-xs text-[var(--text-secondary)]">
-        {verdict.detail}
-      </p>
 
       {(() => {
         const mix = computeCapitalAllocationMix(series);

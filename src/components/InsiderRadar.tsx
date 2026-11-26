@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowDownRight, ArrowLeftRight, ArrowUpRight } from "lucide-react";
 import { formatCurrencyCompact } from "@/lib/finance";
 
 export interface InsiderTradeItem {
@@ -68,24 +69,27 @@ export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
       {/* Summary Strip */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-          <div className="text-xs text-[var(--text-muted)]">
-            Open-Market Insider Buys (Recent Form 4)
+          <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+            <ArrowUpRight className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
+            Buys
           </div>
           <div className="font-mono-num mt-1.5 text-xl font-semibold text-[var(--positive)]">
             {totalBuys > 0 ? formatCurrencyCompact(totalBuys) : "$0"}
           </div>
         </div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-          <div className="text-xs text-[var(--text-muted)]">
-            Open-Market Insider Sales (Recent Form 4)
+          <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+            <ArrowDownRight className="h-3.5 w-3.5 text-[var(--sbc)]" aria-hidden="true" />
+            Sales
           </div>
           <div className="font-mono-num mt-1.5 text-xl font-semibold text-[var(--text-primary)]">
             {totalSells > 0 ? formatCurrencyCompact(totalSells) : "$0"}
           </div>
         </div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-          <div className="text-xs text-[var(--text-muted)]">
-            Net Insider Flow
+          <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+            <ArrowLeftRight className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
+            Net Flow
           </div>
           <div
             className={`font-mono-num mt-1.5 text-xl font-semibold ${
@@ -107,9 +111,9 @@ export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {
         <div className="flex flex-wrap items-center gap-2">
           {(
             [
-              { id: "all", label: "All Trades", count: trades.length },
-              { id: "Buy", label: "Open-Market Buys", count: buyTrades.length },
-              { id: "Sell", label: "Open-Market Sales", count: sellTrades.length },
+              { id: "all", label: "All", count: trades.length },
+              { id: "Buy", label: "Buys", count: buyTrades.length },
+              { id: "Sell", label: "Sales", count: sellTrades.length },
             ] as const
           ).map((pill) => {
             const active = typeFilter === pill.id;

@@ -17,6 +17,7 @@ import {
   Link2,
   Percent,
   Trophy,
+  Upload,
   UserCheck,
 } from "lucide-react";
 import { isFreshPriceDate } from "@/lib/market-price";
@@ -24,6 +25,8 @@ import type { SearchIndexEntry } from "@/data/search-index";
 import { authClient } from "@/lib/auth-client";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
+import { SiteFooter } from "@/components/SiteFooter";
+import { MetricHint } from "@/components/MetricHint";
 import { LockPortfolioModal } from "@/components/LockPortfolioModal";
 import { PortfolioStressPanel } from "@/components/PortfolioStressPanel";
 import { formatPct } from "@/lib/finance";
@@ -35,6 +38,7 @@ import {
   portfolioWeightsUrl,
   type PortfolioDraft,
 } from "@/lib/portfolio-link";
+import { parseBrokerageCsv } from "@/lib/portfolio-csv";
 import {
   computePortfolioThesisSummary,
   readAllLocalValuationPresets,
@@ -65,6 +69,8 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
   const [addQuery, setAddQuery] = useState("");
   const [pasteInput, setPasteInput] = useState("");
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [csvImportNote, setCsvImportNote] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [inputMode, setInputMode] = useState<"weight" | "dollars">("weight");
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [dollars, setDollars] = useState<Record<string, number>>({});
@@ -532,6 +538,55 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       setInputMode("weight");
       setPasteOpen(false);
       setPasteInput("");
+      setCsvImportNote(null);
+    }
+  }
+
+  async function handleCsvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const known = new Set(entries.map((item) => item.ticker));
+      const priceMap = new Map<string, number>();
+      for (const item of entries) {
+        if (typeof item.price === "number" && item.price > 0) {
+          priceMap.set(item.ticker, item.price);
+        }
+      }
+      const parsed = parseBrokerageCsv(text, known, priceMap);
+      if (parsed.holdings.length === 0) {
+        setCsvImportNote(
+          parsed.skippedTickers.length > 0
+            ? `No covered Amber stocks matched (${parsed.skippedTickers.slice(0, 4).join(", ")} not in coverage).`
+            : "Could not find recognizable ticker columns in that CSV."
+        );
+        return;
+      }
+      const nextTickers = parsed.holdings.map((h) => h.ticker);
+      const nextValues: Record<string, number> = {};
+      for (const h of parsed.holdings) nextValues[h.ticker] = h.value;
+
+      markPortfolioEdited();
+      setSharedTickers(nextTickers);
+      if (parsed.mode === "dollars") {
+        setDollars(nextValues);
+        setInputMode("dollars");
+      } else {
+        setWeights(nextValues);
+        setInputMode("weight");
+      }
+      setPasteOpen(false);
+      const skippedPart =
+        parsed.skippedTickers.length > 0
+          ? ` · skipped ${parsed.skippedTickers.length} uncovered (${parsed.skippedTickers.slice(0, 3).join(", ")}${parsed.skippedTickers.length > 3 ? "…" : ""})`
+          : "";
+      setCsvImportNote(
+        `Imported ${parsed.holdings.length} holding${parsed.holdings.length === 1 ? "" : "s"} from ${file.name}${skippedPart}.`
+      );
+    } catch {
+      setCsvImportNote("Could not read that file. Try a standard UTF-8 CSV export.");
     }
   }
 
@@ -601,63 +656,13 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
             </p>
           </div>
 
-          {/* Add Ticker + Export PNG */}
+          {/* Primary Portfolio Actions (Holdings editing lives in the table toolbar below) */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <div className="relative">
-              <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
-                <Plus className="h-3.5 w-3.5 text-[var(--amber)]" />
-                <input
-                  type="text"
-                  value={addQuery}
-                  onChange={(e) => setAddQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && suggestions[0]) {
-                      e.preventDefault();
-                      addToPortfolio(suggestions[0].ticker);
-                    }
-                  }}
-                  placeholder="Add ticker…"
-                  aria-label="Add ticker to portfolio"
-                  className="w-36 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none sm:w-40"
-                />
-              </div>
-
-              {suggestions.length > 0 && (
-                <ul className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-xl">
-                  {suggestions.map((s) => (
-                    <li key={s.ticker}>
-                      <button
-                        type="button"
-                        onClick={() => addToPortfolio(s.ticker)}
-                        className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-[var(--surface-subtle)] cursor-pointer"
-                      >
-                        <span className="font-mono-num font-semibold text-[var(--amber)]">
-                          {s.ticker}
-                        </span>
-                        <span className="truncate text-[var(--text-secondary)]">
-                          {s.name}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setPasteOpen((prev) => !prev)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
-            >
-              <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
-              Quick Paste
-            </button>
-
             <button
               type="button"
               onClick={copyWeightsLink}
               disabled={!hasAllocation}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer disabled:opacity-50"
             >
               <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
               Copy weights link
@@ -707,33 +712,45 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
           </div>
         </section>
 
-        {pasteOpen && (
-          <form
-            onSubmit={applyQuickPaste}
-            className="mt-4 flex flex-col gap-2 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-4 sm:flex-row sm:items-center"
-          >
-            <input
-              type="text"
-              value={pasteInput}
-              onChange={(e) => setPasteInput(e.target.value)}
-              placeholder="Paste tickers & optional weights (e.g. NVDA 30%, MSFT 25%, PLTR 20%, COST 25%)"
-              aria-label="Quick paste portfolio tickers"
-              className="h-9 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="h-9 shrink-0 rounded-md bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] cursor-pointer"
-            >
-              Apply Portfolio
-            </button>
-          </form>
+        {usingStarter && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs">
+            <span className="text-[var(--text-secondary)]">
+              <strong className="font-semibold text-[var(--text-primary)]">Sample basket:</strong>{" "}
+              Showing 5 starter stocks. Paste your own holdings or start from scratch below.
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPasteOpen(true)}
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] hover:opacity-90 cursor-pointer"
+              >
+                <ClipboardPaste className="h-3 w-3" aria-hidden="true" />
+                Paste my holdings
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  markPortfolioEdited();
+                  setSharedTickers([]);
+                }}
+                className="text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                Start empty
+              </button>
+            </div>
+          </div>
         )}
 
         {/* 4 Weighted Portfolio KPIs */}
         <section className="mt-6 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              Implied 10Y Growth
+            <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+              <span>Priced-In Growth</span>
+              <MetricHint
+                label="Weighted Priced-In Growth"
+                description="Portfolio-weighted 10-year annual revenue growth rate already priced into your holdings (Reverse DCF)."
+                align="left"
+              />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--amber)]">
               {hasAllocation ? formatPct(metrics.wImplied) : "—"}
@@ -744,8 +761,12 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              True FCF Margin
+            <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+              <span>True FCF Margin</span>
+              <MetricHint
+                label="Weighted True FCF Margin"
+                description="Weighted Free Cash Flow minus Stock-Based Compensation as a percentage of revenue."
+              />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--text-primary)]">
               {hasAllocation ? formatPct(metrics.wTrueMargin) : "—"}
@@ -756,8 +777,12 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              SBC Burden
+            <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+              <span>Stock Comp %</span>
+              <MetricHint
+                label="Weighted Stock Comp %"
+                description="Weighted employee stock-based compensation as a % of revenue across your holdings."
+              />
             </div>
             <div className="font-mono-num mt-1.5 text-2xl font-semibold text-[var(--sbc)]">
               {hasAllocation ? formatPct(metrics.wSbcPct) : "—"}
@@ -768,8 +793,13 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--text-muted)]">
-              Net Dilution
+            <div className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+              <span>Share Chg (4Y)</span>
+              <MetricHint
+                label="Weighted 4Y Share Count Trend"
+                description="Weighted annualized change in diluted shares. Negative means net buyback shrinkage."
+                align="right"
+              />
             </div>
             <div
               className={`font-mono-num mt-1.5 text-2xl font-semibold ${
@@ -882,18 +912,92 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
 
         {/* Holdings Allocation Table */}
         <section className="mt-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs text-[var(--text-secondary)]">
-              {inputMode === "dollars" ? (
-                <span>
-                  Total Portfolio Value:{" "}
-                  <strong className="font-mono-num text-[var(--text-primary)]">
-                    ${totalDollars.toLocaleString()}
-                  </strong>
-                </span>
-              ) : (
-                <span>Drag sliders to adjust relative holding weights</span>
-              )}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <div className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5">
+                  <Plus className="h-3.5 w-3.5 text-[var(--amber)]" />
+                  <input
+                    type="text"
+                    value={addQuery}
+                    onChange={(e) => setAddQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && suggestions[0]) {
+                        e.preventDefault();
+                        addToPortfolio(suggestions[0].ticker);
+                      }
+                    }}
+                    placeholder="Add ticker…"
+                    aria-label="Add ticker to portfolio"
+                    className="w-32 bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none sm:w-36"
+                  />
+                </div>
+
+                {suggestions.length > 0 && (
+                  <ul className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-xl">
+                    {suggestions.map((s) => (
+                      <li key={s.ticker}>
+                        <button
+                          type="button"
+                          onClick={() => addToPortfolio(s.ticker)}
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-[var(--surface-subtle)] cursor-pointer"
+                        >
+                          <span className="font-mono-num font-semibold text-[var(--amber)]">
+                            {s.ticker}
+                          </span>
+                          <span className="truncate text-[var(--text-secondary)]">
+                            {s.name}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setPasteOpen((prev) => !prev)}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                  pasteOpen
+                    ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
+                Quick Paste
+              </button>
+
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+                onChange={handleCsvUpload}
+                className="sr-only"
+                aria-label="Import brokerage CSV"
+              />
+              <button
+                type="button"
+                onClick={() => csvInputRef.current?.click()}
+                title="Import positions CSV from Fidelity, Schwab, Vanguard, IBKR, or custom spreadsheets"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                Import CSV
+              </button>
+
+              <span className="text-xs text-[var(--text-secondary)]">
+                {inputMode === "dollars" ? (
+                  <span>
+                    Total:{" "}
+                    <strong className="font-mono-num text-[var(--text-primary)]">
+                      ${totalDollars.toLocaleString()}
+                    </strong>
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline">Drag sliders to adjust weights</span>
+                )}
+              </span>
             </div>
 
             <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-xs">
@@ -923,6 +1027,45 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
               </button>
             </div>
           </div>
+
+          {csvImportNote && (
+            <div
+              role="status"
+              className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-2 text-xs text-[var(--text-primary)]"
+            >
+              <span>{csvImportNote}</span>
+              <button
+                type="button"
+                onClick={() => setCsvImportNote(null)}
+                aria-label="Dismiss CSV import message"
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {pasteOpen && (
+            <form
+              onSubmit={applyQuickPaste}
+              className="mb-3 flex flex-col gap-2 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-soft)] p-3.5 sm:flex-row sm:items-center"
+            >
+              <input
+                type="text"
+                value={pasteInput}
+                onChange={(e) => setPasteInput(e.target.value)}
+                placeholder="Paste tickers & optional weights (e.g. NVDA 30%, MSFT 25%, PLTR 20%, COST 25%)"
+                aria-label="Quick paste portfolio tickers"
+                className="h-9 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="h-9 shrink-0 rounded-md bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] cursor-pointer"
+              >
+                Apply Portfolio
+              </button>
+            </form>
+          )}
 
           <div
             tabIndex={0}
@@ -1202,17 +1345,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
           </section>
         )}
 
-        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
-          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--text-primary)]">
-              Terms
-            </Link>
-          </div>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

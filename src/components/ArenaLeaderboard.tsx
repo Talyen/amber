@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, Bot, Calendar, Trophy } from "lucide-react";
+import { ArrowRight, Bot, Calendar, Info, Trophy } from "lucide-react";
 import type { ArenaPortfolioView } from "@/data/arena-repository";
+import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
+import { SiteFooter } from "@/components/SiteFooter";
+import { CommunityThesesPanel } from "@/components/CommunityThesesPanel";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { formatPct } from "@/lib/finance";
 
@@ -12,6 +15,7 @@ interface ArenaLeaderboardProps {
   portfolios: ArenaPortfolioView[];
   benchmarks: Record<string, number>;
   entryBenchmarks: Record<string, number>;
+  searchIndex?: SearchIndexEntry[];
 }
 
 type Timeframe = "monthly" | "yearly" | "all";
@@ -42,9 +46,11 @@ export function ArenaLeaderboard({
   portfolios,
   benchmarks,
   entryBenchmarks,
+  searchIndex = [],
 }: ArenaLeaderboardProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("monthly");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [showRules, setShowRules] = useState(false);
 
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
@@ -143,8 +149,22 @@ export function ArenaLeaderboard({
               Portfolio Arena
             </h1>
             <p className="mt-1 max-w-xl text-sm text-[var(--text-secondary)]">
-              Strategy bots and community portfolios tracked against the S&amp;P 500.
+              Strategy bots and community portfolios tracked against the S&amp;P 500.{" "}
+              <button
+                type="button"
+                onClick={() => setShowRules((prev) => !prev)}
+                aria-expanded={showRules}
+                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
+              >
+                <Info className="h-3 w-3" aria-hidden="true" />
+                How it works
+              </button>
             </p>
+            {showRules && (
+              <p className="mt-2 max-w-xl rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                Enter a 3–10 stock paper portfolio from the Portfolio Builder. Entry prices lock at verified market close, returns are time-weighted across rebalances, and every entry is benchmarked against SPY over the exact same window.
+              </p>
+            )}
           </div>
 
           <Link
@@ -226,24 +246,39 @@ export function ArenaLeaderboard({
               <Calendar className="h-3 w-3" />
               Month:
             </span>
-            {availableMonths.map((ym, i) => {
-              const active = ym === selectedMonth;
-              return (
-                <button
-                  key={ym}
-                  type="button"
-                  onClick={() => setSelectedMonth(ym)}
-                  className={`font-mono-num rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                    active
-                      ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
-                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {formatMonthKey(ym)}
-                  {i === 0 ? " (Live)" : ""}
-                </button>
-              );
-            })}
+            {availableMonths.length > 4 ? (
+              <select
+                aria-label="Select Arena month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="font-mono-num h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
+              >
+                {availableMonths.map((ym, i) => (
+                  <option key={ym} value={ym}>
+                    {formatMonthKey(ym)}{i === 0 ? " (Live)" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              availableMonths.map((ym, i) => {
+                const active = ym === selectedMonth;
+                return (
+                  <button
+                    key={ym}
+                    type="button"
+                    onClick={() => setSelectedMonth(ym)}
+                    className={`font-mono-num rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                      active
+                        ? "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]"
+                        : "border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {formatMonthKey(ym)}
+                    {i === 0 ? " (Live)" : ""}
+                  </button>
+                );
+              })
+            )}
           </div>
         )}
 
@@ -343,14 +378,10 @@ export function ArenaLeaderboard({
                             Beat SPY
                           </span>
                         )}
-                      {p.isBot ? (
+                      {p.isBot && (
                         <span className="inline-flex items-center gap-1 rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]">
-                          <Bot className="h-3 w-3 text-[var(--amber)]" />
-                          Strategy Bot ({p.botTheme})
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded bg-[var(--amber-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]">
-                          Community
+                          <Bot className="h-3 w-3 text-[var(--amber)]" aria-hidden="true" />
+                          {p.botTheme}
                         </span>
                       )}
                     </div>
@@ -432,17 +463,8 @@ export function ArenaLeaderboard({
             ))
           )}
         </section>
-        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
-          <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--text-primary)]">
-              Terms
-            </Link>
-          </div>
-        </footer>
+        {searchIndex.length > 0 && <CommunityThesesPanel entries={searchIndex} />}
+        <SiteFooter />
       </main>
     </div>
   );

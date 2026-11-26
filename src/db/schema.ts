@@ -348,6 +348,36 @@ export const userValuationPresets = pgTable(
   ]
 );
 
+export const userValuationHistory = pgTable(
+  "user_valuation_history",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ticker: text("ticker")
+      .notNull()
+      .references(() => companies.ticker, { onDelete: "cascade" }),
+    lens: text("lens").notNull().default("fcf"),
+    revGrowth: doublePrecision("rev_growth").notNull(),
+    targetMargin: doublePrecision("target_margin").notNull(),
+    exitMultiple: doublePrecision("exit_multiple").notNull(),
+    thesisNote: text("thesis_note"),
+    priceAtSave: doublePrecision("price_at_save"),
+    filingDateAtSave: text("filing_date_at_save"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("user_valuation_history_user_ticker_created_idx").on(
+      table.userId,
+      table.ticker,
+      table.createdAt
+    ),
+  ]
+);
+
 export const userAlertPreferences = pgTable("user_alert_preferences", {
   userId: text("user_id")
     .primaryKey()

@@ -7,13 +7,15 @@ import {
   Calculator,
   Check,
   ChevronDown,
-  Copy,
   Download,
   FileDiff,
   FileText,
   GitCompareArrows,
+  Info,
   LayoutDashboard,
+  Link2,
   PieChart,
+  Share2,
   Sparkles,
   Star,
   Table2,
@@ -56,8 +58,9 @@ import { HistoricalValuationBands } from "@/components/HistoricalValuationBands"
 import { FilingDiffRadar } from "@/components/FilingDiffRadar";
 import { FilingAlertModal } from "@/components/FilingAlertModal";
 import { InsiderRadar, type InsiderTradeItem } from "@/components/InsiderRadar";
-import { MethodologyModal } from "@/components/MethodologyModal";
+import { MetricHint } from "@/components/MetricHint";
 import { SectorPeersTable } from "@/components/SectorPeersTable";
+import { SiteFooter } from "@/components/SiteFooter";
 import { buildCompanyBriefing } from "@/lib/insights";
 
 type ActiveTab = "overview" | "fcf" | "dcf" | "diffs" | "insiders";
@@ -209,8 +212,6 @@ export function CompanyWorkspace({
   const sectorValuationMultiple = isReitCompany ? financialMetrics?.priceToFfo : financialMetrics?.priceToTbv;
   const evToTrueFcf =
     reverseDcf && latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
-  const evToRepFcf =
-    reverseDcf && latest.reportedFcf > 0 ? enterpriseValue / latest.reportedFcf : null;
   const openMarketBuys = useMemo(
     () => insiderTrades.filter((t) => t.transactionType === "Buy"),
     [insiderTrades]
@@ -294,12 +295,12 @@ export function CompanyWorkspace({
               {briefing.realityCheckSummary}
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="mt-3.5 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 disabled={!watchlist.canEdit}
                 onClick={() => watchlist.toggle(company.ticker)}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer disabled:cursor-wait ${
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors cursor-pointer disabled:cursor-wait ${
                   isStarred
                     ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)]"
                     : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
@@ -312,14 +313,14 @@ export function CompanyWorkspace({
                 {isStarred ? "Following" : "Follow"}
               </button>
 
-              <FilingAlertModal ticker={company.ticker} companyName={company.name} />
+              <FilingAlertModal ticker={company.ticker} companyName={company.name} compactLabel />
 
               <Link
                 href={`/portfolio?add=${company.ticker}`}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               >
                 <PieChart className="h-3.5 w-3.5" />
-                Add to Portfolio
+                Portfolio
               </Link>
 
               <Link
@@ -332,7 +333,7 @@ export function CompanyWorkspace({
                     .filter((t) => t !== company.ticker)
                     .slice(0, 3),
                 ].join(",")}`}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               >
                 <GitCompareArrows className="h-3.5 w-3.5" />
                 Compare
@@ -344,7 +345,7 @@ export function CompanyWorkspace({
                   onClick={() => setCopyMenuOpen((prev) => !prev)}
                   aria-expanded={copyMenuOpen}
                   aria-haspopup="menu"
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
                 >
                   {copiedLabel ? (
                     <>
@@ -353,8 +354,8 @@ export function CompanyWorkspace({
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share
                       <ChevronDown className="h-3 w-3 opacity-70" />
                     </>
                   )}
@@ -365,6 +366,34 @@ export function CompanyWorkspace({
                     role="menu"
                     className="absolute left-0 z-40 mt-1.5 w-60 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-1.5 shadow-lg"
                   >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(window.location.href);
+                          setCopiedLabel("Link Copied");
+                          setCopyMenuOpen(false);
+                          window.setTimeout(() => setCopiedLabel(null), 1800);
+                        } catch {
+                          // Ignore clipboard errors
+                        }
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
+                    >
+                      <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--amber)]" />
+                      <div>
+                        <div className="text-xs font-medium text-[var(--text-primary)]">
+                          Copy page link
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          Shares current tab &amp; view
+                        </div>
+                      </div>
+                    </button>
+
+                    <div className="my-1 border-t border-[var(--border)]" />
+
                     <button
                       type="button"
                       role="menuitem"
@@ -526,24 +555,28 @@ export function CompanyWorkspace({
         {/* Financial Institution / REIT Guardrail & Sector-Specific Metrics */}
         {isFinancialInstitution && (
           <div className="mt-5 space-y-3">
-            <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-4 py-2.5 text-xs text-[var(--text-secondary)]">
-              <strong className="font-semibold text-[var(--amber)]">
-                {isReitCompany ? "REIT Valuation Note:" : "Financial Institution Note:"}
-              </strong>{" "}
-              {isReitCompany
-                ? "For REITs, GAAP Net Income is depressed by real estate depreciation and standard Enterprise Value includes property-level debt. Use Price / FFO, Book Value, and Filing Diffs alongside the "
-                : "For banks, insurers, and asset managers, standard Free Cash Flow and Enterprise Value are distorted by deposits and loan books. Use Tangible Book Value, ROTCE / ROE, the "}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3.5 py-2 text-xs text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-2">
+                <Info className="h-3.5 w-3.5 shrink-0 text-[var(--amber)]" aria-hidden="true" />
+                <span>
+                  <strong className="font-semibold text-[var(--amber)]">
+                    {isReitCompany ? "REIT view:" : "Financials view:"}
+                  </strong>{" "}
+                  {isReitCompany
+                    ? "Use Price / FFO & Book Value instead of standard FCF."
+                    : "Use P/TBV, ROTCE & P/E instead of standard FCF."}
+                </span>
+              </span>
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab("dcf");
                   setValuationMode("scenario");
                 }}
-                className="font-semibold text-[var(--amber)] underline cursor-pointer"
+                className="font-semibold text-[var(--amber)] hover:underline cursor-pointer"
               >
-                Earnings (P/E) Scenario Model
+                P/E Scenario →
               </button>
-              , and Filing Diffs for cleaner analysis.
             </div>
             {financialMetrics &&
               (financialMetrics.priceToBook !== null ||
@@ -649,149 +682,177 @@ export function CompanyWorkspace({
           </div>
         )}
 
-        {/* 4-Card High-Signal KPI Strip */}
+        {/* Compact Single-Row High-Signal Metric Bar (avoids duplicating 60-Second Briefing cards) */}
         <section
           aria-label="Key fundamental signals"
-          className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
+          className="mt-5 grid grid-cols-2 divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] sm:divide-y-0 lg:grid-cols-4 lg:divide-x"
         >
-          {/* Card 1: What's Priced In (Implied 10Y Growth) */}
-          <button
-            type="button"
+          {/* Cell 1: Priced-In Growth (or Sector Multiple) */}
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveTab("dcf")}
-            className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveTab("dcf");
+              }
+            }}
+            className="group p-3.5 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer border-r border-[var(--border)] lg:border-r-0"
           >
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>{reverseDcf ? "Implied 10Y Growth" : isReitCompany ? "Price / FFO" : "Price / Tangible Book"}</span>
-              <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
+            <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1">
+                <span>
+                  {reverseDcf ? "Priced-In Growth" : isReitCompany ? "Price / FFO" : "Price / Tangible Book"}
+                </span>
+                {reverseDcf && (
+                  <MetricHint
+                    label="Priced-In Growth"
+                    description="The 10-year annual revenue growth rate the market is already pricing into today's stock price (Reverse DCF)."
+                    align="left"
+                  />
+                )}
+              </span>
+              <span className="text-[11px] text-[var(--amber)] opacity-75 group-hover:opacity-100">
                 Model →
               </span>
             </div>
-            <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              {reverseDcf ? formatPct(impliedGrowth) : sectorValuationMultiple == null ? "—" : `${sectorValuationMultiple.toFixed(1)}×`}
-            </div>
-            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span className="font-mono-num">
-                Hist: {formatPct(briefing.revenueCagr)}/yr
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span className="font-mono-num text-xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+                {reverseDcf ? formatPct(impliedGrowth) : sectorValuationMultiple == null ? "—" : `${sectorValuationMultiple.toFixed(1)}×`}
               </span>
-              <span className="font-mono-num">
-                {reverseDcf ? `${company.defaultDcf.terminalMultiple}x exit` : financialMetrics?.ffoFiscalYear}
+              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                Hist {formatPct(briefing.revenueCagr)}/yr
               </span>
             </div>
-          </button>
+          </div>
 
-          {/* Card 2: Real Cash Flow & Multiple */}
-          <button
-            type="button"
+          {/* Cell 2: True FCF & Multiple */}
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveTab("fcf")}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveTab("fcf");
+              }
+            }}
+            className="group p-3.5 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
           >
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>True FCF ({latest.fiscalYear})</span>
+            <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1">
+                <span>True FCF ({latest.fiscalYear})</span>
+                <MetricHint
+                  label="True Free Cash Flow"
+                  description="Operating Cash Flow minus CapEx minus Stock-Based Compensation — real cash left for owners after dilution."
+                />
+              </span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
                 {evToTrueFcf !== null && evToTrueFcf < 250
                   ? `${evToTrueFcf.toFixed(1)}x EV`
                   : "FCF − SBC"}
               </span>
             </div>
-            <div
-              className={`font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] ${
-                latest.trueFcf >= 0
-                  ? "text-[var(--amber)]"
-                  : "text-[var(--negative)]"
-              }`}
-            >
-              {formatCurrencyCompact(latest.trueFcf)}
-            </div>
-            <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
-              <span className="whitespace-nowrap">
-                Rep:{" "}
-                <strong className="font-mono-num font-medium text-[var(--text-secondary)]">
-                  {formatCurrencyCompact(latest.reportedFcf)}
-                </strong>
-                {evToRepFcf !== null && evToRepFcf < 250 && (
-                  <span className="font-mono-num ml-1 opacity-75">
-                    ({evToRepFcf.toFixed(0)}x)
-                  </span>
-                )}
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span
+                className={`font-mono-num text-xl font-semibold tracking-[-0.02em] ${
+                  latest.trueFcf >= 0
+                    ? "text-[var(--amber)]"
+                    : "text-[var(--negative)]"
+                }`}
+              >
+                {formatCurrencyCompact(latest.trueFcf)}
               </span>
-              <span className="font-mono-num whitespace-nowrap">
-                {formatPct(latest.trueFcfMargin)}
-                {sectorBenchmark && (
-                  <span className="ml-1 opacity-75">
-                    (med {formatPct(sectorBenchmark.medianTrueFcfMargin)})
-                  </span>
-                )}
-              </span>
-            </div>
-          </button>
-
-          {/* Card 3: Net Share Dilution & SBC Context */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("fcf")}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
-          >
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
-              <span>Share Count (4Y CAGR)</span>
               <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                SBC {formatPct(latest.sbcPctRevenue)}
+                {formatPct(latest.trueFcfMargin)} margin
               </span>
             </div>
-            <div
-              className={`font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] ${
-                netDilutionCagr > 1.5
-                  ? "text-[var(--negative)]"
-                  : netDilutionCagr < -0.5
-                    ? "text-[var(--positive)]"
-                    : "text-[var(--text-primary)]"
-              }`}
-            >
-              {formatPct(netDilutionCagr, true)}
-            </div>
-            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span>Diluted shares</span>
-              <span className="font-mono-num text-[var(--text-secondary)]">
-                {latest.dilutedShares.toLocaleString()}M
-              </span>
-            </div>
-          </button>
+          </div>
 
-          {/* Card 4: Latest SEC Filing & Insider Signal */}
-          <button
-            type="button"
+          {/* Cell 3: Share Count & Stock Comp % */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveTab("fcf")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveTab("fcf");
+              }
+            }}
+            className="group p-3.5 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer border-r border-[var(--border)] lg:border-r-0"
+          >
+            <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1">
+                <span>Share Chg (4Y)</span>
+                <MetricHint
+                  label="4-Year Share Count Trend"
+                  description="Annualized change in diluted shares over 4 years. Negative means buybacks are shrinking the share count."
+                />
+              </span>
+              <span className="font-mono-num text-[11px] text-[var(--sbc)]">
+                Stock Comp {formatPct(latest.sbcPctRevenue)}
+              </span>
+            </div>
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span
+                className={`font-mono-num text-xl font-semibold tracking-[-0.02em] ${
+                  netDilutionCagr > 1.5
+                    ? "text-[var(--negative)]"
+                    : netDilutionCagr < -0.5
+                      ? "text-[var(--positive)]"
+                      : "text-[var(--text-primary)]"
+                }`}
+              >
+                {formatPct(netDilutionCagr, true)}
+              </span>
+              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                {latest.dilutedShares.toLocaleString()}M shs
+              </span>
+            </div>
+          </div>
+
+          {/* Cell 4: Filings & Insiders */}
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() =>
               setActiveTab(openMarketBuys.length > 0 ? "insiders" : "diffs")
             }
-            className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--amber-border)] cursor-pointer"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveTab(openMarketBuys.length > 0 ? "insiders" : "diffs");
+              }
+            }}
+            className="group p-3.5 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
           >
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+            <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
               <span>Filings &amp; Insiders</span>
-              <span className="text-[11px] text-[var(--amber)] opacity-80 group-hover:opacity-100">
+              <span className="text-[11px] text-[var(--amber)] opacity-75 group-hover:opacity-100">
                 View →
               </span>
             </div>
-            <div className="font-mono-num mt-2 text-2xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              {openMarketBuys.length > 0 ? (
-                <span className="text-[var(--positive)]">
-                  +{formatCurrencyCompact(openMarketBuyTotal)} Buy
-                </span>
-              ) : (
-                <span>
-                  {company.filingDiffs.length} Diff{company.filingDiffs.length === 1 ? "" : "s"}
-                </span>
-              )}
-            </div>
-            <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span>
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span className="font-mono-num text-xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+                {openMarketBuys.length > 0 ? (
+                  <span className="text-[var(--positive)]">
+                    +{formatCurrencyCompact(openMarketBuyTotal)} Buy
+                  </span>
+                ) : (
+                  <span>
+                    {company.filingDiffs.length} Diff{company.filingDiffs.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </span>
+              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
                 {highSignalDiffCount > 0
-                  ? `${highSignalDiffCount} High-signal change${highSignalDiffCount > 1 ? "s" : ""}`
-                  : `${company.lastFiling.type} (${company.lastFiling.date})`}
-              </span>
-              <span className="font-mono-num">
-                {insiderTrades.length} Form 4
+                  ? `${highSignalDiffCount} High`
+                  : `${insiderTrades.length} Form 4`}
               </span>
             </div>
-          </button>
+          </div>
         </section>
 
         {/* Accessible Tabbed Analysis Studio */}
@@ -843,6 +904,9 @@ export function CompanyWorkspace({
                     companyName={company.name}
                     briefing={briefing}
                     series={series}
+                    cashAndEquiv={company.cashAndEquiv}
+                    totalDebt={company.totalDebt}
+                    impliedCagr={impliedGrowth}
                     onNavigateTab={(t) => setActiveTab(t)}
                   />
                   <RevenueSankey
@@ -919,29 +983,36 @@ export function CompanyWorkspace({
             >
               {activeTab === "dcf" && (
                 <div className="space-y-4">
-                  <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
-                    <button
-                      type="button"
-                      onClick={() => setValuationMode("scenario")}
-                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                        !reverseDcf || valuationMode === "scenario"
-                          ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                      }`}
-                    >
-                      5-Year Return Scenario (Bull / Base / Bear)
-                    </button>
-                    {reverseDcf && <button
-                      type="button"
-                      onClick={() => setValuationMode("reverse")}
-                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                        valuationMode === "reverse"
-                          ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                      }`}
-                    >
-                      Reverse DCF (What&apos;s Priced In)
-                    </button>}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setValuationMode("scenario")}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                          !reverseDcf || valuationMode === "scenario"
+                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        5-Year Scenario
+                      </button>
+                      {reverseDcf && <button
+                        type="button"
+                        onClick={() => setValuationMode("reverse")}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                          valuationMode === "reverse"
+                            ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        Reverse DCF
+                      </button>}
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {!reverseDcf || valuationMode === "scenario"
+                        ? "Set your own 5-year assumptions to estimate expected return."
+                        : "See the 10-year revenue growth already baked into today's price."}
+                    </p>
                   </div>
 
                   {!reverseDcf || valuationMode === "scenario" ? (
@@ -979,25 +1050,14 @@ export function CompanyWorkspace({
           </div>
         </section>
 
-        {/* Subtle Institutional Footer */}
-        <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <div className="flex flex-wrap items-center gap-4">
-            <p>© {new Date().getFullYear()} Amber. Not investment advice.</p>
-            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--text-primary)]">
-              Terms
-            </Link>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <MethodologyModal />
+        <SiteFooter
+          rightExtra={
             <span className="font-mono-num">
               CIK {company.cik}
               <span className="hidden sm:inline"> (Press 1–5 for tabs)</span>
             </span>
-          </div>
-        </footer>
+          }
+        />
       </main>
     </div>
   );

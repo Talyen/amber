@@ -185,9 +185,19 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${materialityStyle(diff.materiality)}`}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold ${materialityStyle(diff.materiality)}`}
                 >
-                  {diff.materiality} Signal
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      diff.materiality === "High"
+                        ? "bg-[var(--amber)]"
+                        : diff.materiality === "Medium"
+                          ? "bg-[var(--text-primary)]"
+                          : "bg-[var(--text-muted)]"
+                    }`}
+                  />
+                  {diff.materiality === "Medium" ? "Med" : diff.materiality}
                 </span>
                 <span className="rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
                   {diff.category}
@@ -235,11 +245,11 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
               {diff.summary}
             </p>
 
-            {/* Prior vs Latest Filing Comparison */}
+            {/* Before vs After Comparison */}
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3.5">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  Prior Filing Language
+                  Before
                 </div>
                 <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-secondary)]">
                   &ldquo;{diff.priorExcerpt}&rdquo;
@@ -249,7 +259,7 @@ export function FilingDiffRadar({ company }: FilingDiffRadarProps) {
               <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] p-3.5">
                 <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--amber)]">
                   <ArrowRight className="h-3 w-3" />
-                  Latest Filing Language
+                  After
                 </div>
                 <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-primary)]">
                   &ldquo;

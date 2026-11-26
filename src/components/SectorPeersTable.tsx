@@ -95,20 +95,15 @@ export function SectorPeersTable({
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            Closest {current.sector} Peers
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Relative valuation and capital discipline vs. nearest-size sector peers.
-          </p>
-        </div>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+          {current.sector} Peers
+        </h3>
         <Link
           href={`/compare?t=${compareTickers.join(",")}`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90"
         >
           <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
-          Open in Compare Studio
+          Compare
         </Link>
       </div>
 
@@ -127,22 +122,22 @@ export function SectorPeersTable({
               {isReitCompany ? (
                 <>
                   <th scope="col">Price / FFO</th>
-                  <th scope="col">Shareholder Yield</th>
-                  <th scope="col">Dilution (4Y)</th>
+                  <th scope="col">Sh. Yield</th>
+                  <th scope="col">Share Chg</th>
                 </>
               ) : isBankOrFin ? (
                 <>
                   <th scope="col">P/TBV</th>
                   <th scope="col">ROTCE</th>
-                  <th scope="col">Shareholder Yield</th>
-                  <th scope="col">Dilution (4Y)</th>
+                  <th scope="col">Sh. Yield</th>
+                  <th scope="col">Share Chg</th>
                 </>
               ) : (
                 <>
-                  <th scope="col">True FCF Margin</th>
-                  <th scope="col">SBC / Rev</th>
-                  <th scope="col">Dilution (4Y)</th>
-                  <th scope="col">Implied 10Y</th>
+                  <th scope="col">True FCF %</th>
+                  <th scope="col">Stock Comp %</th>
+                  <th scope="col">Share Chg</th>
+                  <th scope="col">Priced-In</th>
                 </>
               )}
             </tr>

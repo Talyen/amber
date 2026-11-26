@@ -112,7 +112,7 @@ export function PortfolioStressPanel({
         <div className="mt-4 space-y-3.5">
           <div>
             <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="text-[var(--text-secondary)]">Exit Multiple Compression</span>
+              <span className="text-[var(--text-secondary)]">Multiple</span>
               <span className="font-mono-num font-semibold text-[var(--text-primary)]">
                 {inputs.multipleCompressionPct}%
               </span>
@@ -136,7 +136,7 @@ export function PortfolioStressPanel({
 
           <div>
             <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="text-[var(--text-secondary)]">Annual Growth Haircut</span>
+              <span className="text-[var(--text-secondary)]">Growth</span>
               <span className="font-mono-num font-semibold text-[var(--text-primary)]">
                 {inputs.growthHaircutPts > 0 ? `-${inputs.growthHaircutPts} pts/yr` : "0 pts/yr"}
               </span>
@@ -161,7 +161,7 @@ export function PortfolioStressPanel({
           <div>
             <div className="mb-1 flex items-center justify-between text-xs">
               <span className="text-[var(--text-secondary)]">
-                Top Position Shock{" "}
+                Top Holding{" "}
                 {stress.topHoldingTicker && (
                   <span className="font-mono-num text-[var(--text-muted)]">
                     ({stress.topHoldingTicker} · {stress.topHoldingWeightPct.toFixed(0)}%)
@@ -213,7 +213,7 @@ export function PortfolioStressPanel({
 
           <div>
             <div className="text-[11px] text-[var(--text-muted)]">
-              Stressed Thesis 5Y CAGR
+              Stressed 5Y CAGR
             </div>
             <div className="font-mono-num mt-0.5 text-lg font-semibold text-[var(--text-primary)]">
               {stress.stressedThesisIrrPct !== null
@@ -222,8 +222,8 @@ export function PortfolioStressPanel({
             </div>
             <div className="font-mono-num text-[11px] text-[var(--text-secondary)]">
               {stress.thesisIrrDeltaPct !== null && stress.thesisCoveredCount > 0
-                ? `${formatPct(stress.thesisIrrDeltaPct, true)} pts vs. base (${stress.thesisCoveredCount} covered)`
-                : "Save theses to stress-test IRR"}
+                ? `${formatPct(stress.thesisIrrDeltaPct, true)} pts vs. base (${stress.thesisCoveredCount})`
+                : "Save theses to model"}
             </div>
           </div>
         </div>
@@ -236,7 +236,7 @@ export function PortfolioStressPanel({
             SBC &amp; Dilution Attribution
           </h2>
           <span className="text-[11px] text-[var(--text-muted)]">
-            Share of weighted SBC drag
+            % of SBC drag
           </span>
         </div>
 

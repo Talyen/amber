@@ -20,7 +20,7 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
 
   const steps = [
     {
-      label: "Operating Cash Flow",
+      label: "Operating Cash",
       sub: `${formatPct((period.operatingCashFlow / period.revenue) * 100)} of rev`,
       value: period.operatingCashFlow,
       sign: "",
@@ -29,7 +29,7 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
       isSubtotal: false,
     },
     {
-      label: "Capital Expenditures",
+      label: "CapEx",
       sub: `${formatPct((period.capex / period.revenue) * 100)} of rev`,
       value: -period.capex,
       sign: "−",
@@ -38,7 +38,7 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
       isSubtotal: false,
     },
     {
-      label: "Reported Free Cash Flow",
+      label: "Reported FCF",
       sub: `${formatPct(period.reportedFcfMargin)} margin`,
       value: period.reportedFcf,
       sign: "=",
@@ -47,10 +47,10 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
       isSubtotal: true,
     },
     {
-      label: "Stock-Based Compensation",
+      label: "Stock Comp",
       sub: period.sbcPctReportedFcf === null
         ? `${formatPct(period.sbcPctRevenue)} of rev`
-        : `${formatPct(period.sbcPctRevenue)} of rev, ${formatPct(period.sbcPctReportedFcf, false, 0)} of FCF`,
+        : `${formatPct(period.sbcPctRevenue)} of rev · ${formatPct(period.sbcPctReportedFcf, false, 0)} of FCF`,
       value: -period.sbc,
       sign: "−",
       color: "var(--sbc)",
@@ -58,8 +58,8 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
       isSubtotal: false,
     },
     {
-      label: "True Free Cash Flow",
-      sub: `${formatPct(period.trueFcfMargin)} true margin`,
+      label: "True FCF",
+      sub: `${formatPct(period.trueFcfMargin)} margin`,
       value: period.trueFcf,
       sign: "=",
       color: period.trueFcf >= 0 ? "var(--amber)" : "var(--negative)",
@@ -71,14 +71,9 @@ export function TrueFcfWaterfall({ period }: TrueFcfWaterfallProps) {
   return (
     <section className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-            Owner Earnings Bridge ({period.fiscalYear})
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Step-by-step reconciliation from GAAP Operating Cash Flow to SBC-adjusted True FCF.
-          </p>
-        </div>
+        <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+          True FCF Bridge ({period.fiscalYear})
+        </h3>
         <span className="font-mono-num rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
           Rev {formatCurrencyCompact(period.revenue)}
         </span>

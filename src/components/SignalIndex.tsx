@@ -43,7 +43,7 @@ import { CommandSearch } from "@/components/CommandSearch";
 import { ExploreScreenerDrawer } from "@/components/ExploreScreenerDrawer";
 import { ExploreSignalStrip } from "@/components/ExploreSignalStrip";
 import { selectFeaturedSignals } from "@/lib/featured-signals";
-import { MethodologyModal } from "@/components/MethodologyModal";
+import { SiteFooter } from "@/components/SiteFooter";
 import {
   matchesReitPriceToFfo, formatCurrencyCompact, formatPct } from "@/lib/finance";
 import {
@@ -905,13 +905,33 @@ export function SignalIndex({
               {formatCurrencyCompact(c.trueFcf)}
             </td>
             <td data-label="True FCF %" className="font-mono-num">
-              {formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}
+              <div className="inline-flex flex-col items-end gap-1">
+                <span>{formatPct(c.scenarioBasis.equityLensOnly ? null : c.trueFcfMargin)}</span>
+                {!c.scenarioBasis.equityLensOnly && c.trueFcfMargin > 0 && (
+                  <span className="block h-1 w-12 overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+                    <span
+                      className="block h-full rounded-full bg-[var(--amber)]"
+                      style={{ width: `${Math.min(100, Math.max(6, (c.trueFcfMargin / 50) * 100))}%` }}
+                    />
+                  </span>
+                )}
+              </div>
             </td>
             <td
               data-label="Stock Comp %"
               className="font-mono-num text-[var(--sbc)]"
             >
-              {formatPct(c.sbcPctRevenue)}
+              <div className="inline-flex flex-col items-end gap-1">
+                <span>{formatPct(c.sbcPctRevenue)}</span>
+                {c.sbcPctRevenue > 0 && (
+                  <span className="block h-1 w-12 overflow-hidden rounded-full bg-[var(--surface-subtle)]">
+                    <span
+                      className="block h-full rounded-full bg-[var(--sbc)]"
+                      style={{ width: `${Math.min(100, Math.max(6, (c.sbcPctRevenue / 25) * 100))}%` }}
+                    />
+                  </span>
+                )}
+              </div>
             </td>
             <td
               data-label="Share Chg (4Y)"
@@ -923,7 +943,15 @@ export function SignalIndex({
                     : "text-[var(--text-secondary)]"
               }`}
             >
-              {formatPct(c.netDilutionCagr, true)}
+              <span className="inline-flex items-center gap-0.5">
+                {c.netDilutionCagr > 1.5 && (
+                  <ArrowUp className="h-3 w-3 shrink-0" aria-hidden="true" />
+                )}
+                {c.netDilutionCagr < -0.5 && (
+                  <ArrowDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+                )}
+                {formatPct(c.netDilutionCagr, true)}
+              </span>
             </td>
             <td
               data-label="Priced-In Growth"
@@ -958,19 +986,36 @@ export function SignalIndex({
           <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
             Understand any public company in 60 seconds.
           </h1>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            Financials, SEC filing changes, implied growth, and Form 4 insider trades across {entries.length} public companies.
-          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[var(--text-secondary)]">
+            <span className="font-mono-num font-medium text-[var(--text-primary)]">
+              {entries.length} SEC-verified companies
+            </span>
+            <span aria-hidden="true" className="text-[var(--border-strong)]">·</span>
+            <span>True FCF</span>
+            <span aria-hidden="true" className="text-[var(--border-strong)]">·</span>
+            <span>Filing Diffs</span>
+            <span aria-hidden="true" className="text-[var(--border-strong)]">·</span>
+            <span>Form 4 Insiders</span>
+          </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-2.5">
             <CommandSearch variant="hero" initialEntries={entries} />
-            <Link
-              href="/t/NVDA"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
-            >
-              Explore NVDA
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="flex items-center gap-1.5">
+              {(["NVDA", "MSFT", "COST"] as const).map((sym, idx) => (
+                <Link
+                  key={sym}
+                  href={`/t/${sym}`}
+                  className={`font-mono-num inline-flex items-center gap-1 rounded-xl border px-3 py-3 text-xs font-semibold transition-colors ${
+                    idx === 0
+                      ? "border-[var(--amber-border)] bg-[var(--amber-soft)] text-[var(--amber)] hover:opacity-90"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--amber-border)] hover:text-[var(--amber)]"
+                  }`}
+                >
+                  {sym}
+                  {idx === 0 && <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />}
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -1032,7 +1077,7 @@ export function SignalIndex({
                   setFilter(e.target.value);
                   setVisibleLimit(30);
                 }}
-                placeholder="Filter table…"
+                placeholder="Filter results…"
                 aria-label="Filter companies table"
                 className="h-8 w-44 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)]"
               />
@@ -1365,6 +1410,12 @@ export function SignalIndex({
                           setMaxSbcPct("");
                           setMaxImplied("");
                           setMaxDilution("");
+                          setMinMarketCapB("");
+                          setMinShareholderYield("");
+                          setMaxPtbv("");
+                          setMinRotce("");
+                          setMaxPffo("");
+                          setMinThesisIrr("");
                         }}
                         className="mt-3 inline-flex h-8 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--amber)] hover:border-[var(--amber-border)] cursor-pointer"
                       >
@@ -1394,7 +1445,7 @@ export function SignalIndex({
             </table>
           </div>
 
-          {!groupBySector && rows.length > visibleLimit && (
+          {rows.length > visibleLimit && (
             <div className="mt-4 flex justify-center">
               <button
                 type="button"
@@ -1418,14 +1469,14 @@ export function SignalIndex({
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {/* Card 1: Steepest SBC Burden */}
+            {/* Card 1: Highest Stock Comp % */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  Steepest SBC Burden
+                  Highest Stock Comp %
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--sbc)]">
-                  SBC / Rev
+                  Stock Comp / Rev
                 </span>
               </div>
               <ul className="mt-3.5 divide-y divide-[var(--border)]">
@@ -1486,14 +1537,14 @@ export function SignalIndex({
               </ul>
             </div>
 
-            {/* Card 3: Steepest Implied Growth */}
+            {/* Card 3: Highest Priced-In Growth */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  Highest Implied 10Y Growth
+                  Highest Priced-In Growth
                 </h3>
                 <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                  Reverse DCF
+                  10Y Rev CAGR
                 </span>
               </div>
               <ul className="mt-3.5 divide-y divide-[var(--border)]">
@@ -1522,21 +1573,7 @@ export function SignalIndex({
           </div>
         </section>
 
-        <footer className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <div className="flex flex-wrap items-center gap-4">
-            <span>© {new Date().getFullYear()} Amber</span>
-            <Link href="/privacy" className="hover:text-[var(--text-primary)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--text-primary)]">
-              Terms
-            </Link>
-            <span>Not investment advice.</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <MethodologyModal />
-          </div>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

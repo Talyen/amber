@@ -15,9 +15,80 @@ export interface SavedValuationPreset {
   updatedAt: string;
 }
 
+export interface ThesisHistoryEntry {
+  id: string;
+  ticker: string;
+  lens: SavedScenarioLens;
+  revGrowth: number;
+  targetMargin: number;
+  exitMultiple: number;
+  thesisNote?: string | null;
+  priceAtSave?: number | null;
+  filingDateAtSave?: string | null;
+  createdAt: string;
+}
+
 export type LocalValuationPreset = SavedValuationPreset & { owner?: string };
 
 const STORAGE_KEY = "amber-valuation-presets-v1";
+const HISTORY_STORAGE_KEY = "amber-valuation-history-v1";
+const MAX_HISTORY_PER_TICKER = 15;
+
+export function isMeaningfulThesisChange(
+  prev: Pick<ThesisHistoryEntry, "lens" | "revGrowth" | "targetMargin" | "exitMultiple" | "thesisNote"> | null | undefined,
+  next: Pick<SavedValuationPreset, "lens" | "revGrowth" | "targetMargin" | "exitMultiple" | "thesisNote">
+): boolean {
+  if (!prev) return true;
+  return (
+    prev.lens !== next.lens ||
+    prev.revGrowth !== next.revGrowth ||
+    prev.targetMargin !== next.targetMargin ||
+    prev.exitMultiple !== next.exitMultiple ||
+    (prev.thesisNote ?? null) !== (next.thesisNote ?? null)
+  );
+}
+
+function historyStorageKey(owner: string | null | undefined): string {
+  return owner ? `${HISTORY_STORAGE_KEY}:account:${owner}` : `${HISTORY_STORAGE_KEY}:guest`;
+}
+
+export function readLocalThesisHistory(
+  ticker: string,
+  owner: string | null | undefined
+): ThesisHistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(historyStorageKey(owner));
+    if (!raw) return [];
+    const map = JSON.parse(raw) as Record<string, ThesisHistoryEntry[]>;
+    const list = map[ticker.toUpperCase()];
+    return Array.isArray(list) ? list.slice(0, MAX_HISTORY_PER_TICKER) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function appendLocalThesisHistory(
+  entry: ThesisHistoryEntry,
+  owner: string | null | undefined
+): ThesisHistoryEntry[] {
+  const ticker = entry.ticker.toUpperCase();
+  const current = readLocalThesisHistory(ticker, owner);
+  if (!isMeaningfulThesisChange(current[0], entry)) return current;
+  const next = [entry, ...current].slice(0, MAX_HISTORY_PER_TICKER);
+  try {
+    if (typeof window !== "undefined") {
+      const key = historyStorageKey(owner);
+      const raw = window.localStorage.getItem(key);
+      const map = raw ? (JSON.parse(raw) as Record<string, ThesisHistoryEntry[]>) : {};
+      map[ticker] = next;
+      window.localStorage.setItem(key, JSON.stringify(map));
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+  return next;
+}
 
 function readNumber(value: unknown): number {
   if (typeof value === "number") return value;

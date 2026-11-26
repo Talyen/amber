@@ -12,6 +12,7 @@ import {
   solveReverseDcf,
 } from "@/lib/finance";
 import { exportReverseDcfCard } from "@/lib/export-card";
+import { MetricHint } from "@/components/MetricHint";
 
 interface ReverseDcfStudioProps {
   company: CompanySnapshot;
@@ -321,8 +322,13 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-xs font-medium text-[var(--text-secondary)]">
-                Market-Implied 10Y Revenue CAGR
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                <span>Priced-In Growth (10Y Rev CAGR)</span>
+                <MetricHint
+                  label="Priced-In Growth"
+                  description="The annual revenue growth rate required over the next 10 years for discounted True FCF plus Terminal Value to equal today's Enterprise Value."
+                  align="left"
+                />
               </div>
               <div className="mt-1 flex flex-wrap items-baseline gap-3">
                 <span className="font-mono-num text-4xl font-semibold tracking-[-0.03em] text-[var(--amber)] sm:text-5xl">

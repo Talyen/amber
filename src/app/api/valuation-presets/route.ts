@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { companies, userValuationPresets } from "@/db/schema";
+import { companies, userValuationHistory, userValuationPresets } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
-import { normalizeValuationPresetInput } from "@/lib/valuation-presets";
+import {
+  isMeaningfulThesisChange,
+  normalizeValuationPresetInput,
+  type SavedScenarioLens,
+} from "@/lib/valuation-presets";
 
 function serializePreset(row: typeof userValuationPresets.$inferSelect) {
   return {
@@ -15,6 +20,23 @@ function serializePreset(row: typeof userValuationPresets.$inferSelect) {
     thesisNote: row.thesisNote ?? null,
     isPublic: row.isPublic,
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function serializeHistoryRow(row: typeof userValuationHistory.$inferSelect) {
+  const lens: SavedScenarioLens =
+    row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf";
+  return {
+    id: row.id,
+    ticker: row.ticker,
+    lens,
+    revGrowth: row.revGrowth,
+    targetMargin: row.targetMargin,
+    exitMultiple: row.exitMultiple,
+    thesisNote: row.thesisNote ?? null,
+    priceAtSave: row.priceAtSave ?? null,
+    filingDateAtSave: row.filingDateAtSave ?? null,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -67,9 +89,30 @@ export async function GET(request: Request) {
       )
       .limit(1);
 
+    let history: ReturnType<typeof serializeHistoryRow>[] | undefined;
+    if (searchParams.get("history") === "1") {
+      try {
+        const histRows = await db
+          .select()
+          .from(userValuationHistory)
+          .where(
+            and(
+              eq(userValuationHistory.userId, userId),
+              eq(userValuationHistory.ticker, ticker)
+            )
+          )
+          .orderBy(desc(userValuationHistory.createdAt))
+          .limit(15);
+        history = histRows.map(serializeHistoryRow);
+      } catch {
+        history = [];
+      }
+    }
+
     return NextResponse.json({
       authenticated: true,
       preset: row ? serializePreset(row) : null,
+      ...(history !== undefined ? { history } : {}),
     });
   } catch {
     return NextResponse.json(
@@ -103,7 +146,11 @@ export async function PUT(request: Request) {
   }
 
   const [exists] = await db
-    .select({ ticker: companies.ticker })
+    .select({
+      ticker: companies.ticker,
+      price: companies.price,
+      lastFilingDate: companies.lastFilingDate,
+    })
     .from(companies)
     .where(eq(companies.ticker, normalized.ticker))
     .limit(1);
@@ -139,9 +186,67 @@ export async function PUT(request: Request) {
       },
     });
 
+  // Append a Decision Journal snapshot when assumptions or notes change
+  let historyEntry: ReturnType<typeof serializeHistoryRow> | null = null;
+  try {
+    const [latestHist] = await db
+      .select()
+      .from(userValuationHistory)
+      .where(
+        and(
+          eq(userValuationHistory.userId, userId),
+          eq(userValuationHistory.ticker, normalized.ticker)
+        )
+      )
+      .orderBy(desc(userValuationHistory.createdAt))
+      .limit(1);
+
+    const prevComparable = latestHist
+      ? {
+          lens: (latestHist.lens === "ebit" || latestHist.lens === "pe" ? latestHist.lens : "fcf") as SavedScenarioLens,
+          revGrowth: latestHist.revGrowth,
+          targetMargin: latestHist.targetMargin,
+          exitMultiple: latestHist.exitMultiple,
+          thesisNote: latestHist.thesisNote ?? null,
+        }
+      : null;
+
+    if (isMeaningfulThesisChange(prevComparable, normalized)) {
+      const id = randomUUID();
+      await db.insert(userValuationHistory).values({
+        id,
+        userId,
+        ticker: normalized.ticker,
+        lens: normalized.lens,
+        revGrowth: normalized.revGrowth,
+        targetMargin: normalized.targetMargin,
+        exitMultiple: normalized.exitMultiple,
+        thesisNote: normalized.thesisNote ?? null,
+        priceAtSave: Number.isFinite(exists.price) ? exists.price : null,
+        filingDateAtSave: exists.lastFilingDate ?? null,
+        createdAt: now,
+      });
+      historyEntry = {
+        id,
+        ticker: normalized.ticker,
+        lens: normalized.lens,
+        revGrowth: normalized.revGrowth,
+        targetMargin: normalized.targetMargin,
+        exitMultiple: normalized.exitMultiple,
+        thesisNote: normalized.thesisNote ?? null,
+        priceAtSave: Number.isFinite(exists.price) ? exists.price : null,
+        filingDateAtSave: exists.lastFilingDate ?? null,
+        createdAt: now.toISOString(),
+      };
+    }
+  } catch {
+    // History table is additive; never fail the primary thesis save
+  }
+
   return NextResponse.json({
     ok: true,
     preset: { ...normalized, updatedAt: now.toISOString() },
+    ...(historyEntry ? { historyEntry } : {}),
   });
 }
 

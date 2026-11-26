@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getArenaEntryBenchmarks, getArenaLeaderboard, getSpyBenchmarks } from "@/data/arena-repository";
+import { getSearchIndex } from "@/data/repository";
 import { ArenaLeaderboard } from "@/components/ArenaLeaderboard";
 
 export const revalidate = 3600;
@@ -12,10 +13,18 @@ export const metadata: Metadata = {
 
 export default async function ArenaPage() {
   const entries = getArenaLeaderboard();
-  const [portfolios, entryBenchmarks, benchmarks] = await Promise.all([
+  const [portfolios, entryBenchmarks, benchmarks, searchIndex] = await Promise.all([
     entries,
     entries.then(getArenaEntryBenchmarks),
     getSpyBenchmarks(),
+    getSearchIndex(),
   ]);
-  return <ArenaLeaderboard portfolios={portfolios} benchmarks={benchmarks} entryBenchmarks={entryBenchmarks} />;
+  return (
+    <ArenaLeaderboard
+      portfolios={portfolios}
+      benchmarks={benchmarks}
+      entryBenchmarks={entryBenchmarks}
+      searchIndex={searchIndex}
+    />
+  );
 }

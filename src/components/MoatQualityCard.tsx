@@ -1,3 +1,4 @@
+import { Minus, Shield, TrendingDown, TrendingUp } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
@@ -81,17 +82,17 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
     (latestRoic !== null && latestRoic >= 20) ||
     (latestGm !== null && latestGm >= 65)
       ? {
-          label: "Wide Moat Profile",
+          label: "Wide Moat",
           tone: "text-[var(--positive)] bg-[var(--surface-subtle)] ring-[var(--border-strong)]",
         }
       : (latestRoic !== null && latestRoic >= 12) ||
           (latestGm !== null && latestGm >= 40)
         ? {
-            label: "Solid Quality",
+            label: "Solid",
             tone: "text-[var(--amber)] bg-[var(--amber-soft)] ring-[var(--amber-border)]",
           }
         : {
-            label: "Capital Intensive / Competitive",
+            label: "Competitive",
             tone: "text-[var(--text-secondary)] bg-[var(--surface-subtle)] ring-[var(--border)]",
           };
 
@@ -135,18 +136,14 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-            Moat &amp; Capital Efficiency
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Multi-year pricing power, operating leverage, and return on invested capital.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+          Moat &amp; Capital Efficiency
+        </h3>
         <span
-          className={`inline-flex rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${moatVerdict.tone}`}
+          className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${moatVerdict.tone}`}
         >
+          <Shield className="h-3 w-3" aria-hidden="true" />
           {moatVerdict.label}
         </span>
       </div>
@@ -163,7 +160,7 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
             </div>
             {gmBpsChange !== null && (
               <div
-                className={`font-mono-num mt-1 text-[11px] ${
+                className={`font-mono-num mt-1 inline-flex items-center gap-1 text-[11px] ${
                   gmBpsChange >= 100
                     ? "text-[var(--positive)]"
                     : gmBpsChange <= -100
@@ -171,8 +168,15 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
                       : "text-[var(--text-muted)]"
                 }`}
               >
+                {gmBpsChange >= 100 ? (
+                  <TrendingUp className="h-3 w-3" aria-hidden="true" />
+                ) : gmBpsChange <= -100 ? (
+                  <TrendingDown className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <Minus className="h-3 w-3" aria-hidden="true" />
+                )}
                 {gmBpsChange > 0 ? "+" : ""}
-                {gmBpsChange} bps vs. {gpSeries[0].fiscalYear}
+                {(gmBpsChange / 100).toFixed(1)} pts vs. {gpSeries[0].fiscalYear}
               </div>
             )}
           </div>
@@ -187,9 +191,9 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
             <div className="font-mono-num mt-1 text-xl font-semibold text-[var(--text-primary)]">
               {formatPct(latestOp)}
             </div>
-            {opBpsChange !== null ? (
+            {opBpsChange !== null && (
               <div
-                className={`font-mono-num mt-1 text-[11px] ${
+                className={`font-mono-num mt-1 inline-flex items-center gap-1 text-[11px] ${
                   opBpsChange >= 100
                     ? "text-[var(--positive)]"
                     : opBpsChange <= -100
@@ -197,12 +201,15 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
                       : "text-[var(--text-muted)]"
                 }`}
               >
+                {opBpsChange >= 100 ? (
+                  <TrendingUp className="h-3 w-3" aria-hidden="true" />
+                ) : opBpsChange <= -100 ? (
+                  <TrendingDown className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <Minus className="h-3 w-3" aria-hidden="true" />
+                )}
                 {opBpsChange > 0 ? "+" : ""}
-                {opBpsChange} bps vs. {opSeries[0].fiscalYear}
-              </div>
-            ) : (
-              <div className="mt-1 text-[11px] text-[var(--text-muted)]">
-                Core business profitability
+                {(opBpsChange / 100).toFixed(1)} pts vs. {opSeries[0].fiscalYear}
               </div>
             )}
           </div>
@@ -224,9 +231,6 @@ export function MoatQualityCard({ company, series }: MoatQualityCardProps) {
               }`}
             >
               {formatPct(latestRoic)}
-            </div>
-            <div className="mt-1 text-[11px] text-[var(--text-muted)]">
-              NOPAT / Invested Capital
             </div>
           </div>
         )}

@@ -48,6 +48,7 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0010_saved_screens_portfolios_public_theses.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0011_valuation_alerts.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0012_company_quote_date.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0013_valuation_thesis_history.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -208,6 +209,16 @@ async function migrate() {
     throw new Error("Could not verify alert preferences, saved screens, portfolios, public theses, and valuation alerts schema.");
   }
   console.log("[amber-migrate] Verified alert preferences, saved screens, portfolios, public theses, and valuation alerts.");
+
+  const [historySchema] = await sql`
+    select
+      to_regclass('public.user_valuation_history') is not null as has_history_table,
+      to_regclass('public.user_valuation_history_user_ticker_created_idx') is not null as has_history_idx
+  `;
+  if (!historySchema?.has_history_table || !historySchema.has_history_idx) {
+    throw new Error("Could not verify the user_valuation_history schema.");
+  }
+  console.log("[amber-migrate] Verified user_valuation_history.");
 }
 
 await migrate();

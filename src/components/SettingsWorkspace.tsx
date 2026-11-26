@@ -18,6 +18,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { openAuthDialog } from "@/components/AuthButton";
 import { TopNav } from "@/components/TopNav";
+import { SiteFooter } from "@/components/SiteFooter";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AVATAR_PRESETS, normalizeAvatarId, type AvatarId } from "@/lib/avatars";
 import { setTheme, useTheme } from "@/lib/theme";
@@ -88,6 +89,9 @@ export function SettingsWorkspace({
   const draft = profileDraft?.userId === sessionUserId ? profileDraft : null;
   const handle = draft?.handle ?? profile?.user?.handle ?? "";
   const avatarIcon = draft?.avatarIcon ?? normalizeAvatarId(profile?.user?.avatarIcon);
+  const isProfileDirty =
+    handle.trim() !== (profile?.user?.handle ?? "").trim() ||
+    avatarIcon !== normalizeAvatarId(profile?.user?.avatarIcon);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [error, setError] = useState("");
@@ -466,8 +470,8 @@ export function SettingsWorkspace({
                   </span>
                   <button
                     type="submit"
-                    disabled={saving}
-                    className="inline-flex h-9 items-center rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-50 cursor-pointer"
+                    disabled={saving || !isProfileDirty}
+                    className="inline-flex h-9 items-center rounded-lg bg-[var(--cta-bg)] px-4 text-xs font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {saving ? "Saving…" : "Save Profile"}
                   </button>
@@ -568,6 +572,7 @@ export function SettingsWorkspace({
                     type="button"
                     role="switch"
                     aria-checked={digestPrefs.watchlistDigest}
+                    aria-label="Toggle Daily Watchlist Digest"
                     disabled={savingDigest}
                     onClick={() =>
                       handleUpdateDigest({
@@ -575,13 +580,20 @@ export function SettingsWorkspace({
                         watchlistDigest: !digestPrefs.watchlistDigest,
                       })
                     }
-                    className={`inline-flex h-7 items-center rounded-full px-3 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
                       digestPrefs.watchlistDigest
-                        ? "bg-[var(--amber)] text-white"
-                        : "border border-[var(--border)] bg-[var(--bg)] text-[var(--text-secondary)]"
+                        ? "bg-[var(--cta-bg)]"
+                        : "border border-[var(--border-strong)] bg-[var(--bg)]"
                     }`}
                   >
-                    {digestPrefs.watchlistDigest ? "Digest On" : "Digest Off"}
+                    <span
+                      aria-hidden="true"
+                      className={`inline-block h-4 w-4 rounded-full shadow-sm transition-transform ${
+                        digestPrefs.watchlistDigest
+                          ? "translate-x-6 bg-[var(--cta-fg)]"
+                          : "translate-x-1 bg-[var(--text-muted)]"
+                      }`}
+                    />
                   </button>
                 </div>
 
@@ -802,6 +814,8 @@ export function SettingsWorkspace({
             </section>
           </div>
         )}
+
+        <SiteFooter />
       </main>
     </div>
   );

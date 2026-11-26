@@ -7,40 +7,99 @@ import type { CommunityThesisItem } from "@/lib/valuation-presets";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 
+export interface MarketCommunityThesisItem extends CommunityThesisItem {
+  ticker: string;
+}
+
 export async function GET(request: Request) {
-  const ticker = new URL(request.url).searchParams.get("ticker")?.trim().toUpperCase();
-  if (!ticker || !/^[A-Z0-9.-]{1,10}$/.test(ticker)) {
+  const rawTicker = new URL(request.url).searchParams.get("ticker")?.trim().toUpperCase();
+  const db = getDb();
+
+  if (!rawTicker) {
+    if (!db) return NextResponse.json([], { headers });
+    const rows = await db
+      .select({
+        ticker: userValuationPresets.ticker,
+        handle: user.handle,
+        avatarIcon: user.avatarIcon,
+        lens: userValuationPresets.lens,
+        revGrowth: userValuationPresets.revGrowth,
+        targetMargin: userValuationPresets.targetMargin,
+        exitMultiple: userValuationPresets.exitMultiple,
+        thesisNote: userValuationPresets.thesisNote,
+        updatedAt: userValuationPresets.updatedAt,
+      })
+      .from(userValuationPresets)
+      .innerJoin(user, eq(user.id, userValuationPresets.userId))
+      .where(
+        and(
+          eq(userValuationPresets.isPublic, true),
+          isNotNull(user.handle)
+        )
+      )
+      .orderBy(desc(userValuationPresets.updatedAt))
+      .limit(12);
+
+    const theses: MarketCommunityThesisItem[] = rows.flatMap((row) =>
+      row.handle
+        ? [
+            {
+              ticker: row.ticker,
+              handle: row.handle,
+              avatarIcon: row.avatarIcon,
+              lens: row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf",
+              revGrowth: row.revGrowth,
+              targetMargin: row.targetMargin,
+              exitMultiple: row.exitMultiple,
+              thesisNote: row.thesisNote,
+              updatedAt: row.updatedAt.toISOString(),
+            },
+          ]
+        : []
+    );
+    return NextResponse.json(theses, { headers });
+  }
+
+  if (!/^[A-Z0-9.-]{1,10}$/.test(rawTicker)) {
     return NextResponse.json({ error: "Invalid ticker." }, { status: 400, headers });
   }
 
-  const db = getDb();
   if (!db) return NextResponse.json([], { headers });
 
-  const rows = await db.select({
-    handle: user.handle,
-    avatarIcon: user.avatarIcon,
-    lens: userValuationPresets.lens,
-    revGrowth: userValuationPresets.revGrowth,
-    targetMargin: userValuationPresets.targetMargin,
-    exitMultiple: userValuationPresets.exitMultiple,
-    thesisNote: userValuationPresets.thesisNote,
-    updatedAt: userValuationPresets.updatedAt,
-  })
+  const rows = await db
+    .select({
+      handle: user.handle,
+      avatarIcon: user.avatarIcon,
+      lens: userValuationPresets.lens,
+      revGrowth: userValuationPresets.revGrowth,
+      targetMargin: userValuationPresets.targetMargin,
+      exitMultiple: userValuationPresets.exitMultiple,
+      thesisNote: userValuationPresets.thesisNote,
+      updatedAt: userValuationPresets.updatedAt,
+    })
     .from(userValuationPresets)
     .innerJoin(user, eq(user.id, userValuationPresets.userId))
-    .where(and(
-      eq(userValuationPresets.ticker, ticker),
-      eq(userValuationPresets.isPublic, true),
-      isNotNull(user.handle),
-    ))
+    .where(
+      and(
+        eq(userValuationPresets.ticker, rawTicker),
+        eq(userValuationPresets.isPublic, true),
+        isNotNull(user.handle)
+      )
+    )
     .orderBy(desc(userValuationPresets.updatedAt))
     .limit(4);
 
-  const theses: CommunityThesisItem[] = rows.flatMap((row) => row.handle ? [{
-    ...row,
-    handle: row.handle,
-    lens: row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf",
-    updatedAt: row.updatedAt.toISOString(),
-  }] : []);
+  const theses: CommunityThesisItem[] = rows.flatMap((row) =>
+    row.handle
+      ? [
+          {
+            ...row,
+            handle: row.handle,
+            lens: row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf",
+            updatedAt: row.updatedAt.toISOString(),
+          },
+        ]
+      : []
+  );
   return NextResponse.json(theses, { headers });
 }

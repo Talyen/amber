@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bookmark, Check, Layers, Link2, Sparkles, Trash2, X } from "lucide-react";
+import { Bookmark, Check, ChevronDown, Layers, Link2, Sparkles, Trash2, X } from "lucide-react";
 import type { SavedScreen } from "@/lib/saved-screens";
 
 export interface ScreenerPreset {
@@ -135,6 +135,18 @@ export function ExploreScreenerDrawer({
   const [saveOpen, setSaveOpen] = useState(false);
   const [screenName, setScreenName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const hasAdvancedValues = Boolean(
+    minShareholderYield.trim() ||
+      maxPtbv.trim() ||
+      minRotce.trim() ||
+      maxPffo.trim() ||
+      minThesisIrr.trim()
+  );
+  const isSectorSpecialized =
+    selectedSector === "Financials" || selectedSector === "Real Estate & REITs";
+  const showAdvanced = advancedOpen || hasAdvancedValues || isSectorSpecialized;
 
   const activeChips: Array<{ label: string; onClear: () => void }> = [];
   if (selectedSector !== "All") {
@@ -270,63 +282,63 @@ export function ExploreScreenerDrawer({
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Min True FCF %
+            True FCF ≥ %
           </span>
           <input
             type="number"
             step="1"
             value={minFcfMargin}
             onChange={(e) => onChangeMinFcf(e.target.value)}
-            placeholder="e.g. 20"
+            placeholder="20"
             className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
           />
         </label>
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max Stock Comp %
+            Stock Comp ≤ %
           </span>
           <input
             type="number"
             step="1"
             value={maxSbcPct}
             onChange={(e) => onChangeMaxSbc(e.target.value)}
-            placeholder="e.g. 5"
+            placeholder="5"
             className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
           />
         </label>
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max Priced-In Growth %
+            Priced-In ≤ %
           </span>
           <input
             type="number"
             step="1"
             value={maxImplied}
             onChange={(e) => onChangeMaxImplied(e.target.value)}
-            placeholder="e.g. 10"
+            placeholder="10"
             className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
           />
         </label>
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max Share Chg %
+            Share Chg ≤ %
           </span>
           <input
             type="number"
             step="0.5"
             value={maxDilution}
             onChange={(e) => onChangeMaxDilution(e.target.value)}
-            placeholder="e.g. 0"
+            placeholder="0"
             className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
           />
         </label>
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Min Mkt Cap ($B)
+            Mkt Cap ≥ $B
           </span>
           <input
             type="number"
@@ -334,85 +346,102 @@ export function ExploreScreenerDrawer({
             min="0"
             value={minMarketCapB}
             onChange={(e) => onChangeMinCapB(e.target.value)}
-            placeholder="e.g. 10"
+            placeholder="10"
             className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
           />
         </label>
       </div>
 
-      {/* Sector-Native, Yield & Saved Thesis Filters */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Min Sh. Yield %
-          </span>
-          <input
-            type="number"
-            step="0.5"
-            value={minShareholderYield}
-            onChange={(e) => onChangeMinShareholderYield(e.target.value)}
-            placeholder="e.g. 3"
-            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+      {/* Progressive Disclosure: Sector-Native, Yield & Saved Thesis Filters */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((prev) => !prev)}
+          aria-expanded={showAdvanced}
+          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--amber)] cursor-pointer"
+        >
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+            aria-hidden="true"
           />
-        </label>
+          <span>Sector &amp; Thesis</span>
+        </button>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max P/TBV (Banks)
-          </span>
-          <input
-            type="number"
-            step="0.2"
-            min="0"
-            value={maxPtbv}
-            onChange={(e) => onChangeMaxPtbv(e.target.value)}
-            placeholder="e.g. 2.5"
-            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-          />
-        </label>
+        {showAdvanced && (
+          <div className="mt-2.5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                Sh. Yield ≥ %
+              </span>
+              <input
+                type="number"
+                step="0.5"
+                value={minShareholderYield}
+                onChange={(e) => onChangeMinShareholderYield(e.target.value)}
+                placeholder="3"
+                className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+            </label>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Min ROTCE % (Banks)
-          </span>
-          <input
-            type="number"
-            step="1"
-            value={minRotce}
-            onChange={(e) => onChangeMinRotce(e.target.value)}
-            placeholder="e.g. 14"
-            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-          />
-        </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                P/TBV ≤ (Banks)
+              </span>
+              <input
+                type="number"
+                step="0.2"
+                min="0"
+                value={maxPtbv}
+                onChange={(e) => onChangeMaxPtbv(e.target.value)}
+                placeholder="2.5"
+                className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+            </label>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Max P/FFO (REITs)
-          </span>
-          <input
-            type="number"
-            step="1"
-            min="0"
-            value={maxPffo}
-            onChange={(e) => onChangeMaxPffo(e.target.value)}
-            placeholder="e.g. 16"
-            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-          />
-        </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                ROTCE ≥ % (Banks)
+              </span>
+              <input
+                type="number"
+                step="1"
+                value={minRotce}
+                onChange={(e) => onChangeMinRotce(e.target.value)}
+                placeholder="14"
+                className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+            </label>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
-            Min Thesis IRR %
-          </span>
-          <input
-            type="number"
-            step="1"
-            value={minThesisIrr}
-            onChange={(e) => onChangeMinThesisIrr(e.target.value)}
-            placeholder="e.g. 15"
-            className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
-          />
-        </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                P/FFO ≤ (REITs)
+              </span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={maxPffo}
+                onChange={(e) => onChangeMaxPffo(e.target.value)}
+                placeholder="16"
+                className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-[var(--text-secondary)]">
+                Thesis IRR ≥ %
+              </span>
+              <input
+                type="number"
+                step="1"
+                value={minThesisIrr}
+                onChange={(e) => onChangeMinThesisIrr(e.target.value)}
+                placeholder="15"
+                className="font-mono-num h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--amber-border)] focus:outline-none"
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {activeChips.length > 0 && (
@@ -462,7 +491,7 @@ export function ExploreScreenerDrawer({
                   <button
                     type="submit"
                     disabled={saving || screenName.trim().length < 2}
-                    className="h-7 rounded-md bg-[var(--amber)] px-2.5 text-[11px] font-semibold text-white disabled:opacity-50 cursor-pointer"
+                    className="h-7 rounded-md bg-[var(--cta-bg)] px-2.5 text-[11px] font-semibold text-[var(--cta-fg)] ring-1 ring-inset ring-white/15 transition-colors hover:bg-[var(--cta-bg-hover)] disabled:opacity-50 cursor-pointer"
                   >
                     {saving ? "Saving…" : "Save"}
                   </button>
@@ -507,7 +536,7 @@ export function ExploreScreenerDrawer({
                 onClick={onResetAll}
                 className="text-xs font-medium text-[var(--amber)] hover:underline cursor-pointer"
               >
-                Reset all filters
+                Reset
               </button>
             </>
           )}

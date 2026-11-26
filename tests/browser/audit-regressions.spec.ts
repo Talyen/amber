@@ -26,7 +26,8 @@ test("Valuation Studio clears private thesis state on sign-out and reload", asyn
   await page.goto("/t/NVDA?tab=dcf&model=scenario");
   const note = page.getByRole("textbox", { name: "Optional thesis note" });
   await expect(note).toHaveValue("Private fixture note");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
   await expect(note).toHaveValue("");
   await page.reload();
   await expect(note).toHaveValue("");

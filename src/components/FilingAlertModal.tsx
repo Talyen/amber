@@ -8,11 +8,13 @@ import { authClient } from "@/lib/auth-client";
 interface FilingAlertModalProps {
   ticker: string;
   companyName: string;
+  compactLabel?: boolean;
 }
 
 export function FilingAlertModal({
   ticker,
   companyName,
+  compactLabel = false,
 }: FilingAlertModalProps) {
   const { data: session } = authClient.useSession();
   const accountEmail = session?.user.email;
@@ -102,12 +104,12 @@ export function FilingAlertModal({
         {isTracking ? (
           <>
             <Check className="h-3.5 w-3.5" />
-            Tracking {ticker} filings
+            {compactLabel ? "Alerts On" : `Tracking ${ticker} filings`}
           </>
         ) : (
           <>
             <Bell className="h-3.5 w-3.5" />
-            Alert me on next filing
+            {compactLabel ? "Alerts" : "Alert me on next filing"}
           </>
         )}
       </button>

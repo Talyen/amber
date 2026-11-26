@@ -243,64 +243,83 @@ svg.lucide {
   font-variant-numeric: tabular-nums;
 }
 
-/* Native range sliders with brand accent-color and @supports not fallback */
+/* Unified custom range sliders across Chrome, Safari, and Firefox */
 input[type="range"].amber-range {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
+  height: 20px;
+  background: transparent;
   cursor: pointer;
-  accent-color: var(--amber);
 }
 
-@supports not (accent-color: #b45309) {
-  input[type="range"].amber-range {
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-    height: 20px;
-  }
+input[type="range"].amber-range:focus-visible {
+  outline: none;
+}
 
-  input[type="range"].amber-range::-webkit-slider-runnable-track {
-    width: 100%;
-    height: 6px;
-    border-radius: 999px;
-    background: linear-gradient(
-      to right,
-      var(--amber) var(--range-progress, 50%),
-      var(--border-strong) var(--range-progress, 50%)
-    );
-  }
+input[type="range"].amber-range::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--amber) var(--range-progress, 50%),
+    var(--border-strong) var(--range-progress, 50%)
+  );
+}
 
-  input[type="range"].amber-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 16px;
-    width: 16px;
-    border-radius: 50%;
-    background: var(--amber);
-    margin-top: -5px;
-    cursor: pointer;
-  }
+input[type="range"].amber-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--amber);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  margin-top: -5.5px;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
 
-  input[type="range"].amber-range::-moz-range-track {
-    width: 100%;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--border-strong);
-  }
+input[type="range"].amber-range:hover::-webkit-slider-thumb {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 4px var(--amber-soft);
+}
 
-  input[type="range"].amber-range::-moz-range-progress {
-    height: 6px;
-    border-radius: 999px;
-    background: var(--amber);
-  }
+input[type="range"].amber-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--amber-soft), 0 0 0 2px var(--amber);
+}
 
-  input[type="range"].amber-range::-moz-range-thumb {
-    height: 16px;
-    width: 16px;
-    border-radius: 50%;
-    border: none;
-    background: var(--amber);
-    cursor: pointer;
-  }
+input[type="range"].amber-range::-moz-range-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+input[type="range"].amber-range::-moz-range-progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--amber);
+}
+
+input[type="range"].amber-range::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--amber);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+input[type="range"].amber-range:hover::-moz-range-thumb {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 4px var(--amber-soft);
+}
+
+input[type="range"].amber-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px var(--amber-soft), 0 0 0 2px var(--amber);
 }
 
 /* Accessible Tabs: underline via pseudo-element border (works in Forced Colors Mode) */
