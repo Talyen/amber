@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { DISCOVERY_LENSES } from "@/lib/insights";
+import { SITE_HOST } from "@/lib/site";
 import {
   getInsiderBuyTickers,
   getMaterialEventTickers,
@@ -82,8 +83,8 @@ export default async function LensOgImage({
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 18, color: "#9CA0AB" }}>
-            Updated nightly from SEC EDGAR
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#E5A03C" }}>
+            {`${SITE_HOST}/lenses/${slug}`}
           </div>
         </div>
       </div>

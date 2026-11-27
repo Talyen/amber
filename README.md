@@ -49,7 +49,7 @@ The nightly job screens up to 900 Nasdaq and NYSE issuers from the SEC ticker di
 
 ## Production Releases
 
-Set a sending-scoped `RESEND_API_KEY` in GitHub Actions for nightly dispatch and in Vercel production for subscription confirmation. Both use `alerts@amber.finance` by default. To use a different verified Resend sender, set `ALERT_FROM_EMAIL` in GitHub Actions variables and Vercel production. The scheduled workflow reports missing mail configuration and unresolved digest deliveries as failures.
+Set a sending-scoped `RESEND_API_KEY` in GitHub Actions for nightly dispatch and in Vercel production for subscription confirmation. Both use `alerts@amberstocks.com` by default. To use a different verified Resend sender, set `ALERT_FROM_EMAIL` in GitHub Actions variables and Vercel production. The scheduled workflow reports missing mail configuration and unresolved digest deliveries as failures.
 
 `pnpm release` applies and verifies the reviewed SQL migrations in `drizzle/` using the linked Vercel project's production environment, then deploys Amber. Git pushes do not auto-deploy. When first applying `0012_company_quote_date.sql`, run a successful quote sync against production before using Arena publish or rebalance. A date is recorded only after a verified close is fetched. After deploying, run `pnpm smoke:prod -- --vercel` to verify core production routes. See [AGENTS.md](AGENTS.md) for release ownership and verification rules.
 

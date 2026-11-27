@@ -4,7 +4,7 @@ import { isFinancialInstitution, isReit } from "../src/lib/finance.ts";
 import { isFreshPriceDate, meetsQuoteCoverage, MIN_QUOTE_COVERAGE } from "../src/lib/market-price.ts";
 import { summarizeSearchIndexCoverage } from "../src/lib/coverage-health.ts";
 
-const DEFAULT_BASE_URL = "https://amber-theta-three.vercel.app";
+const DEFAULT_BASE_URL = "https://amberstocks.com";
 const baseUrl = (process.env.AMBER_PROD_URL ?? DEFAULT_BASE_URL).replace(/\/$/, "");
 const useVercelCurl = process.argv.includes("--vercel") || process.env.AMBER_SMOKE_VERCEL_CURL === "1";
 

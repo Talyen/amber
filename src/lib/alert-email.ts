@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const ALERT_DELIVERY_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
 
-export const defaultAlertSender = "Amber Alerts <alerts@amber.finance>";
+export const defaultAlertSender = "Amber Alerts <alerts@amberstocks.com>";
 
 export function filingAlertEmailIsVerified(
   email: string,

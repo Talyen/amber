@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { SITE_HOST } from "@/lib/site";
 
 export const size = {
   width: 1200,
@@ -123,8 +124,8 @@ export default function ArenaOpenGraphImage() {
             color: "#8B909E",
           }}
         >
-          <span>Amber Portfolio Arena</span>
-          <span>Monthly | Yearly | All-Time</span>
+          <span>Amber Portfolio Arena · Monthly | Yearly | All-Time</span>
+          <span style={{ color: "#E5A03C", fontWeight: 700 }}>{`${SITE_HOST}/arena`}</span>
         </div>
       </div>
     ),

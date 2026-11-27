@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { SITE_HOST } from "@/lib/site";
 
 export const size = {
   width: 1200,
@@ -149,7 +150,7 @@ export default function OpenGraphImage() {
           }}
         >
           <span>600+ Public Companies | Official SEC EDGAR XBRL &amp; 10-K/10-Q</span>
-          <span>True FCF | Reverse DCF | Portfolio Arena</span>
+          <span style={{ color: "#E5A03C", fontWeight: 700 }}>{SITE_HOST}</span>
         </div>
       </div>
     ),

@@ -23,7 +23,7 @@ async function sendMagicLinkEmail({ email, url }: { email: string; url: string }
   if (!apiKey) {
     throw new Error("Email sign-in is not configured.");
   }
-  const from = process.env.ALERT_FROM_EMAIL?.trim() || "Amber <alerts@amber.finance>";
+  const from = process.env.ALERT_FROM_EMAIL?.trim() || "Amber <alerts@amberstocks.com>";
   const safeUrl = escapeHtml(url);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { getSearchIndex } from "@/data/repository";
 import { resolveComparisonTickers } from "@/lib/compare";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
+import { SITE_HOST } from "@/lib/site";
 
 export const revalidate = 86400;
 
@@ -115,7 +116,7 @@ export default async function CompareOpenGraphImage({
 
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, color: "#6B707D" }}>
           <span>{a.name} vs. {b.name}</span>
-          <span>SEC EDGAR XBRL | True FCF &amp; Reverse DCF</span>
+          <span style={{ color: "#E5A03C", fontWeight: 700 }}>{`${SITE_HOST}/compare/${slug}`}</span>
         </div>
       </div>
     ),

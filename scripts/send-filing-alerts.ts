@@ -39,7 +39,7 @@ export async function dispatchFilingAlerts({
   databaseUrl = process.env.DATABASE_URL,
   resendKey = process.env.RESEND_API_KEY,
   fromEmail = process.env.ALERT_FROM_EMAIL || defaultAlertSender,
-  siteUrl = process.env.AMBER_PROD_URL ?? "https://amber-theta-three.vercel.app",
+  siteUrl = process.env.AMBER_PROD_URL ?? "https://amberstocks.com",
   wait = sleep,
   requireConfig = false,
 }: {

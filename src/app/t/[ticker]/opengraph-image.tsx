@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getCompanySnapshot } from "@/data/repository";
+import { SITE_HOST } from "@/lib/site";
 import {
   computeCompanyValuation,
   formatCurrencyCompact,
@@ -212,7 +213,7 @@ export default async function OpenGraphImage({
           <span>
             Source: SEC EDGAR {company.lastFiling.type} ({company.lastFiling.date}) | CIK {company.cik}
           </span>
-          <span>True FCF | Reverse DCF | Filing Diffs</span>
+          <span style={{ color: "#E5A03C", fontWeight: 700 }}>{`${SITE_HOST}/t/${company.ticker}`}</span>
         </div>
       </div>
     ),
