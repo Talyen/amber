@@ -3,7 +3,7 @@ import { sectorSlug } from "@/lib/agentic-data";
 import { DISCOVERY_LENSES } from "@/lib/insights";
 import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 
-export const revalidate = 86400;
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const entries = await getSearchIndex();
