@@ -50,12 +50,14 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
 Lead with *data insights*, never *"check out my app."* Let the watermarked charts and interactive links do the selling.
 
 - [ ] **Launch 3–4 data-backed breakdowns using Amber visuals**
-  - First story on Amber Research, [What happens to free cash flow after stock comp at three software giants?](https://amberstocks.com/research/hidden-dilution)
+  - Two stories on Amber Research
+    - [What happens to free cash flow after stock comp at three software giants?](https://amberstocks.com/research/hidden-dilution)
+    - [The buyback cannibals shrinking their share counts fastest](https://amberstocks.com/research/buyback-cannibals)
   - Post genuinely useful analyses to `r/ValueInvesting`, `r/SecurityAnalysis`, and X (FinTwit) using 1-click copied Amber PNGs:
     1. *"The 10 Mega-Caps Where Stock-Based Compensation Eats the Most Free Cash Flow"* (using `/lenses/hidden-dilution` Top 10 PNG + link).
     2. *"What 10-Year Revenue Growth Is Actually Priced Into Big Tech Right Now?"* (using Reverse DCF cards + `/compare/NVDA-vs-MSFT-vs-AAPL-vs-GOOGL-vs-META`).
     3. *"Semiconductors 2×2 Map: True FCF Margin vs. Priced-In Growth"* (using `/sectors/semiconductors` quadrant PNG).
-    4. *"Fastest Share-Count Cannibals Over the Last 4 Years"* (using `/lenses/buyback-cannibals` Top 10 PNG).
+    4. *"The buyback cannibals shrinking their share counts fastest"* (using the [research chart](https://amberstocks.com/research/buyback-cannibals.png)).
 - [ ] **Seed RSS feeds into investing communities**
   - Share `https://<your-domain>/feed.xml` (high-signal SEC 10-K/10-Q diffs + $500K+ open-market Form 4 buys) with investing Discord admins and Slack groups looking for a free, noise-free filings bot feed.
 - [ ] **Creator & Substack outreach (20–30 mid-sized fundamental writers)**
