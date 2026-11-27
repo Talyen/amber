@@ -6,13 +6,13 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
 
 ## Phase 0 — Domain Cutover & Production Readiness (Day 0)
 
-- [ ] **Connect custom domain in Vercel (`talyen-s-projects/amber`)**
-  - Pick a short, memorable domain that reads cleanly as a chart watermark (e.g., `amber.finance`).
-  - Set `NEXT_PUBLIC_SITE_URL=https://<your-domain>` in Vercel Production environment variables. This automatically updates `SITE_URL` and `SITE_HOST` across all chart watermarks, embeds, `robots.txt`, `sitemap.xml`, `/llms.txt`, `/openapi.json`, `/api/mcp`, and OG images.
-- [ ] **Verify Resend sending domain & alerts**
-  - Verify DNS records (SPF, DKIM, DMARC) for `alerts@<your-domain>` in Resend.
+- [x] **Connect custom domain in Vercel (`talyen-s-projects/amber`)**
+  - Pick a short, memorable domain that reads cleanly as a chart watermark (`amberstocks.com`, with `www.amberstocks.com` 308-redirecting to apex).
+  - Set `NEXT_PUBLIC_SITE_URL=https://amberstocks.com` in Vercel Production environment variables. This automatically updates `SITE_URL` and `SITE_HOST` across all chart watermarks, embeds, `robots.txt`, `sitemap.xml`, `/llms.txt`, `/openapi.json`, `/api/mcp`, and OG images.
+- [x] **Verify Resend sending domain & alerts**
+  - Verify DNS records (CNAME + DKIM) for `alerts@amberstocks.com` in Resend.
   - Confirm `RESEND_API_KEY` and `ALERT_FROM_EMAIL` are set in both Vercel Production and GitHub Actions variables.
-- [ ] **Release & verify production**
+- [x] **Release & verify production**
   - Run `pnpm lint && pnpm typecheck && pnpm test`.
   - Run `pnpm release` (applies all reviewed SQL migrations including `0014_weekly_digest_subscribers.sql` and deploys to production).
   - Run `pnpm smoke:prod -- --vercel` and inspect Vercel runtime logs.
@@ -22,9 +22,9 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
 
 ## Phase 1 — Search, AI Search (GEO) & Agentic Discovery (Week 1)
 
-- [ ] **Submit sitemaps to Search + AI Search indexes**
-  - **Google Search Console:** Verify domain via DNS TXT record and submit `https://<your-domain>/sitemap.xml`.
-  - **Bing Webmaster Tools:** Verify domain and submit `sitemap.xml` (Bing's index directly powers ChatGPT Search and several AI agents).
+- [x] **Submit sitemaps to Search + AI Search indexes**
+  - **Google Search Console:** Verify domain via DNS TXT record and submit `https://amberstocks.com/sitemap.xml` (1,527 pages discovered).
+  - **Bing Webmaster Tools:** Verify domain and submit `sitemap.xml` (~1,500 URLs discovered).
 - [ ] **Run an Agent-Readiness Audit**
   - Run `npx is-agentic <your-domain>` after deploy to get a 0–100 agent-readiness score and fix any remaining `essential` or `recommended` issues.
   - Verify `curl 'https://<your-domain>/api/public/t/NVDA?format=markdown'` returns Markdown with canonical Amber links and that the ticker page advertises this URL as an alternate.

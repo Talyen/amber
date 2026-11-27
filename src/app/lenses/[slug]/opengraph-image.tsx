@@ -51,7 +51,7 @@ export default async function LensOgImage({
             AMBER  ·  SEC DISCOVERY LENS
           </div>
           <div style={{ fontSize: 18, color: "#9CA0AB" }}>
-            {matches.length} Matching Companies
+            {`${matches.length} Matching Companies`}
           </div>
         </div>
 
