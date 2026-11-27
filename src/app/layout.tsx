@@ -42,20 +42,43 @@ export const metadata: Metadata = {
   },
 };
 
-const softwareAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: SITE_NAME,
-  applicationCategory: "FinanceApplication",
-  operatingSystem: "Web",
-  url: SITE_URL,
-  description: SITE_TAGLINE,
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
+const structuredDataJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    applicationCategory: "FinanceApplication",
+    operatingSystem: "Web",
+    url: SITE_URL,
+    description: SITE_TAGLINE,
+    keywords: "SEC EDGAR, fundamental analysis, True Free Cash Flow, stock-based compensation, reverse DCF, filing diffs, insider trading, stock screener",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
   },
-};
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: SITE_NAME,
+    url: SITE_URL,
+    description: SITE_TAGLINE,
+    sameAs: ["https://github.com/Talyen/amber"],
+    contactPoint: {
+      "@type": "ContactPoint",
+      email: "research@amberstocks.com",
+      contactType: "customer support",
+      url: `${SITE_URL}/contact`,
+    },
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "West Linn",
+      addressRegion: "OR",
+      addressCountry: "US",
+    },
+  },
+];
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
@@ -78,7 +101,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased selection:bg-[var(--amber-soft)] selection:text-[var(--amber)]">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredDataJsonLd) }}
         />
         {children}
       </body>

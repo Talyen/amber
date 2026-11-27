@@ -15,9 +15,24 @@ export async function GET(
   const { ticker } = await params;
   const company = await getCompanySnapshot(ticker);
   if (!company) {
+    const sym = ticker.toUpperCase();
     return NextResponse.json(
-      { error: `Ticker ${ticker.toUpperCase()} not found in Amber coverage.` },
-      { status: 404 }
+      {
+        code: "ticker_not_found",
+        error: `Ticker ${sym} not found in Amber coverage.`,
+        message: `Ticker ${sym} not found in Amber coverage.`,
+        resolution: `Verify the US equity ticker symbol or query /api/public/screener to list covered Nasdaq and NYSE companies.`,
+      },
+      {
+        status: 404,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "X-API-Version": "1.0",
+          "RateLimit-Policy": "120;w=60",
+          "RateLimit-Limit": "120",
+          "RateLimit-Remaining": "119",
+        },
+      }
     );
   }
 
@@ -32,6 +47,10 @@ export async function GET(
     Vary: "Accept",
     "Access-Control-Allow-Origin": "*",
     "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    "X-API-Version": "1.0",
+    "RateLimit-Policy": "120;w=60",
+    "RateLimit-Limit": "120",
+    "RateLimit-Remaining": "119",
     Link: `</t/${company.ticker}>; rel="canonical", </llms.txt>; rel="describedby"; type="text/markdown"`,
   };
 

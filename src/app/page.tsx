@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { SignalIndex } from "@/components/SignalIndex";
+import { SITE_URL } from "@/lib/site";
 import {
   getFilingDiffsForTickers,
   getInsiderBuySummaries,
@@ -13,6 +15,12 @@ import { toExploreEntry } from "@/data/search-index";
 import { getTrendingTickers } from "@/lib/trending";
 
 export const revalidate = 21600;
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: SITE_URL,
+  },
+};
 
 export default async function HomePage() {
   const [entries, trending, insiderBuySummaries, materialEventSummaries] =
