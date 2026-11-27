@@ -18,6 +18,17 @@ interface LensReportHeaderProps {
   matches: ExploreEntry[];
 }
 
+const researchLinks: Partial<Record<string, { href: string; label: string }>> = {
+  "hidden-dilution": {
+    href: "/research/hidden-dilution",
+    label: "How stock comp changes cash flow at CrowdStrike, Palo Alto Networks, and Palantir",
+  },
+  "buyback-cannibals": {
+    href: "/research/buyback-cannibals",
+    label: "The buyback cannibals shrinking their share counts fastest",
+  },
+};
+
 export function LensReportHeader({
   lensId,
   title,
@@ -30,6 +41,7 @@ export function LensReportHeader({
   const top10 = matches.slice(0, 10);
   const top3 = matches.slice(0, 3);
   const year = new Date().getFullYear();
+  const research = researchLinks[lensId];
 
   function handleDownloadCsv() {
     const headers = [
@@ -198,9 +210,9 @@ export function LensReportHeader({
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
               {whyItMatters}
             </p>
-            {lensId === "hidden-dilution" && (
-              <Link href="/research/hidden-dilution" className="mt-2 inline-block text-sm font-medium text-[var(--amber)] underline-offset-4 hover:underline">
-                How stock comp changes cash flow at CrowdStrike, Palo Alto Networks, and Palantir
+            {research && (
+              <Link href={research.href} className="mt-2 inline-block text-sm font-medium text-[var(--amber)] underline-offset-4 hover:underline">
+                {research.label}
               </Link>
             )}
           </div>
