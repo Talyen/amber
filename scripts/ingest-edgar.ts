@@ -16,6 +16,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { FILING_SUPPLEMENTS } from "./filing-supplements.ts";
 import { writeCompanyData } from "./write-company-data.ts";
@@ -42,7 +43,10 @@ const SEC_USER_AGENT =
   process.env.SEC_USER_AGENT ?? "AmberFinance research@amber.example";
 const UNIVERSE_LIMIT = Number(process.env.UNIVERSE_LIMIT ?? "125");
 const SEC_REQUEST_SPACING_MS = 140;
+const MAX_CONCURRENT_ISSUERS = 4;
 const DAY_MS = 86_400_000;
+let secRequestQueue = Promise.resolve();
+let nextSecRequestAt = 0;
 
 export type EdgarSnapshot = CompanySnapshot & {
   edgarFallback?: true;
@@ -259,7 +263,6 @@ async function fetchCompanyFacts(cik: string): Promise<CompanyFactsResponse> {
   const predecessor = PREDECESSOR_CIK[cik];
   if (!predecessor) return current;
 
-  await new Promise((resolve) => setTimeout(resolve, SEC_REQUEST_SPACING_MS));
   const previous = await fetchSecJson<CompanyFactsResponse>(url(predecessor));
   const facts = current.facts ??= {};
   for (const taxonomy of ["us-gaap", "ifrs-full", "dei"] as const) {
@@ -274,20 +277,32 @@ async function fetchCompanyFacts(cik: string): Promise<CompanyFactsResponse> {
   return current;
 }
 
+function fetchSec(url: string): Promise<Response> {
+  const dispatch = secRequestQueue.then(async () => {
+    const delay = Math.ceil(nextSecRequestAt - performance.now());
+    if (delay > 0) await sleep(delay);
+    nextSecRequestAt = performance.now() + SEC_REQUEST_SPACING_MS;
+
+    // Queue request starts together and let the issuer workers await responses in parallel.
+    return {
+      response: fetch(url, {
+        headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/json" },
+        signal: AbortSignal.timeout(15_000),
+      }),
+    };
+  });
+  secRequestQueue = dispatch.then(() => undefined, () => undefined);
+  return dispatch.then(({ response }) => response);
+}
+
 async function fetchSecJson<T>(url: string, retries = 3): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": SEC_USER_AGENT,
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
+      const res = await fetchSec(url);
       if (res.status === 429 || res.status >= 500) {
         if (attempt < retries) {
-          await new Promise((r) => setTimeout(r, 600 * Math.pow(2, attempt)));
+          await sleep(600 * Math.pow(2, attempt));
           continue;
         }
       }
@@ -298,7 +313,7 @@ async function fetchSecJson<T>(url: string, retries = 3): Promise<T> {
     } catch (err) {
       lastErr = err;
       if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, 600 * Math.pow(2, attempt)));
+        await sleep(600 * Math.pow(2, attempt));
       }
     }
   }
@@ -314,7 +329,6 @@ interface SecRecentFilings {
 
 async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling) {
   // Submissions supplies filing metadata even when usable XBRL facts arrive later.
-  await new Promise((resolve) => setTimeout(resolve, SEC_REQUEST_SPACING_MS));
   try {
     const { filings, sic } = await fetchSecJson<{ sic?: string; filings?: { recent?: SecRecentFilings } }>(
       `https://data.sec.gov/submissions/CIK${cik.padStart(10, "0")}.json`,
@@ -1459,6 +1473,40 @@ export async function ingestCandidate(
   }
 }
 
+export async function ingestCoverage(
+  candidates: readonly DirectoryCandidate[],
+  curatedMap: Map<string, CompanySnapshot>,
+  existingMap: Map<string, EdgarSnapshot>,
+  fxRates: FxRateMap = DEFAULT_USD_PER_UNIT,
+) {
+  const snapshots: (EdgarSnapshot | null)[] = new Array(candidates.length);
+  let nextCandidate = 0;
+  let completed = 0;
+  let accepted = 0;
+  let incompleteNewCoverage = 0;
+
+  async function ingestIssuers() {
+    while (nextCandidate < candidates.length) {
+      const index = nextCandidate++;
+      const candidate = candidates[index];
+      const snapshot = await ingestCandidate(candidate, curatedMap, existingMap, fxRates);
+      const include = snapshot && (existingMap.has(candidate.ticker) || curatedMap.has(candidate.ticker) ||
+        hasNewCoverageInputs(snapshot));
+      snapshots[index] = include ? snapshot : null;
+      if (include) accepted++;
+      else if (snapshot) incompleteNewCoverage++;
+
+      completed++;
+      if (completed % 25 === 0 || completed === candidates.length) {
+        console.log(`[amber-ingest] Progress: ${completed}/${candidates.length} checked | ${accepted} snapshots`);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_ISSUERS, candidates.length) }, ingestIssuers));
+  return { companies: snapshots.filter((snapshot) => snapshot !== null), incompleteNewCoverage };
+}
+
 async function run() {
   if (!Number.isSafeInteger(UNIVERSE_LIMIT) || UNIVERSE_LIMIT <= 0) {
     throw new Error("UNIVERSE_LIMIT must be a positive integer.");
@@ -1483,26 +1531,7 @@ async function run() {
     `[amber-ingest] Ingesting live SEC EDGAR 10-K/20-F XBRL for ${candidates.length} candidates...`
   );
 
-  const companies: EdgarSnapshot[] = [];
-  let incompleteNewCoverage = 0;
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    const snap = await ingestCandidate(c, curatedMap, existingMap, fxRates);
-    if (snap) {
-      if (existingMap.has(c.ticker) || curatedMap.has(c.ticker) || hasNewCoverageInputs(snap)) {
-        companies.push(snap);
-      } else {
-        incompleteNewCoverage++;
-      }
-    }
-    if ((i + 1) % 25 === 0 || i === candidates.length - 1) {
-      console.log(
-        `[amber-ingest] Progress: ${i + 1}/${candidates.length} checked | ${companies.length} snapshots`
-      );
-    }
-    // Respect SEC EDGAR fair-access limit (<10 req/sec)
-    await new Promise((r) => setTimeout(r, SEC_REQUEST_SPACING_MS));
-  }
+  const { companies, incompleteNewCoverage } = await ingestCoverage(candidates, curatedMap, existingMap, fxRates);
 
   // Guarantee every flagship pilot ticker (e.g. PLTR, SNOW, SHOP) is present even if directory lookup missed it
   const presentTickers = new Set(companies.map((c) => c.ticker));

@@ -1,0 +1,38 @@
+name: Verify Filing Alert Email
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-resend:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Send a test message through Resend
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_FROM_EMAIL: ${{ vars.ALERT_FROM_EMAIL }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --input-type=module <<'NODE'
+          import { defaultAlertSender, sendAlertEmail } from './src/lib/alert-email.ts';
+
+          const apiKey = process.env.RESEND_API_KEY?.trim();
+          if (!apiKey) throw new Error('The RESEND_API_KEY GitHub Actions secret is missing.');
+
+          const runId = process.env.GITHUB_RUN_ID;
+          await sendAlertEmail(apiKey, `amber-filing-alert-check/${runId}`, {
+            from: process.env.ALERT_FROM_EMAIL || defaultAlertSender,
+            to: [`delivered+amber-filing-alert-check-${runId}@resend.dev`],
+            subject: 'Amber filing alert email check',
+            html: '<p>This message verifies the GitHub Actions filing-alert sender.</p>',
+          });
+          console.log('Resend accepted the test email.');
+          NODE

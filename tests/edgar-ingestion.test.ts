@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { hasNewCoverageInputs, ingestCandidate, normalizeShareCountToMillions, selectCoverageCandidates } from "../scripts/ingest-edgar.ts";
+import { hasNewCoverageInputs, ingestCandidate, ingestCoverage, normalizeShareCountToMillions, selectCoverageCandidates } from "../scripts/ingest-edgar.ts";
 import { selectFinancialSnapshots } from "../scripts/seed-neon.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 
@@ -114,6 +114,44 @@ test("the latest periodic filing advances before XBRL can produce TTM", async (t
   });
   assert.equal(result.annuals.at(-1)?.fiscalYear, "FY25");
   assert.equal(result.filingDiffs[0]?.accessionNumber, annualAccession);
+});
+
+test("SEC requests overlap with paced starts including retries, and snapshot order stays stable", { timeout: 5_000 }, async (t) => {
+  const next = { ...candidate, ticker: "NEXT", cik: "0000000101" };
+  const firstCanFinish = Promise.withResolvers<void>();
+  const starts: { url: string; at: number }[] = [];
+  let retryNext = true;
+  const facts = {
+    entityName: candidate.name,
+    facts: { "us-gaap": {
+      Revenues: usd(...annual(1000)),
+      NetCashProvidedByUsedInOperatingActivities: usd(...annual(200)),
+      PaymentsToAcquirePropertyPlantAndEquipment: usd(...annual(100)),
+    } },
+  };
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    starts.push({ url, at: performance.now() });
+    if (url.includes("/companyfacts/")) {
+      if (url.endsWith(`${candidate.cik}.json`)) await firstCanFinish.promise;
+      else if (retryNext) {
+        retryNext = false;
+        return new Response(null, { status: 429 });
+      }
+      return Response.json(facts);
+    }
+    if (url.endsWith(`${next.cik}.json`)) firstCanFinish.resolve();
+    return Response.json({});
+  });
+  const tracked = new Map([candidate, next].map((company) => [company.ticker, { ...PILOT_TICKERS[0], ...company }]));
+
+  const { companies, incompleteNewCoverage } = await ingestCoverage([candidate, next], new Map(), tracked);
+
+  assert.equal(starts.length, 5);
+  assert.ok(starts[1].url.endsWith(`${next.cik}.json`));
+  assert.ok(starts.slice(1).every(({ at }, index) => at - starts[index].at >= 130));
+  assert.deepEqual(companies.map(({ ticker }) => ticker), [candidate.ticker, next.ticker]);
+  assert.equal(companies.some(({ edgarFallback }) => edgarFallback), false);
+  assert.equal(incompleteNewCoverage, 0);
 });
 
 test("the coverage selector keeps ordinary symbols ending in W, U and R", () => {
