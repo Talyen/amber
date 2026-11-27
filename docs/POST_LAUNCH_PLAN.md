@@ -31,7 +31,9 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
   - Verify `curl 'https://<your-domain>/api/public/t/NVDA?format=markdown'` returns Markdown with canonical Amber links and that the ticker page advertises this URL as an alternate.
 - [ ] **Register Amber's public MCP server (`/api/mcp`)**
   - [x] Version 1.0.0 is listed as `com.amberstocks/amber-finance` in the [Official MCP Registry](https://registry.modelcontextprotocol.io/?q=com.amberstocks%2Famber-finance).
-  - [ ] Confirm Amber is listed in Smithery, Glama, and PulseMCP. Submit the [public MCP endpoint](https://amberstocks.com/api/mcp) where a listing is still needed.
+  - [x] [Glama lists Amber Finance](https://glama.ai/mcp/connectors/com.amberstocks/amber-finance) with the correct production endpoint.
+  - [ ] Smithery search showed no listing. Smithery retired its self-service publishing tools. A listing request was sent to Arcade developer support on November 27, 2026. [Smithery update](https://www.smithery.ai/future)
+  - [ ] PulseMCP search showed no listing. PulseMCP has paused submissions and says it will pick up Official MCP Registry entries when ingestion resumes. [PulseMCP submission status](https://www.pulsemcp.com/submit)
 - [x] **Verify MCP client connections**
   - **Claude Desktop** passed on November 27, 2026. All four tools ran in the signed-in app and returned clickable canonical Amber links for [company lookup](https://amberstocks.com/t/NVDA), [screening](https://amberstocks.com/t/AAPL), [comparison](https://amberstocks.com/compare/NVDA-vs-MSFT), and [recent signals](https://amberstocks.com/feed).
   - **Antigravity CLI** passed on November 27, 2026. All four calls returned canonical Amber links.
