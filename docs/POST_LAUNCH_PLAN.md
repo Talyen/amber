@@ -30,13 +30,13 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
   - Run `npx is-agentic <your-domain>` after deploy to get a 0–100 agent-readiness score and fix any remaining `essential` or `recommended` issues.
   - Verify `curl 'https://<your-domain>/api/public/t/NVDA?format=markdown'` returns Markdown with canonical Amber links and that the ticker page advertises this URL as an alternate.
 - [ ] **Register Amber's public MCP server (`/api/mcp`)**
-  - Version 1.0.0 is listed as `com.amberstocks/amber-finance` in the Official MCP Registry. The repository includes the [registry manifest](../server.json) and [client verification notes](MCP_DISTRIBUTION.md).
-  - Submit `https://<your-domain>/api/mcp` to public MCP directories:
-    - Official MCP Registry
-    - Smithery (`smithery.ai`)
-    - Glama (`glama.ai/mcp`)
-    - PulseMCP (`pulsemcp.com`)
-  - Test connecting to `https://<your-domain>/api/mcp` from Claude Desktop, Cursor, and Antigravity to verify all 4 tools (`amber_get_company`, `amber_screen_companies`, `amber_compare_companies`, `amber_get_recent_signals`) return crisp responses with clickable Amber links.
+  - [x] Version 1.0.0 is listed as `com.amberstocks/amber-finance` in the [Official MCP Registry](https://registry.modelcontextprotocol.io/?q=com.amberstocks%2Famber-finance).
+  - [ ] Confirm Amber is listed in Smithery, Glama, and PulseMCP. Submit the [public MCP endpoint](https://amberstocks.com/api/mcp) where a listing is still needed.
+- [x] **Verify MCP client connections**
+  - **Claude Desktop** passed on November 27, 2026. All four tools ran in the signed-in app and returned clickable canonical Amber links for [company lookup](https://amberstocks.com/t/NVDA), [screening](https://amberstocks.com/t/AAPL), [comparison](https://amberstocks.com/compare/NVDA-vs-MSFT), and [recent signals](https://amberstocks.com/feed).
+  - **Antigravity CLI** passed on November 27, 2026. All four calls returned canonical Amber links.
+  - **Cursor** is skipped.
+  - See the [client setup notes](MCP_DISTRIBUTION.md) and [registry manifest](../server.json).
 - [x] **Publish a lightweight `amber-finance` Agent Skill (`SKILL.md`)**
   - [Published skill](../skills/amber-finance/SKILL.md).
   - Publish a minimal public GitHub repo (or directory) with a `SKILL.md` instructing coding/research agents how to query Amber's MCP server and `/api/public/*` endpoints for True FCF, SBC dilution, Reverse DCF, and SEC filing diffs, always citing canonical Amber links.
