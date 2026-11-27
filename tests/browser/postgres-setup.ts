@@ -42,7 +42,7 @@ export default async function setupPostgres() {
   try {
     await client.connect();
     await client.query(readFixtureSchema());
-    await client.query("DROP TABLE weekly_digest_subscribers, user_valuation_saves, api_rate_windows");
+    await client.query("DROP TABLE weekly_digest_deliveries, weekly_digest_issues, weekly_digest_subscribers, distribution_counts, user_valuation_saves, api_rate_windows");
     for (let pass = 0; pass < 2; pass++) {
       execFileSync("pnpm", ["db:migrate"], {
         env: {
@@ -54,6 +54,11 @@ export default async function setupPostgres() {
       });
     }
     await client.query(`
+      CREATE TABLE fixture_resend_messages (
+        idempotency_key text PRIMARY KEY,
+        message jsonb NOT NULL,
+        attempts int NOT NULL DEFAULT 1
+      );
       INSERT INTO "user" (id, name, email, handle)
       VALUES ('owner', 'Fixture Owner', 'owner@example.test', 'FixtureOwner'),
              ('reader', 'Fixture Reader', 'reader@example.test', 'FixtureReader');

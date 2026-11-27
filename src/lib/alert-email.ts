@@ -152,7 +152,7 @@ export function renderWatchlistDigestHtml(params: {
 export async function sendAlertEmail(
   apiKey: string,
   deliveryKey: string,
-  message: { from: string; to: string[]; subject: string; html: string },
+  message: { from: string; to: string[]; subject: string; html: string; text?: string; headers?: Record<string, string> },
   wait: (ms: number) => Promise<void> = sleep,
 ) {
   const body = JSON.stringify(message);

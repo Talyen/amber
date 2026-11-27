@@ -114,13 +114,19 @@ test("MCP uses an empty notification response and refuses an unsupported SSE str
     .toBe(403);
 });
 
-test("the feed offers RSS while digest signup is unavailable", async ({ page, request }) => {
+test("the feed offers RSS and Sunday Signal signup", async ({ page, request }) => {
   await page.goto("/feed");
   await expect(page.getByRole("link", { name: "Subscribe via RSS", exact: true })).toHaveAttribute("href", "/feed.xml");
-  await expect(page.getByRole("button", { name: "Subscribe Free" })).toHaveCount(0);
-  const signup = await request.post("/api/digest-subscribe", { data: { email: "fixture@example.test" } });
-  expect(signup.status()).toBe(503);
-  expect(await signup.json()).toMatchObject({ rssUrl: "/feed.xml" });
+  await expect(page.getByRole("textbox", { name: "Email address" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Subscribe", exact: true })).toBeVisible();
+  if (!process.env.AMBER_TEST_POSTGRES_URL) {
+    const signup = await request.post("/api/digest-subscribe", {
+      headers: { Origin: new URL(page.url()).origin },
+      data: { email: "fixture@example.test" },
+    });
+    expect(signup.status()).toBe(503);
+    expect(await signup.json()).toMatchObject({ rssUrl: "/feed.xml" });
+  }
   const feed = await request.get("/feed.xml");
   expect(feed.headers()["content-type"]).toContain("application/rss+xml");
 });

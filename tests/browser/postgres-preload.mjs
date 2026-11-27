@@ -17,6 +17,29 @@ async function query(client, { query: statement, params }) {
 
 // Exercise Drizzle and the normal HTTP route handlers against local Postgres.
 globalThis.fetch = async (input, options) => {
+  if (String(input) === "https://api.resend.com/emails") {
+    const headers = new Headers(options?.headers);
+    const message = JSON.parse(options.body);
+    if (headers.get("authorization") !== "Bearer amber-fixture-resend" ||
+        message.to.length !== 1 ||
+        !message.to.every((email) => email.endsWith("@example.test") || email === "delivered@resend.dev")) {
+      throw new Error("The browser fixture only sends to test addresses.");
+    }
+    const client = new Client({ connectionString: database.href });
+    try {
+      await client.connect();
+      const result = await client.query(`
+        INSERT INTO fixture_resend_messages (idempotency_key, message) VALUES ($1, $2)
+        ON CONFLICT (idempotency_key) DO UPDATE SET attempts = fixture_resend_messages.attempts + 1
+        WHERE fixture_resend_messages.message = excluded.message
+        RETURNING idempotency_key
+      `, [headers.get("idempotency-key"), message]);
+      return result.rowCount ? Response.json({ id: "fixture-resend-id" })
+        : Response.json({ name: "invalid_idempotent_request" }, { status: 409 });
+    } finally {
+      await client.end();
+    }
+  }
   if (String(input) !== "https://api.amber-test.invalid/sql") return originalFetch(input, options);
   const body = JSON.parse(options.body);
   const client = new Client({ connectionString: database.href });

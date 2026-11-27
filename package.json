@@ -17,6 +17,8 @@
     "ingest:form4": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-form4.ts",
     "sync:prices": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/sync-prices.ts",
     "send:alerts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/send-filing-alerts.ts",
+    "send:digest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/send-sunday-signal.ts",
+    "analytics:report": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/report-distribution.ts",
     "db:push": "drizzle-kit push",
     "db:migrate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/migrate-db.ts",
     "db:migrate:production": "pnpm db:migrate --production",

@@ -53,6 +53,12 @@ Set a sending-scoped `RESEND_API_KEY` in GitHub Actions for nightly dispatch and
 
 Run [Verify Filing Alert Email](https://github.com/Talyen/amber/actions/workflows/check-filing-alert-email.yml) on `main` to check that Resend accepts a message from the configured sender. The workflow uses Resend's test address and can run independently of SEC ingestion.
 
+### Sunday Signal and distribution reporting
+
+Sunday Signal sends to confirmed subscribers on Sundays at 16:23 UTC, with two same-day attempts to finish unresolved deliveries. A manual run of the Sunday Signal workflow uses Resend’s synthetic test inbox. `pnpm send:digest --preview` renders the next issue as text with a configured database. The scheduled run freezes the issue and uses one delivery key per subscriber and issue. Reconcile delivery records and provider activity before retrying an unresolved send beyond the provider’s idempotency window.
+
+Run `pnpm analytics:report 14` with a configured database to view aggregate landing views, in-site page views, chart copies and downloads, iframe copies, and embed clicks by route and referral group. Rates based on these counts describe actions per page view. The report contains no visitor identifiers.
+
 `pnpm release` applies and verifies the reviewed SQL migrations in `drizzle/` using the linked Vercel project's production environment, then deploys Amber. Git pushes do not auto-deploy. When first applying `0012_company_quote_date.sql`, run a successful quote sync against production before using Arena publish or rebalance. A date is recorded only after a verified close is fetched. After deploying, run `pnpm smoke:prod -- --vercel` to verify core production routes. See [AGENTS.md](AGENTS.md) for release ownership and verification rules.
 
 ## License

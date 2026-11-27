@@ -1,0 +1,35 @@
+name: Sunday Signal
+
+on:
+  schedule:
+    # Sunday morning, with two same-day opportunities to retry unresolved deliveries.
+    - cron: "23 16,19,22 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: amber-sunday-signal
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - run: pnpm install --frozen-lockfile
+      - name: Send Sunday Signal
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_FROM_EMAIL: ${{ vars.ALERT_FROM_EMAIL }}
+          AMBER_PROD_URL: ${{ secrets.AMBER_PROD_URL }}
+          SEND_MODE: ${{ github.event_name == 'schedule' && '--live' || '--test-email' }}
+        run: pnpm send:digest "$SEND_MODE"

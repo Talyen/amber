@@ -30,14 +30,14 @@ export default function PrivacyPage() {
               1. Information We Collect
             </h2>
             <p className="mt-2">
-              Amber uses third-party OAuth sign-in (Google or GitHub) and never collects or stores passwords. When you sign in, we store your display name, email address, and provider account identifier so we can maintain your session, cloud-synced watchlist, and Portfolio Arena entry. If you subscribe to SEC filing alerts, we store your email address and selected tickers and use Resend solely to deliver those filing notifications.
+              Amber uses third-party OAuth sign-in (Google or GitHub) and never collects or stores passwords. When you sign in, we store your display name, email address, and provider account identifier so we can maintain your session, cloud-synced watchlist, and Portfolio Arena entry. For SEC filing alerts, we store your email address and selected tickers. For Sunday Signal, we store your email address and subscription status. Resend delivers both types of email. Each Sunday Signal issue includes an unsubscribe link.
             </p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Public API request limits</h2>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Request limits and analytics</h2>
             <p className="mt-2">
-              The public REST API uses a keyed hash of your IP address to count requests in each rate-limit window. Amber stores the count and the window-specific hash, and removes expired counters as later requests arrive.
+              Amber uses a keyed hash of your IP address to limit requests to some endpoints. Expired counters are removed as later requests arrive. For site analytics, Amber stores daily counts of page and chart activity by broad page and referral categories. The counts contain no IP addresses, cookies, account identifiers, or full URLs. Analytics respects Global Privacy Control and Do Not Track.
             </p>
           </section>
 
