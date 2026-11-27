@@ -370,6 +370,7 @@ input[type="range"].amber-range:focus-visible::-moz-range-thumb {
   border-block-end: 2px solid var(--amber);
 }
 
+@layer components {
 /* Responsive semantic financial ledger table with sticky headers & @container stacked cards */
 .amber-table-wrapper {
   overflow: auto;
@@ -499,6 +500,7 @@ input[type="range"].amber-range:focus-visible::-moz-range-thumb {
     text-align: left;
     margin-inline-end: 1rem;
   }
+}
 }
 
 /* Native modal <dialog> scroll containment & backdrop */

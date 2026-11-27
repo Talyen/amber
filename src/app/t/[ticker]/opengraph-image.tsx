@@ -3,8 +3,11 @@ import { getCompanySnapshot } from "@/data/repository";
 import { SITE_HOST } from "@/lib/site";
 import {
   computeCompanyValuation,
+  computeFinancialSectorMetrics,
   formatCurrencyCompact,
   formatPct,
+  isFinancialInstitution,
+  isReit,
 } from "@/lib/finance";
 
 export const revalidate = 86400;
@@ -48,9 +51,18 @@ export default async function OpenGraphImage({
   }
 
   const { latest, netDilutionCagr, reverseDcf } = computeCompanyValuation(company);
+  const sectorNative = isFinancialInstitution(company);
+  const reit = isReit(company);
+  const sectorMetrics = sectorNative ? computeFinancialSectorMetrics(company) : null;
+  const sectorMultiple = reit ? sectorMetrics?.priceToFfo : sectorMetrics?.priceToTbv;
 
   const kpis = [
-    {
+    sectorNative ? {
+      label: reit ? "PRICE / FFO" : "PRICE / TANGIBLE BOOK",
+      value: sectorMultiple == null ? "—" : `${sectorMultiple.toFixed(1)}x`,
+      sub: "Sector valuation",
+      accent: "#E5A03C",
+    } : {
       label: `TRUE FCF (${latest.fiscalYear})`,
       value: formatCurrencyCompact(latest.trueFcf),
       sub: `Reported ${formatCurrencyCompact(latest.reportedFcf)}`,
@@ -59,7 +71,7 @@ export default async function OpenGraphImage({
     {
       label: "SBC BURDEN",
       value: formatPct(latest.sbcPctRevenue),
-      sub: latest.sbcPctReportedFcf === null
+      sub: sectorNative || latest.sbcPctReportedFcf === null
         ? formatCurrencyCompact(latest.sbc)
         : `${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctReportedFcf, false, 0)} of FCF)`,
       accent: "#D97745",

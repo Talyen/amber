@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { filingDiffs, insiderTrades } from "@/db/schema";
+import { MAX_PORTFOLIO_HOLDINGS } from "@/lib/portfolio-link";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
         .map((t) => t.trim().toUpperCase())
         .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
     ),
-  ].slice(0, 30);
+  ].slice(0, MAX_PORTFOLIO_HOLDINGS);
 
   if (tickers.length === 0) {
     return NextResponse.json({ diffs: [], insiderBuys: [] });

@@ -2,50 +2,65 @@ export interface ParsedPortfolioCsvResult {
   mode: "weight" | "dollars";
   holdings: Array<{ ticker: string; value: number }>;
   skippedTickers: string[];
+  negativeTickers: string[];
+  missingAllocationTickers: string[];
   totalRows: number;
 }
 
-function parseCsvLine(line: string, delimiter: string): string[] {
-  const fields: string[] = [];
-  let current = "";
+function parseRows(text: string, delimiter: string, limit = Infinity): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
+      if (inQuotes && text[i + 1] === '"') {
+        field += '"';
         i++;
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (ch === delimiter && !inQuotes) {
-      fields.push(current.trim());
-      current = "";
+    } else if (!inQuotes && ch === delimiter) {
+      row.push(field.trim());
+      field = "";
+    } else if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      row.push(field.trim());
+      if (row.some(Boolean)) rows.push(row);
+      if (rows.length === limit) return rows;
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row = [];
+      field = "";
     } else {
-      current += ch;
+      field += ch;
     }
   }
-  fields.push(current.trim());
-  return fields;
+
+  if (inQuotes) throw new Error("CSV has an unclosed quoted field.");
+  row.push(field.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
 }
 
-function parseNumericCell(raw: string | undefined): number | null {
-  if (!raw) return null;
+function parseNumericCell(
+  raw: string | undefined,
+  unit: "weight" | "dollars" | "shares"
+): number | null {
+  if (!raw || (unit !== "weight" && raw.includes("%")) || (unit !== "dollars" && raw.includes("$"))) {
+    return null;
+  }
   const cleaned = raw
     .trim()
     .replace(/^\((.*)\)$/, "-$1")
-    .replace(/[$,%\s,]/g, "");
+    .replace(/[$,%\s]/g, "");
   if (!cleaned) return null;
   const num = Number(cleaned);
   return Number.isFinite(num) ? num : null;
 }
 
 function normalizeHeader(cell: string): string {
-  return cell
-    .toLowerCase()
-    .replace(/[^a-z0-9%]+/g, " ")
-    .trim();
+  return cell.toLowerCase().replace(/[^a-z0-9%]+/g, " ").trim();
 }
 
 function findColumnIndex(headers: string[], patterns: RegExp[]): number {
@@ -64,7 +79,7 @@ const SYMBOL_PATTERNS = [
 const VALUE_PATTERNS = [
   /^(current value|market value|position value|total value|equity|value|amount)$/,
   /\b(current value|market value|position value|total value)\b/,
-  /\bvalue\b/,
+  /^(?!.*\b(?:cost|basis|book|purchase|original|prior|previous|gain|loss|change)\b).*\bvalue\b/,
 ];
 
 const WEIGHT_PATTERNS = [
@@ -77,132 +92,99 @@ const SHARES_PATTERNS = [
   /\b(quantity|shares|qty)\b/,
 ];
 
-/**
- * Parses brokerage position exports (Fidelity, Schwab, Vanguard, IBKR, Robinhood, or custom CSV/TSV)
- * into Amber portfolio holdings. Aggregates duplicate tax lots for the same ticker and skips
- * cash/ETFs/tickers outside Amber's covered universe.
- */
+function detectDelimiter(text: string) {
+  const delimiters = [",", "\t"];
+  const samples = delimiters.map((delimiter) => parseRows(text, delimiter, 12));
+  const hasHeader = (rows: string[][]) => rows.some((row) =>
+    row.length > 1 && findColumnIndex(row.map(normalizeHeader), SYMBOL_PATTERNS) >= 0
+  );
+  const [csvHeader, tsvHeader] = samples.map(hasHeader);
+  if (csvHeader !== tsvHeader) return tsvHeader ? "\t" : ",";
+
+  const [commas, tabs] = samples.map((rows) => rows.reduce((total, row) => total + row.length - 1, 0));
+  return tabs > commas ? "\t" : ",";
+}
+
+/** Parses brokerage CSV/TSV positions and combines tax lots in the same unit. */
 export function parseBrokerageCsv(
   rawText: string,
   knownTickers: ReadonlySet<string>,
   priceByTicker?: ReadonlyMap<string, number>
 ): ParsedPortfolioCsvResult {
-  const text = rawText.replace(/^\uFEFF/, "").trim();
-  if (!text) {
-    return { mode: "weight", holdings: [], skippedTickers: [], totalRows: 0 };
-  }
-
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  if (lines.length === 0) {
-    return { mode: "weight", holdings: [], skippedTickers: [], totalRows: 0 };
-  }
-
-  // Detect delimiter from the first 10 lines
-  const sample = lines.slice(0, 10).join("\n");
-  const delimiter = (sample.match(/\t/g)?.length ?? 0) > (sample.match(/,/g)?.length ?? 0) ? "\t" : ",";
-
-  // Scan first 10 rows to locate the header row (brokerage exports often include account summary preambles)
-  let headerRowIdx = -1;
-  let symbolCol = -1;
+  const text = rawText.replace(/^\uFEFF/, "");
+  const rows = parseRows(text, detectDelimiter(text));
+  let headerRow = -1;
+  let symbolCol = 0;
   let valueCol = -1;
   let weightCol = -1;
   let sharesCol = -1;
 
-  for (let i = 0; i < Math.min(lines.length, 12); i++) {
-    const cells = parseCsvLine(lines[i], delimiter).map(normalizeHeader);
-    const sym = findColumnIndex(cells, SYMBOL_PATTERNS);
-    if (sym >= 0) {
-      headerRowIdx = i;
-      symbolCol = sym;
-      valueCol = findColumnIndex(cells, VALUE_PATTERNS);
-      weightCol = findColumnIndex(cells, WEIGHT_PATTERNS);
-      sharesCol = findColumnIndex(cells, SHARES_PATTERNS);
-      break;
-    }
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const cells = rows[i].map(normalizeHeader);
+    const symbol = findColumnIndex(cells, SYMBOL_PATTERNS);
+    if (symbol < 0) continue;
+
+    headerRow = i;
+    symbolCol = symbol;
+    valueCol = findColumnIndex(cells, VALUE_PATTERNS);
+    weightCol = findColumnIndex(cells, WEIGHT_PATTERNS);
+    sharesCol = findColumnIndex(cells, SHARES_PATTERNS);
+    break;
   }
 
-  // Fallback: headerless 2-column CSV like "NVDA, 25000" or "NVDA, 25%"
-  let startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0;
-  if (headerRowIdx < 0) {
-    symbolCol = 0;
-    const firstCells = parseCsvLine(lines[0], delimiter);
-    if (firstCells.length >= 2) {
-      const second = firstCells[1] ?? "";
-      if (second.includes("$")) valueCol = 1;
-      else if (second.includes("%")) weightCol = 1;
-      else valueCol = 1;
-    }
-    startRow = 0;
+  // Headerless two-column files use dollars unless the first allocation has a percent sign.
+  if (headerRow === -1 && (rows[0]?.length ?? 0) >= 2) {
+    if (rows[0][1].includes("%")) weightCol = 1;
+    else valueCol = 1;
   }
 
-  const useDollars = valueCol >= 0 || (weightCol < 0 && sharesCol >= 0);
-  const mode: "weight" | "dollars" = useDollars ? "dollars" : "weight";
-
+  const mode = valueCol >= 0 || (weightCol < 0 && sharesCol >= 0) ? "dollars" : "weight";
   const totals = new Map<string, number>();
-  const skipped = new Set<string>();
+  const skippedTickers = new Set<string>();
+  const negativeTickers = new Set<string>();
+  const missingAllocationTickers = new Set<string>();
   let totalRows = 0;
 
-  for (let i = startRow; i < lines.length; i++) {
-    const cells = parseCsvLine(lines[i], delimiter);
-    const rawSym = (cells[symbolCol] ?? "")
-      .trim()
-      .toUpperCase()
-      .replace(/^\$/, "")
-      .replace(/\*{1,2}$/, "");
-    if (!rawSym || !/^[A-Z][A-Z0-9.-]{0,9}$/.test(rawSym)) continue;
-    // Ignore common brokerage summary/cash labels
-    if (rawSym === "TOTAL" || rawSym === "CASH" || rawSym === "SPAXX" || rawSym === "FDRXX" || rawSym === "VMFXX") {
-      continue;
-    }
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const cells = rows[i];
+    const ticker = (cells[symbolCol] ?? "").toUpperCase().replace(/^\$/, "").replace(/\*{1,2}$/, "");
+    if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) continue;
+    if (["TOTAL", "CASH", "SPAXX", "FDRXX", "VMFXX"].includes(ticker)) continue;
 
     totalRows++;
-    if (!knownTickers.has(rawSym)) {
-      skipped.add(rawSym);
+    if (!knownTickers.has(ticker)) {
+      skippedTickers.add(ticker);
       continue;
     }
 
-    let amount: number | null = null;
-    if (valueCol >= 0) {
-      amount = parseNumericCell(cells[valueCol]);
-    }
-    if ((amount === null || amount <= 0) && weightCol >= 0 && mode === "weight") {
-      amount = parseNumericCell(cells[weightCol]);
-    }
-    if ((amount === null || amount <= 0) && sharesCol >= 0) {
-      const shares = parseNumericCell(cells[sharesCol]);
-      const px = priceByTicker?.get(rawSym);
-      if (shares !== null && shares > 0 && typeof px === "number" && px > 0) {
-        amount = shares * px;
+    let amount: number | null;
+    if (mode === "dollars") {
+      amount = parseNumericCell(cells[valueCol], "dollars");
+      if (amount === null) {
+        const shares = parseNumericCell(cells[sharesCol], "shares");
+        const price = priceByTicker?.get(ticker);
+        if (shares !== null && shares <= 0) amount = shares;
+        else if (shares !== null && price != null && Number.isFinite(price) && price > 0) amount = shares * price;
       }
-    }
-    if (amount === null || amount <= 0) {
-      amount = mode === "dollars" ? 0 : 10;
+    } else {
+      amount = weightCol < 0 ? 10 : parseNumericCell(cells[weightCol], "weight");
     }
 
-    if (amount > 0) {
-      totals.set(rawSym, Number(((totals.get(rawSym) ?? 0) + amount).toFixed(2)));
+    if (amount !== null && amount < 0) {
+      negativeTickers.add(ticker);
+    } else if (amount === null || !Number.isFinite(amount)) {
+      missingAllocationTickers.add(ticker);
+    } else {
+      totals.set(ticker, (totals.get(ticker) ?? 0) + amount);
     }
-  }
-
-  // If dollar mode produced zero positive values (e.g. only symbols were present), fall back to equal weights
-  const holdings = [...totals.entries()].map(([ticker, value]) => ({ ticker, value }));
-  if (holdings.length === 0 && totalRows > 0) {
-    return {
-      mode: "weight",
-      holdings: [],
-      skippedTickers: [...skipped],
-      totalRows,
-    };
   }
 
   return {
     mode,
-    holdings,
-    skippedTickers: [...skipped],
+    holdings: Array.from(totals, ([ticker, total]) => ({ ticker, value: Number(total.toFixed(2)) })),
+    skippedTickers: [...skippedTickers],
+    negativeTickers: [...negativeTickers],
+    missingAllocationTickers: [...missingAllocationTickers],
     totalRows,
   };
 }

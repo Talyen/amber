@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getSearchIndex } from "@/data/repository";
-import { resolveComparisonTickers } from "@/lib/compare";
+import { resolveComparisonTickers, toComparisonEntry, type ComparisonEntry } from "@/lib/compare";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { SITE_HOST } from "@/lib/site";
 
@@ -21,10 +21,11 @@ export default async function CompareOpenGraphImage({
   const { slug } = await params;
   const index = await getSearchIndex();
   const byTicker = new Map(index.map((entry) => [entry.ticker, entry]));
-  const tickers = resolveComparisonTickers(slug, new Set(byTicker.keys())).slice(0, 2);
+  const tickers = resolveComparisonTickers(slug, new Set(byTicker.keys()));
   const matched = tickers
     .map((t) => byTicker.get(t))
-    .filter((x): x is NonNullable<typeof x> => Boolean(x));
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    .map(toComparisonEntry);
 
   if (matched.length < 2) {
     return new ImageResponse(
@@ -49,14 +50,14 @@ export default async function CompareOpenGraphImage({
     );
   }
 
-  const [a, b] = matched;
-  const rows = [
-    { label: "Market Cap", va: formatCurrencyCompact(a.marketCap), vb: formatCurrencyCompact(b.marketCap) },
-    { label: "True FCF (FCF − SBC)", va: formatCurrencyCompact(a.trueFcf), vb: formatCurrencyCompact(b.trueFcf), accent: true },
-    { label: "True FCF Margin", va: formatPct(a.trueFcfMargin), vb: formatPct(b.trueFcfMargin) },
-    { label: "SBC Burden (% Rev)", va: formatPct(a.sbcPctRevenue), vb: formatPct(b.sbcPctRevenue) },
-    { label: "Implied 10Y Growth", va: formatPct(a.impliedCagr), vb: formatPct(b.impliedCagr), accent: true },
+  const rows: Array<{ label: string; format: (entry: ComparisonEntry) => string; accent?: boolean }> = [
+    { label: "Market Cap", format: (entry) => formatCurrencyCompact(entry.marketCap) },
+    { label: "True FCF (FCF − SBC)", format: (entry) => entry.trueFcf === null ? "—" : formatCurrencyCompact(entry.trueFcf), accent: true },
+    { label: "True FCF Margin", format: (entry) => formatPct(entry.trueFcfMargin) },
+    { label: "SBC Burden (% Rev)", format: (entry) => formatPct(entry.sbcPctRevenue) },
+    { label: "Implied 10Y Growth", format: (entry) => formatPct(entry.impliedCagr), accent: true },
   ];
+  const columnWidth = Math.floor(736 / matched.length);
 
   return new ImageResponse(
     (
@@ -82,10 +83,13 @@ export default async function CompareOpenGraphImage({
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "baseline", gap: 20 }}>
-          <span style={{ fontSize: 54, fontWeight: 700, color: "#E5A03C" }}>{a.ticker}</span>
-          <span style={{ fontSize: 32, color: "#6B707D" }}>vs.</span>
-          <span style={{ fontSize: 54, fontWeight: 700, color: "#F2F2F3" }}>{b.ticker}</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+          {matched.map(({ ticker }, index) => (
+            <div key={ticker} style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+              {index > 0 && <span style={{ fontSize: 26, color: "#6B707D" }}>vs.</span>}
+              <span style={{ fontSize: matched.length > 3 ? 40 : 54, fontWeight: 700, color: index ? "#F2F2F3" : "#E5A03C" }}>{ticker}</span>
+            </div>
+          ))}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -104,18 +108,20 @@ export default async function CompareOpenGraphImage({
               }}
             >
               <span style={{ width: 280, color: "#9CA0AB", fontSize: 19 }}>{r.label}</span>
-              <span style={{ width: 220, textAlign: "right", fontWeight: 700, color: r.accent ? "#E5A03C" : "#F2F2F3" }}>
-                {r.va}
-              </span>
-              <span style={{ width: 220, textAlign: "right", fontWeight: 700, color: r.accent ? "#E5A03C" : "#F2F2F3" }}>
-                {r.vb}
-              </span>
+              {matched.map((entry) => (
+                <span key={entry.ticker} style={{
+                  width: columnWidth, textAlign: "right", fontWeight: 700,
+                  color: r.accent ? "#E5A03C" : "#F2F2F3",
+                }}>
+                  {r.format(entry)}
+                </span>
+              ))}
             </div>
           ))}
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, color: "#6B707D" }}>
-          <span>{a.name} vs. {b.name}</span>
+          <span>{matched.length === 2 ? matched.map(({ name }) => name).join(" vs. ") : `${matched.length} companies`}</span>
           <span style={{ color: "#E5A03C", fontWeight: 700 }}>{`${SITE_HOST}/compare/${slug}`}</span>
         </div>
       </div>

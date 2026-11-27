@@ -4,7 +4,7 @@ import { defineConfig } from "@playwright/test";
 
 const url = "http://127.0.0.1:3118";
 const postgresUrl = process.env.AMBER_TEST_POSTGRES_URL;
-let env: Record<string, string> = { DATABASE_URL: "" };
+let env: Record<string, string> = { DATABASE_URL: "", RESEND_API_KEY: "" };
 
 if (postgresUrl) {
   const database = new URL(postgresUrl);
@@ -16,6 +16,7 @@ if (postgresUrl) {
   process.env.AMBER_BROWSER_TEST_AUTH_SECRET ??= randomUUID();
 
   env = {
+    ...env,
     DATABASE_URL: "postgresql://fixture:fixture@db.amber-test.invalid/fixture",
     BETTER_AUTH_URL: url,
     BETTER_AUTH_SECRET: process.env.AMBER_BROWSER_TEST_AUTH_SECRET,

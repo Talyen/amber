@@ -1,5 +1,5 @@
 import type { CompanySnapshot } from "@/lib/finance";
-import { buildSearchIndexEntry, type SearchIndexEntry } from "@/data/search-index";
+import { buildSearchIndexEntry } from "@/data/search-index";
 import companiesJson from "@/data/generated/companies.json";
 
 export type { SearchIndexEntry } from "@/data/search-index";
@@ -16,4 +16,4 @@ export function getCompany(ticker: string): CompanySnapshot | undefined {
   return companiesByTicker.get(normalized);
 }
 
-export const SEARCH_INDEX: SearchIndexEntry[] = ALL_COMPANIES.map(buildSearchIndexEntry);
+export const SEARCH_INDEX = ALL_COMPANIES.map(buildSearchIndexEntry);

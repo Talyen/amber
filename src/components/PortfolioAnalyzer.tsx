@@ -22,13 +22,15 @@ import {
   UserCheck,
 } from "lucide-react";
 import { isFreshPriceDate } from "@/lib/market-price";
-import type { SearchIndexEntry } from "@/data/search-index";
+import type { PortfolioEntry } from "@/data/search-index";
 import { authClient } from "@/lib/auth-client";
 import { useWatchlist } from "@/lib/watchlist";
+import { useSavedValuationPresets } from "@/lib/use-saved-valuation-presets";
 import { TopNav } from "@/components/TopNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { MetricHint } from "@/components/MetricHint";
 import { formatPct } from "@/lib/finance";
+import { formatInsiderName, formatInsiderTitle } from "@/lib/insider-format";
 
 const LockPortfolioModal = dynamic(
   () => import("@/components/LockPortfolioModal").then((m) => m.LockPortfolioModal),
@@ -38,6 +40,8 @@ const PortfolioStressPanel = dynamic(
   () => import("@/components/PortfolioStressPanel").then((m) => m.PortfolioStressPanel)
 );
 import {
+  MAX_PORTFOLIO_HOLDINGS,
+  PORTFOLIO_HOLDING_LIMIT_MESSAGE,
   parsePortfolioDraft,
   parsePortfolioHoldings,
   portfolioDraftKey,
@@ -47,14 +51,12 @@ import {
 import { parseBrokerageCsv } from "@/lib/portfolio-csv";
 import {
   computePortfolioThesisSummary,
-  readAllLocalValuationPresets,
-  type SavedValuationPreset,
 } from "@/lib/valuation-presets";
 
 const STARTER_TICKERS = ["AAPL", "MSFT", "NVDA", "COST", "META"];
 
 interface PortfolioAnalyzerProps {
-  entries: SearchIndexEntry[];
+  entries: PortfolioEntry[];
 }
 
 export function PortfolioAnalyzer({ entries }: PortfolioAnalyzerProps) {
@@ -75,7 +77,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
   const [addQuery, setAddQuery] = useState("");
   const [pasteInput, setPasteInput] = useState("");
   const [pasteOpen, setPasteOpen] = useState(false);
-  const [csvImportNote, setCsvImportNote] = useState<string | null>(null);
+  const [holdingsMessage, setHoldingsMessage] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [inputMode, setInputMode] = useState<"weight" | "dollars">("weight");
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -96,15 +98,23 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       : null;
   const [initialLocation, setInitialLocation] = useState<{
     addTicker?: string;
+    hasDraft?: boolean;
     hasSharedLink: boolean;
     draftKey: string;
   } | null>(null);
+  const [accountLoad, setAccountLoad] = useState<"loading" | "ready" | "failed">("loading");
+  const [accountLoadAttempt, setAccountLoadAttempt] = useState(0);
+  const waitingForAccount = Boolean(sessionUserId && (
+    !initialLocation || (!initialLocation.hasSharedLink && !initialLocation.hasDraft && accountLoad !== "ready")
+  ));
   const editedVersion = useRef(0);
   const savedVersionRef = useRef(-1);
   const [linkStatus, setLinkStatus] = useState<"idle" | "copied" | "failed">("idle");
-  const [savedPresets, setSavedPresets] = useState<Record<string, SavedValuationPreset>>({});
-  const [portfolioSaveStatus, setPortfolioSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
-  const [holdingSignals, setHoldingSignals] = useState<{
+  const savedPresets = useSavedValuationPresets(sessionUserId);
+  const [portfolioSaveStatus, setPortfolioSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [portfolioSaveError, setPortfolioSaveError] = useState<string | null>(null);
+  const [signalsState, setSignalsState] = useState<{
+    key: string;
     diffs: Array<{
       id: string;
       ticker: string;
@@ -123,43 +133,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       insiderTitle: string;
       totalValue: number;
     }>;
-  }>({ diffs: [], insiderBuys: [] });
-
-  // Hydrate saved valuation presets (localStorage + account sync when signed in)
-  useEffect(() => {
-    let active = true;
-    const local = readAllLocalValuationPresets(sessionUserId);
-    queueMicrotask(() => {
-      if (active) setSavedPresets(local);
-    });
-    if (!sessionUserId) {
-      return () => {
-        active = false;
-      };
-    }
-    const controller = new AbortController();
-    fetch("/api/valuation-presets", { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { presets?: SavedValuationPreset[] } | null) => {
-        if (!active || !data?.presets) return;
-        const merged: Record<string, SavedValuationPreset> = { ...local };
-        for (const preset of data.presets) {
-          const existing = merged[preset.ticker];
-          if (
-            !existing ||
-            Date.parse(preset.updatedAt) >= Date.parse(existing.updatedAt)
-          ) {
-            merged[preset.ticker] = preset;
-          }
-        }
-        setSavedPresets(merged);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [sessionUserId]);
+  }>({ key: "", diffs: [], insiderBuys: [] });
 
   // Fetch signed-in user's Arena status banner
   useEffect(() => {
@@ -217,6 +191,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       const addTicker = params.get("add")?.trim().toUpperCase();
       setInitialLocation({
         addTicker: raw === null && addTicker && byTicker.has(addTicker) ? addTicker : undefined,
+        hasDraft: draft !== null,
         hasSharedLink: raw !== null,
         draftKey,
       });
@@ -225,29 +200,44 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
   }, [applyPortfolio, byTicker, sessionUserId]);
 
   useEffect(() => {
-    if (!sessionUserId || !initialLocation || initialLocation.hasSharedLink || editedVersion.current > 0 || savedVersionRef.current >= 0) return;
+    if (!sessionUserId || !initialLocation || initialLocation.hasSharedLink || initialLocation.hasDraft ||
+      editedVersion.current > 0 || savedVersionRef.current >= 0) return;
     const controller = new AbortController();
-    fetch("/api/portfolio", { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { portfolio?: PortfolioDraft | null } | null) => {
-        if (controller.signal.aborted || editedVersion.current > 0 || !data?.portfolio) return;
+    fetch("/api/portfolio", { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]) })
+      .then((res) => {
+        if (!res.ok) throw new Error("Could not load your portfolio.");
+        return res.json() as Promise<{ authenticated?: boolean; portfolio?: PortfolioDraft | null }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        if (!data?.authenticated || data.portfolio === undefined) throw new Error("Could not load your portfolio.");
+        if (!data.portfolio) {
+          setAccountLoad("ready");
+          return;
+        }
         const valid = data.portfolio.holdings.filter((item) => byTicker.has(item.ticker));
-        if (valid.length === 0 && data.portfolio.holdings.length > 0) return;
         const { addTicker } = initialLocation;
         if (addTicker && !valid.some(({ ticker }) => ticker === addTicker)) {
-          valid.push({ ticker: addTicker, value: data.portfolio.inputMode === "dollars" ? 10_000 : 10 });
+          if (valid.length < MAX_PORTFOLIO_HOLDINGS) {
+            valid.push({ ticker: addTicker, value: data.portfolio.inputMode === "dollars" ? 10_000 : 10 });
+          } else {
+            setHoldingsMessage(PORTFOLIO_HOLDING_LIMIT_MESSAGE);
+          }
         }
         applyPortfolio({ ...data.portfolio, holdings: valid });
+        setAccountLoad("ready");
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!controller.signal.aborted) setAccountLoad("failed");
+      });
     return () => controller.abort();
-  }, [applyPortfolio, sessionUserId, initialLocation, byTicker]);
+  }, [applyPortfolio, sessionUserId, initialLocation, byTicker, accountLoadAttempt]);
 
   const addTicker = initialLocation?.addTicker;
   const activeTickers = useMemo(() => {
     if (sharedTickers !== null) return sharedTickers;
     const base = watchlist.tickers.length > 0 ? watchlist.tickers : STARTER_TICKERS;
-    return addTicker && !base.includes(addTicker) ? [addTicker, ...base] : base;
+    return addTicker && !base.includes(addTicker) && base.length < MAX_PORTFOLIO_HOLDINGS ? [addTicker, ...base] : base;
   }, [addTicker, sharedTickers, watchlist.tickers]);
   const usingStarter = sharedTickers === null && !addTicker && watchlist.tickers.length === 0;
 
@@ -255,21 +245,23 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
     () =>
       activeTickers
         .map((t) => byTicker.get(t))
-        .filter((x): x is SearchIndexEntry => Boolean(x)),
+        .filter((x): x is PortfolioEntry => Boolean(x)),
     [activeTickers, byTicker]
   );
 
   const holdingsKey = holdings.map((h) => h.ticker).join(",");
+  const holdingSignals = signalsState.key === holdingsKey ? signalsState : { diffs: [], insiderBuys: [] };
   useEffect(() => {
-    if (!holdingsKey) return;
+    if (!holdingsKey || waitingForAccount) return;
     const controller = new AbortController();
     fetch(`/api/portfolio/signals?tickers=${encodeURIComponent(holdingsKey)}`, {
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: typeof holdingSignals | null) => {
+      .then((data: Omit<typeof signalsState, "key"> | null) => {
         if (!controller.signal.aborted && data) {
-          setHoldingSignals({
+          setSignalsState({
+            key: holdingsKey,
             diffs: Array.isArray(data.diffs) ? data.diffs : [],
             insiderBuys: Array.isArray(data.insiderBuys) ? data.insiderBuys : [],
           });
@@ -277,7 +269,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [holdingsKey]);
+  }, [holdingsKey, waitingForAccount]);
 
   const draft = useMemo<PortfolioDraft>(() => ({
     inputMode,
@@ -299,11 +291,17 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
   function markPortfolioEdited() {
     editedVersion.current++;
     setLinkStatus("idle");
+    setPortfolioSaveError(null);
   }
 
   async function handleSavePortfolio() {
-    if (!sessionUserId || !initialLocation || portfolioSaveStatus === "saving") return;
+    if (!sessionUserId || !initialLocation || waitingForAccount || portfolioSaveStatus === "saving") return;
+    if (draft.holdings.length > MAX_PORTFOLIO_HOLDINGS) {
+      setPortfolioSaveError(PORTFOLIO_HOLDING_LIMIT_MESSAGE);
+      return;
+    }
     const savedVersion = editedVersion.current;
+    setPortfolioSaveError(null);
     setPortfolioSaveStatus("saving");
     try {
       const res = await fetch("/api/portfolio", {
@@ -311,7 +309,11 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draft),
       });
-      if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Could not save your portfolio.");
+      }
+      setAccountLoad("ready");
       if (!initialLocation.hasSharedLink && savedVersion === editedVersion.current) {
         savedVersionRef.current = savedVersion;
         try {
@@ -331,8 +333,9 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       }
       setPortfolioSaveStatus("saved");
       window.setTimeout(() => setPortfolioSaveStatus("idle"), 2000);
-    } catch {
-      setPortfolioSaveStatus("failed");
+    } catch (error) {
+      setPortfolioSaveStatus("idle");
+      setPortfolioSaveError(error instanceof Error ? error.message : "Could not save your portfolio.");
     }
   }
 
@@ -500,7 +503,12 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
   }, [addQuery, entries, activeTickers]);
 
   function addToPortfolio(ticker: string) {
+    if (activeTickers.length >= MAX_PORTFOLIO_HOLDINGS) {
+      setHoldingsMessage(PORTFOLIO_HOLDING_LIMIT_MESSAGE);
+      return;
+    }
     markPortfolioEdited();
+    setHoldingsMessage(null);
     // Keep portfolio draft decoupled from the user's global Watchlist
     setSharedTickers((prev) => {
       const base = prev ?? activeTickers;
@@ -511,6 +519,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
 
   function removeFromPortfolio(ticker: string) {
     markPortfolioEdited();
+    setHoldingsMessage(null);
     setSharedTickers((prev) => {
       const base = prev ?? activeTickers;
       return base.filter((t) => t !== ticker);
@@ -537,6 +546,10 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       parsedWeights[ticker] = Number.isFinite(weight) ? weight : 10;
     }
 
+    if (parsedTickers.length > MAX_PORTFOLIO_HOLDINGS) {
+      setHoldingsMessage(PORTFOLIO_HOLDING_LIMIT_MESSAGE);
+      return;
+    }
     if (parsedTickers.length > 0) {
       markPortfolioEdited();
       setSharedTickers(parsedTickers);
@@ -544,7 +557,7 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       setInputMode("weight");
       setPasteOpen(false);
       setPasteInput("");
-      setCsvImportNote(null);
+      setHoldingsMessage(null);
     }
   }
 
@@ -557,17 +570,27 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       const known = new Set(entries.map((item) => item.ticker));
       const priceMap = new Map<string, number>();
       for (const item of entries) {
-        if (typeof item.price === "number" && item.price > 0) {
-          priceMap.set(item.ticker, item.price);
+        if (item.scenarioBasis.price > 0) {
+          priceMap.set(item.ticker, item.scenarioBasis.price);
         }
       }
       const parsed = parseBrokerageCsv(text, known, priceMap);
+      if (parsed.holdings.length > MAX_PORTFOLIO_HOLDINGS) {
+        setHoldingsMessage(PORTFOLIO_HOLDING_LIMIT_MESSAGE);
+        return;
+      }
+      const skipped = [
+        { tickers: parsed.skippedTickers, reason: "outside Amber coverage" },
+        { tickers: parsed.negativeTickers, reason: "negative allocation" },
+        { tickers: parsed.missingAllocationTickers, reason: "missing or invalid allocation" },
+      ].flatMap(({ tickers, reason }) => tickers.length === 0 ? [] : [
+        `${reason} (${tickers.slice(0, 3).join(", ")}${tickers.length > 3 ? ` and ${tickers.length - 3} more` : ""})`,
+      ]);
+      const skippedNote = skipped.length > 0 ? ` Skipped rows with ${skipped.join(", ")}.` : "";
       if (parsed.holdings.length === 0) {
-        setCsvImportNote(
-          parsed.skippedTickers.length > 0
-            ? `No covered Amber stocks matched (${parsed.skippedTickers.slice(0, 4).join(", ")} not in coverage).`
-            : "Could not find recognizable ticker columns in that CSV."
-        );
+        setHoldingsMessage(skippedNote
+          ? `No positions imported.${skippedNote}`
+          : "Could not find recognizable ticker columns in that CSV.");
         return;
       }
       const nextTickers = parsed.holdings.map((h) => h.ticker);
@@ -584,15 +607,11 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
         setInputMode("weight");
       }
       setPasteOpen(false);
-      const skippedPart =
-        parsed.skippedTickers.length > 0
-          ? ` · skipped ${parsed.skippedTickers.length} uncovered (${parsed.skippedTickers.slice(0, 3).join(", ")}${parsed.skippedTickers.length > 3 ? "…" : ""})`
-          : "";
-      setCsvImportNote(
-        `Imported ${parsed.holdings.length} holding${parsed.holdings.length === 1 ? "" : "s"} from ${file.name}${skippedPart}.`
+      setHoldingsMessage(
+        `Imported ${parsed.holdings.length} holding${parsed.holdings.length === 1 ? "" : "s"} from ${file.name}.${skippedNote}`
       );
     } catch {
-      setCsvImportNote("Could not read that file. Try a standard UTF-8 CSV export.");
+      setHoldingsMessage("Could not read that file. Try a standard UTF-8 CSV export.");
     }
   }
 
@@ -613,6 +632,31 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
       growthWeight: metrics.growthWeight,
       cashWeight: metrics.cashWeight,
     });
+  }
+
+  if (waitingForAccount) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
+        <TopNav activeRoute="portfolio" />
+        <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
+          <h1 className="text-2xl font-semibold">Portfolio Analyzer</h1>
+          {accountLoad === "failed" ? (
+            <div className="mt-3 flex items-center gap-3 text-sm">
+              <p role="alert">Could not load your saved portfolio.</p>
+              <button type="button" onClick={() => {
+                setAccountLoad("loading");
+                setAccountLoadAttempt((attempt) => attempt + 1);
+              }} className="font-semibold text-[var(--amber)] underline">
+                Retry
+              </button>
+            </div>
+          ) : (
+            <p role="status" className="mt-3 text-sm text-[var(--text-secondary)]">Loading your saved portfolio…</p>
+          )}
+        </main>
+        <SiteFooter />
+      </div>
+    );
   }
 
   return (
@@ -700,6 +744,8 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
                 )}
               </button>
             )}
+
+            {portfolioSaveError && <span role="alert" className="text-xs text-[var(--negative)]">{portfolioSaveError}</span>}
 
             <button
               type="button"
@@ -1035,16 +1081,16 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
             </div>
           </div>
 
-          {csvImportNote && (
+          {holdingsMessage && (
             <div
               role="status"
               className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-2 text-xs text-[var(--text-primary)]"
             >
-              <span>{csvImportNote}</span>
+              <span>{holdingsMessage}</span>
               <button
                 type="button"
-                onClick={() => setCsvImportNote(null)}
-                aria-label="Dismiss CSV import message"
+                onClick={() => setHoldingsMessage(null)}
+                aria-label="Dismiss holdings message"
                 className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
@@ -1092,11 +1138,9 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
                   <th scope="col">Dilution (4Y)</th>
                   <th scope="col">Implied 10Y</th>
                   <th scope="col">Saved Thesis</th>
-                  {!usingStarter && (
-                    <th scope="col" className="w-10">
-                      <span className="sr-only">Remove</span>
-                    </th>
-                  )}
+                  <th scope="col" className="w-10">
+                    <span className="sr-only">Remove</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1238,18 +1282,17 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
                           </Link>
                         )}
                       </td>
-                      {!usingStarter && (
-                        <td data-label="Remove">
-                          <button
-                            type="button"
-                            onClick={() => removeFromPortfolio(h.ticker)}
-                            aria-label={`Remove ${h.ticker}`}
-                            className="text-[var(--text-muted)] hover:text-[var(--negative)] cursor-pointer"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      )}
+                      <td data-label="Remove">
+                        <button
+                          type="button"
+                          onClick={() => removeFromPortfolio(h.ticker)}
+                          aria-label={`Remove ${h.ticker}`}
+                          title={`Remove ${h.ticker}`}
+                          className="text-[var(--text-muted)] hover:text-[var(--negative)] cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -1331,11 +1374,11 @@ function PortfolioSession({ entries, sessionUserId }: PortfolioAnalyzerProps & {
                               {b.ticker}
                             </span>
                             <span className="truncate font-medium text-[var(--text-primary)]">
-                              {b.insiderName}
+                              {formatInsiderName(b.insiderName)}
                             </span>
                           </div>
                           <div className="truncate text-[11px] text-[var(--text-muted)]">
-                            {b.insiderTitle} · {b.filingDate}
+                            {formatInsiderTitle(b.insiderTitle)} · {b.filingDate}
                           </div>
                         </div>
                         <span className="font-mono-num shrink-0 text-xs font-semibold text-[var(--positive)]">

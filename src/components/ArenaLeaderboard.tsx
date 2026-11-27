@@ -9,6 +9,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CommunityThesesPanel } from "@/components/CommunityThesesPanel";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { formatPct } from "@/lib/finance";
+import { roundWeightsToHundred } from "@/lib/arena-weights";
 
 interface ArenaLeaderboardProps {
   portfolios: ArenaPortfolioView[];
@@ -248,7 +249,7 @@ export function ArenaLeaderboard({
                 aria-label="Select Arena month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="font-mono-num h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
+                className="font-mono-num h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-0 text-xs leading-normal font-medium text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
               >
                 {availableMonths.map((ym, i) => (
                   <option key={ym} value={ym}>
@@ -391,17 +392,22 @@ export function ArenaLeaderboard({
                     </div>
 
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {p.positions.map((pos) => (
-                        <span
-                          key={pos.ticker}
-                          className="font-mono-num rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]"
-                        >
-                          <strong className="text-[var(--text-primary)]">
-                            {pos.ticker}
-                          </strong>{" "}
-                          {Math.round(pos.weightPct)}%
-                        </span>
-                      ))}
+                      {(() => {
+                        const rounded = roundWeightsToHundred(
+                          p.positions.map((pos) => pos.weightPct)
+                        );
+                        return p.positions.map((pos, idx) => (
+                          <span
+                            key={pos.ticker}
+                            className="font-mono-num rounded bg-[var(--surface-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]"
+                          >
+                            <strong className="text-[var(--text-primary)]">
+                              {pos.ticker}
+                            </strong>{" "}
+                            {rounded[idx]}%
+                          </span>
+                        ));
+                      })()}
                     </div>
 
                     {typeof p.weightedTrueFcfMargin === "number" && (

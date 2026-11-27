@@ -1,8 +1,11 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { useState } from "react";
+import { Check, Copy, Download, Link2 } from "lucide-react";
 import type { ArenaPortfolioView, EquityCurvePoint } from "@/data/arena-repository";
+import { deliverCanvasCard, type CardDeliveryMode } from "@/lib/export-card";
 import { formatPct } from "@/lib/finance";
+import { SITE_HOST } from "@/lib/site";
 
 interface ArenaScorecardActionsProps {
   portfolio: ArenaPortfolioView;
@@ -13,7 +16,9 @@ export function ArenaScorecardExport({
   portfolio,
   spyReturnPct,
 }: ArenaScorecardActionsProps) {
-  function handleExport() {
+  const [status, setStatus] = useState<"idle" | "copied-png" | "copied-link" | "downloaded">("idle");
+
+  async function handleExport(mode: CardDeliveryMode) {
     const width = 1200;
     const height = 630;
     const canvas = document.createElement("canvas");
@@ -130,26 +135,82 @@ export function ArenaScorecardExport({
     ctx.fillStyle = textSecondary;
     ctx.font = '500 13px "JetBrains Mono", ui-monospace, monospace';
     ctx.fillText(
-      `Started ${portfolio.lockedAt.slice(0, 10)} | amber-theta-three.vercel.app`,
+      `Started ${portfolio.lockedAt.slice(0, 10)} | ${SITE_HOST}/arena/${portfolio.id}`,
       72,
       height - 60
     );
 
-    const link = document.createElement("a");
-    link.download = `amber-arena-${portfolio.handle.toLowerCase()}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    const res = await deliverCanvasCard(
+      canvas,
+      `amber-arena-${portfolio.handle.toLowerCase()}.png`,
+      mode
+    );
+    setStatus(res === "copied" ? "copied-png" : "downloaded");
+    window.setTimeout(() => setStatus("idle"), 1800);
+  }
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setStatus("copied-link");
+      window.setTimeout(() => setStatus("idle"), 1800);
+    } catch {
+      // Ignore clipboard errors
+    }
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleExport}
-      className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
-    >
-      <Download className="h-3.5 w-3.5" aria-hidden="true" />
-      Export PNG
-    </button>
+    <div className="inline-flex shrink-0 items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => handleExport("copy")}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-xs font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
+      >
+        {status === "copied-png" ? (
+          <>
+            <Check className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
+            Copied PNG
+          </>
+        ) : (
+          <>
+            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            Copy Scorecard
+          </>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleCopyLink}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+      >
+        {status === "copied-link" ? (
+          <>
+            <Check className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
+            Copied Link
+          </>
+        ) : (
+          <>
+            <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Share Link
+          </>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => handleExport("download")}
+        aria-label="Download scorecard PNG"
+        title="Download PNG"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
+      >
+        {status === "downloaded" ? (
+          <Check className="h-3.5 w-3.5 text-[var(--positive)]" aria-hidden="true" />
+        ) : (
+          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+      </button>
+    </div>
   );
 }
 

@@ -97,6 +97,7 @@ describe("Compare history builder", () => {
     const history = buildCompareCompanyHistory({
       ticker: sample.ticker,
       name: sample.name,
+      sector: sample.sector,
       annuals: [
         ...sample.annuals,
         { ...sample.annuals[sample.annuals.length - 1], fiscalYear: "TTM" },

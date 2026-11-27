@@ -103,7 +103,7 @@ export function CompareHistoryCharts({
     const data = series.map(({ ticker, points }, idx) => {
       const values = metric === "indexedShares" || metric === "indexedRevenue"
         ? indexCompareHistory(points, metric === "indexedShares" ? "dilutedShares" : "revenue")
-        : points.map((point) => ({ fiscalYear: point.fiscalYear, value: point[metric] }));
+        : points.flatMap(({ fiscalYear, [metric]: value }) => value === null ? [] : [{ fiscalYear, value }]);
       return { ticker, values, color: SERIES_COLORS[idx % SERIES_COLORS.length] };
     }).filter(({ values }) => values.length >= 2);
 

@@ -1,9 +1,9 @@
-import { computeAnnualMetrics, type CompanySnapshot } from "./finance.ts";
+import { computeAnnualMetrics, isFinancialInstitution, type CompanySnapshot } from "./finance.ts";
 
 export interface CompareHistoryPoint {
   fiscalYear: string;
   revenue: number;
-  trueFcfMargin: number;
+  trueFcfMargin: number | null;
   sbcPctRevenue: number;
   dilutedShares: number;
 }
@@ -31,8 +31,9 @@ export function indexCompareHistory(
 }
 
 export function buildCompareCompanyHistory(
-  company: Pick<CompanySnapshot, "ticker" | "name" | "annuals">
+  company: Pick<CompanySnapshot, "ticker" | "name" | "sector" | "annuals">
 ): CompareCompanyHistory {
+  const equityLensOnly = isFinancialInstitution(company);
   const computed = computeAnnualMetrics(company.annuals).filter(
     (row) => row.fiscalYear !== "TTM"
   );
@@ -42,7 +43,7 @@ export function buildCompareCompanyHistory(
     points: computed.slice(-5).map((row) => ({
       fiscalYear: row.fiscalYear,
       revenue: row.revenue,
-      trueFcfMargin: Number(row.trueFcfMargin.toFixed(1)),
+      trueFcfMargin: equityLensOnly ? null : Number(row.trueFcfMargin.toFixed(1)),
       sbcPctRevenue: Number(row.sbcPctRevenue.toFixed(1)),
       dilutedShares: row.dilutedShares,
     })),

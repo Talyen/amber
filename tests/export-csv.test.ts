@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
 import { buildSearchIndexEntry } from "../src/data/search-index.ts";
+import { toComparisonEntry } from "../src/lib/compare.ts";
 import { exportComparisonCsv } from "../src/lib/export-csv.ts";
 
 test("the comparison CSV quotes embedded carriage returns, newlines, commas, and quotes", async (t) => {
@@ -17,7 +18,7 @@ test("the comparison CSV quotes embedded carriage returns, newlines, commas, and
     files.push(blob);
     return "blob:fixture";
   });
-  const company = buildSearchIndexEntry(PILOT_TICKERS[0]);
+  const company = toComparisonEntry(buildSearchIndexEntry(PILOT_TICKERS[0]));
   exportComparisonCsv([{ ...company, name: "First\rSecond", sector: 'Cloud, "Software"\nServices' }]);
   const [file] = files;
   assert.ok(file);

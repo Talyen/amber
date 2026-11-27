@@ -1,5 +1,5 @@
 import type { ComputedAnnual } from "@/lib/finance";
-import type { SearchIndexEntry } from "@/data/search-index";
+import type { ComparisonEntry } from "@/lib/compare";
 
 function escapeCsv(val: string | number | null | undefined): string {
   if (val === null || val === undefined) return "";
@@ -25,7 +25,8 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
 
 export function exportFinancialLedgerCsv(
   ticker: string,
-  series: ComputedAnnual[]
+  series: ComputedAnnual[],
+  showFcf = true,
 ) {
   const headers = [
     "Ticker",
@@ -49,10 +50,10 @@ export function exportFinancialLedgerCsv(
     r.revenue,
     r.operatingCashFlow,
     r.capex,
-    r.reportedFcf,
+    showFcf ? r.reportedFcf : null,
     r.sbc,
-    r.trueFcf,
-    Number(r.trueFcfMargin.toFixed(2)),
+    showFcf ? r.trueFcf : null,
+    showFcf ? Number(r.trueFcfMargin.toFixed(2)) : null,
     Number(r.sbcPctRevenue.toFixed(2)),
     r.buybacks,
     r.dilutedShares,
@@ -62,7 +63,7 @@ export function exportFinancialLedgerCsv(
   downloadCsv(`amber-${ticker.toLowerCase()}-ledger.csv`, headers, rows);
 }
 
-export function exportComparisonCsv(items: SearchIndexEntry[]) {
+export function exportComparisonCsv(items: ComparisonEntry[]) {
   const headers = [
     "Ticker",
     "Company",
@@ -84,10 +85,10 @@ export function exportComparisonCsv(items: SearchIndexEntry[]) {
     i.sector,
     i.marketCap,
     i.revenue,
-    i.scenarioBasis.equityLensOnly ? null : i.reportedFcf,
+    i.reportedFcf,
     i.sbc,
-    i.scenarioBasis.equityLensOnly ? null : i.trueFcf,
-    i.scenarioBasis.equityLensOnly ? null : i.trueFcfMargin,
+    i.trueFcf,
+    i.trueFcfMargin,
     i.sbcPctRevenue,
     i.netDilutionCagr,
     i.impliedCagr,

@@ -4,10 +4,9 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, FileSpreadsheet, Link2, Plus, Share2, X } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/search-index";
 import { TopNav } from "@/components/TopNav";
 import { SiteFooter } from "@/components/SiteFooter";
-import { DEFAULT_COMPARE_TICKERS } from "@/lib/compare";
+import { DEFAULT_COMPARE_TICKERS, MAX_COMPARE_TICKERS, type ComparisonEntry } from "@/lib/compare";
 import type { CompareCompanyHistory } from "@/lib/compare-history";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { exportComparisonCsv } from "@/lib/export-csv";
@@ -16,8 +15,6 @@ const CompareHistoryCharts = dynamic(
   () => import("@/components/CompareHistoryCharts").then((m) => m.CompareHistoryCharts)
 );
 
-const MAX_COMPARE_TICKERS = 5;
-
 const PRESETS: Array<{ label: string; tickers: string[] }> = [
   { label: "Big Tech AI", tickers: ["NVDA", "GOOGL", "AMZN", "MSFT", "META"] },
   { label: "Cloud & Cyber", tickers: ["CRWD", "DDOG", "NET", "PANW"] },
@@ -25,7 +22,7 @@ const PRESETS: Array<{ label: string; tickers: string[] }> = [
 ];
 
 interface CompareStudioProps {
-  entries: SearchIndexEntry[];
+  entries: ComparisonEntry[];
   initialTickers?: string[];
   initialHistory?: CompareCompanyHistory[];
 }
@@ -114,7 +111,7 @@ export function CompareStudio({
     () =>
       selectedTickers
         .map((t) => byTicker.get(t))
-        .filter((x): x is SearchIndexEntry => Boolean(x)),
+        .filter((x): x is ComparisonEntry => Boolean(x)),
     [selectedTickers, byTicker]
   );
 
@@ -142,10 +139,8 @@ export function CompareStudio({
     setSelectedTickers((prev) => prev.filter((t) => t !== ticker));
   }
 
-  const maxTrueMargin = Math.max(
-    10,
-    ...selectedItems.map((i) => i.scenarioBasis.equityLensOnly ? 0 : Math.abs(i.trueFcfMargin))
-  );
+  const maxTrueMargin = Math.max(10, ...selectedItems.map((i) => Math.abs(i.trueFcfMargin ?? 0)));
+  const hasNegativeMargin = selectedItems.some((i) => (i.trueFcfMargin ?? 0) < 0);
   const maxSbcPct = Math.max(
     5,
     ...selectedItems.map((i) => i.sbcPctRevenue)
@@ -258,13 +253,7 @@ export function CompareStudio({
                   role="menuitem"
                   onClick={async () => {
                     const { exportComparisonCard } = await import("@/lib/export-card");
-                    exportComparisonCard(
-                      selectedItems.map((item) =>
-                        item.scenarioBasis.equityLensOnly
-                          ? { ...item, trueFcf: null, trueFcfMargin: null }
-                          : item
-                      )
-                    );
+                    exportComparisonCard(selectedItems);
                     setExportMenuOpen(false);
                   }}
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] cursor-pointer"
@@ -291,7 +280,7 @@ export function CompareStudio({
                 >
                   {item.ticker}
                 </Link>
-                <span className="hidden text-[var(--text-secondary)] sm:inline">
+                <span className="hidden max-w-[130px] truncate text-[var(--text-secondary)] sm:inline">
                   {item.name}
                 </span>
                 {selectedItems.length > 1 && (
@@ -365,8 +354,11 @@ export function CompareStudio({
                 )}
               </div>
             ) : (
-              <span className="font-mono-num rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-1 text-[11px] text-[var(--text-muted)]">
-                {selectedItems.length} / {MAX_COMPARE_TICKERS} max (remove one to swap)
+              <span
+                title="Remove a company to swap in another"
+                className="font-mono-num shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-1 text-[11px] text-[var(--text-muted)]"
+              >
+                {selectedItems.length}/{MAX_COMPARE_TICKERS} max
               </span>
             )}
           </div>
@@ -399,10 +391,10 @@ export function CompareStudio({
             </div>
             <div className="mt-4 space-y-3.5">
               {selectedItems.map((item) => {
-                const hasAnyNeg = selectedItems.some((i) => !i.scenarioBasis.equityLensOnly && i.trueFcfMargin < 0);
+                const margin = item.trueFcfMargin ?? 0;
                 const halfWidth = Math.min(
                   50,
-                  (Math.abs(item.scenarioBasis.equityLensOnly ? 0 : item.trueFcfMargin) / maxTrueMargin) * 50
+                  (Math.abs(margin) / maxTrueMargin) * 50
                 );
                 return (
                   <div key={item.ticker}>
@@ -412,27 +404,27 @@ export function CompareStudio({
                       </span>
                       <span
                         className={`font-mono-num font-semibold ${
-                          item.trueFcfMargin >= 0
+                          margin >= 0
                             ? "text-[var(--amber)]"
                             : "text-[var(--negative)]"
                         }`}
                       >
-                        {formatPct(item.scenarioBasis.equityLensOnly ? null : item.trueFcfMargin)}
+                        {formatPct(item.trueFcfMargin)}
                       </span>
                     </div>
-                    {hasAnyNeg ? (
+                    {hasNegativeMargin ? (
                       <div className="relative h-2 w-full overflow-hidden rounded-full bg-[var(--surface-subtle)]">
                         <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--border-strong)]" />
                         <div
                           className="absolute inset-y-0 rounded-full transition-all duration-200"
                           style={{
                             left:
-                              item.trueFcfMargin >= 0
+                              margin >= 0
                                 ? "50%"
                                 : `${50 - halfWidth}%`,
-                            width: `${Math.max(2, halfWidth)}%`,
+                            width: `${item.trueFcfMargin === null ? 0 : Math.max(2, halfWidth)}%`,
                             backgroundColor:
-                              item.trueFcfMargin >= 0
+                              margin >= 0
                                 ? "var(--amber)"
                                 : "var(--negative)",
                           }}
@@ -443,7 +435,7 @@ export function CompareStudio({
                         <div
                           className="h-full rounded-full bg-[var(--amber)] transition-all duration-200"
                           style={{
-                            width: `${Math.min(100, ((item.scenarioBasis.equityLensOnly ? 0 : item.trueFcfMargin) / maxTrueMargin) * 100)}%`,
+                            width: `${Math.min(100, (margin / maxTrueMargin) * 100)}%`,
                           }}
                         />
                       </div>
@@ -558,7 +550,7 @@ export function CompareStudio({
                   <th scope="row">Reported FCF</th>
                   {selectedItems.map((i) => (
                     <td key={i.ticker} data-label={i.ticker} className="font-mono-num">
-                      {i.scenarioBasis.equityLensOnly ? "—" : formatCurrencyCompact(i.reportedFcf)}
+                      {i.reportedFcf === null ? "—" : formatCurrencyCompact(i.reportedFcf)}
                     </td>
                   ))}
                 </tr>
@@ -581,12 +573,12 @@ export function CompareStudio({
                       key={i.ticker}
                       data-label={i.ticker}
                       className={`font-mono-num font-semibold ${
-                        i.trueFcf >= 0
+                        (i.trueFcf ?? 0) >= 0
                           ? "text-[var(--amber)]"
                           : "text-[var(--negative)]"
                       }`}
                     >
-                      {i.scenarioBasis.equityLensOnly ? "—" : formatCurrencyCompact(i.trueFcf)}
+                      {i.trueFcf === null ? "—" : formatCurrencyCompact(i.trueFcf)}
                     </td>
                   ))}
                 </tr>

@@ -14,6 +14,7 @@ export function CommunityThesesPanel() {
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/community-theses", {
+      cache: "no-store",
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : []))

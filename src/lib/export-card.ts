@@ -1,10 +1,17 @@
+import type { ComparisonEntry } from "@/lib/compare";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
+  type FiveYearScenarioResult,
   type ReverseDcfResult,
+  type ScenarioLens,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
+import { SITE_HOST } from "@/lib/site";
+
+export type CardDeliveryMode = "copy" | "download";
+export type CardDeliveryResult = "copied" | "downloaded" | "failed";
 
 interface ExportTheme {
   bg: string;
@@ -84,7 +91,8 @@ function drawAmberWatermark(
   width: number,
   height: number,
   theme: ExportTheme,
-  sourceNote: string
+  sourceNote: string,
+  sharePath?: string
 ) {
   // Subtle bottom divider
   ctx.strokeStyle = theme.border;
@@ -100,22 +108,23 @@ function drawAmberWatermark(
   ctx.textAlign = "left";
   ctx.fillText(sourceNote, 48, height - 30);
 
-  // Subtle Amber wordmark + gem on right
+  // Subtle Amber wordmark + dynamic domain/path + gem on right
   const rightX = width - 48;
+  const brandLabel = sharePath ? `${SITE_HOST}${sharePath}` : SITE_HOST;
   ctx.fillStyle = theme.textSecondary;
-  ctx.font = '600 14px "Inter", system-ui, -apple-system, sans-serif';
+  ctx.font = '600 13px "JetBrains Mono", ui-monospace, monospace';
   ctx.textAlign = "right";
-  ctx.fillText("AMBER", rightX, height - 30);
+  ctx.fillText(brandLabel, rightX, height - 30);
 
-  // Small amber diamond mark
-  const markX = rightX - 64;
-  const markY = height - 35;
+  const labelWidth = ctx.measureText(brandLabel).width;
+  const markX = rightX - labelWidth - 14;
+  const markY = height - 34;
   ctx.fillStyle = theme.amber;
   ctx.beginPath();
-  ctx.moveTo(markX, markY - 6);
-  ctx.lineTo(markX + 6, markY);
-  ctx.lineTo(markX, markY + 6);
-  ctx.lineTo(markX - 6, markY);
+  ctx.moveTo(markX, markY - 5);
+  ctx.lineTo(markX + 5, markY);
+  ctx.lineTo(markX, markY + 5);
+  ctx.lineTo(markX - 5, markY);
   ctx.closePath();
   ctx.fill();
 }
@@ -127,10 +136,42 @@ function triggerDownload(canvas: HTMLCanvasElement, filename: string) {
   link.click();
 }
 
+export async function deliverCanvasCard(
+  canvas: HTMLCanvasElement,
+  filename: string,
+  mode: CardDeliveryMode = "download"
+): Promise<CardDeliveryResult> {
+  if (
+    mode === "copy" &&
+    typeof navigator !== "undefined" &&
+    navigator.clipboard &&
+    typeof ClipboardItem !== "undefined"
+  ) {
+    try {
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/png")
+      );
+      if (blob) {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        return "copied";
+      }
+    } catch {
+      // Fall back to direct download if browser blocks clipboard image write
+    }
+  }
+  try {
+    triggerDownload(canvas, filename);
+    return "downloaded";
+  } catch {
+    return "failed";
+  }
+}
+
 export function exportTrueFcfCard(
   company: CompanySnapshot,
-  series: ComputedAnnual[]
-) {
+  series: ComputedAnnual[],
+  mode: CardDeliveryMode = "download"
+): Promise<CardDeliveryResult> {
   const width = 1200;
   const height = 675;
   const scale = 2;
@@ -138,7 +179,7 @@ export function exportTrueFcfCard(
   canvas.width = width * scale;
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return Promise.resolve("failed");
 
   ctx.scale(scale, scale);
   const theme = getExportTheme();
@@ -266,10 +307,11 @@ export function exportTrueFcfCard(
     width,
     height,
     theme,
-    `Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) | Accession ${company.lastFiling.accessionNumber}`
+    `Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) | Accession ${company.lastFiling.accessionNumber}`,
+    `/t/${company.ticker}/sbc`
   );
 
-  triggerDownload(canvas, `amber-${company.ticker.toLowerCase()}-true-fcf.png`);
+  return deliverCanvasCard(canvas, `amber-${company.ticker.toLowerCase()}-true-fcf.png`, mode);
 }
 
 export function exportReverseDcfCard(
@@ -280,8 +322,9 @@ export function exportReverseDcfCard(
     targetTrueFcfMarginPct: number;
     enterpriseValue: number;
   },
-  result: ReverseDcfResult
-) {
+  result: ReverseDcfResult,
+  mode: CardDeliveryMode = "download"
+): Promise<CardDeliveryResult> {
   const width = 1200;
   const height = 675;
   const scale = 2;
@@ -289,7 +332,7 @@ export function exportReverseDcfCard(
   canvas.width = width * scale;
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return Promise.resolve("failed");
 
   ctx.scale(scale, scale);
   const theme = getExportTheme();
@@ -388,28 +431,22 @@ export function exportReverseDcfCard(
     width,
     height,
     theme,
-    `Amber Reverse DCF | Base FY from SEC ${company.lastFiling.type} (${company.lastFiling.date})`
+    `Amber Reverse DCF | Base FY from SEC ${company.lastFiling.type} (${company.lastFiling.date})`,
+    `/t/${company.ticker}/valuation`
   );
 
-  triggerDownload(
+  return deliverCanvasCard(
     canvas,
-    `amber-${company.ticker.toLowerCase()}-reverse-dcf.png`
+    `amber-${company.ticker.toLowerCase()}-reverse-dcf.png`,
+    mode
   );
 }
 
-export interface ComparisonExportItem {
-  ticker: string;
-  name: string;
-  marketCap: number;
-  trueFcf: number | null;
-  trueFcfMargin: number | null;
-  sbcPctRevenue: number;
-  netDilutionCagr: number;
-  impliedCagr: number | null;
-}
-
-export function exportComparisonCard(items: ComparisonExportItem[]) {
-  if (items.length === 0) return;
+export function exportComparisonCard(
+  items: ComparisonEntry[],
+  mode: CardDeliveryMode = "download"
+): Promise<CardDeliveryResult> {
+  if (items.length === 0) return Promise.resolve("failed");
 
   const width = 1200;
   const height = 675;
@@ -418,7 +455,7 @@ export function exportComparisonCard(items: ComparisonExportItem[]) {
   canvas.width = width * scale;
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return Promise.resolve("failed");
 
   ctx.scale(scale, scale);
   const theme = getExportTheme();
@@ -465,8 +502,8 @@ export function exportComparisonCard(items: ComparisonExportItem[]) {
 
   const metricRows: Array<{
     label: string;
-    format: (item: ComparisonExportItem) => string;
-    color?: (item: ComparisonExportItem) => string;
+    format: (item: ComparisonEntry) => string;
+    color?: (item: ComparisonEntry) => string;
   }> = [
     {
       label: "Market Cap",
@@ -528,12 +565,14 @@ export function exportComparisonCard(items: ComparisonExportItem[]) {
     width,
     height,
     theme,
-    `Source: SEC EDGAR 10-K XBRL | Generated by Amber Comparison Studio`
+    `Source: SEC EDGAR 10-K XBRL | Amber Comparison Studio`,
+    items.length === 2 ? `/compare/${items[0].ticker}-vs-${items[1].ticker}` : "/compare"
   );
 
-  triggerDownload(
+  return deliverCanvasCard(
     canvas,
-    `amber-compare-${items.map((i) => i.ticker.toLowerCase()).join("-")}.png`
+    `amber-compare-${items.map((i) => i.ticker.toLowerCase()).join("-")}.png`,
+    mode
   );
 }
 
@@ -548,7 +587,10 @@ export interface PortfolioExportPayload {
   topSector: [string, number] | null;
 }
 
-export function exportPortfolioCard(payload: PortfolioExportPayload) {
+export function exportPortfolioCard(
+  payload: PortfolioExportPayload,
+  mode: CardDeliveryMode = "download"
+): Promise<CardDeliveryResult> {
   const fundedHoldings = payload.holdings.filter(({ weightPct }) => weightPct > 0);
   fundedHoldings.sort((a, b) => b.weightPct - a.weightPct);
   const width = 1200;
@@ -558,7 +600,7 @@ export function exportPortfolioCard(payload: PortfolioExportPayload) {
   canvas.width = width * scale;
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return Promise.resolve("failed");
 
   ctx.scale(scale, scale);
   const theme = getExportTheme();
@@ -653,10 +695,11 @@ export function exportPortfolioCard(payload: PortfolioExportPayload) {
     theme,
     payload.topSector
       ? `Top Sector: ${payload.topSector[0]} (${payload.topSector[1].toFixed(0)}%) | SEC EDGAR 10-K/10-Q`
-      : `Source: SEC EDGAR 10-K/10-Q | Amber Portfolio Analyzer`
+      : `Source: SEC EDGAR 10-K/10-Q | Amber Portfolio Analyzer`,
+    "/portfolio"
   );
 
-  triggerDownload(canvas, "amber-portfolio.png");
+  return deliverCanvasCard(canvas, "amber-portfolio.png", mode);
 }
 
 function wrapCanvasLines(
@@ -690,20 +733,23 @@ function wrapCanvasLines(
   return lines;
 }
 
-export function exportFilingDiffCard(payload: {
-  ticker: string;
-  companyName: string;
-  filingType: string;
-  filingDate: string;
-  category: string;
-  section: string;
-  materiality: string;
-  headline: string;
-  priorExcerpt: string;
-  currentExcerpt: string;
-  signalNote: string;
-  accessionNumber: string;
-}) {
+export function exportFilingDiffCard(
+  payload: {
+    ticker: string;
+    companyName: string;
+    filingType: string;
+    filingDate: string;
+    category: string;
+    section: string;
+    materiality: string;
+    headline: string;
+    priorExcerpt: string;
+    currentExcerpt: string;
+    signalNote: string;
+    accessionNumber: string;
+  },
+  mode: CardDeliveryMode = "download"
+): Promise<CardDeliveryResult> {
   const width = 1200;
   const height = 740;
   const scale = 2;
@@ -713,7 +759,7 @@ export function exportFilingDiffCard(payload: {
   canvas.width = width * scale;
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return Promise.resolve("failed");
   ctx.scale(scale, scale);
 
   ctx.fillStyle = theme.surface;
@@ -817,11 +863,181 @@ export function exportFilingDiffCard(payload: {
     width,
     height,
     theme,
-    `SEC EDGAR ${payload.accessionNumber}  |  ${payload.companyName}`
+    `SEC EDGAR ${payload.accessionNumber}  |  ${payload.companyName}`,
+    `/t/${payload.ticker}/filings`
   );
 
-  triggerDownload(
+  return deliverCanvasCard(
     canvas,
-    `amber-${payload.ticker.toLowerCase()}-filing-diff.png`
+    `amber-${payload.ticker.toLowerCase()}-filing-diff.png`,
+    mode
+  );
+}
+
+export function exportScenarioThesisCard(
+  company: CompanySnapshot,
+  assumptions: {
+    lens: ScenarioLens;
+    revGrowthPct: number;
+    targetMarginPct: number;
+    exitMultiple: number;
+    thesisNote?: string | null;
+  },
+  projection: FiveYearScenarioResult,
+  mode: CardDeliveryMode = "copy"
+): Promise<CardDeliveryResult> {
+  const width = 1200;
+  const height = 675;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return Promise.resolve("failed");
+
+  ctx.scale(scale, scale);
+  const theme = getExportTheme();
+
+  ctx.fillStyle = theme.bg;
+  ctx.fillRect(0, 0, width, height);
+
+  drawRoundedRect(ctx, 24, 24, width - 48, height - 48, 16);
+  ctx.fillStyle = theme.surface;
+  ctx.fill();
+  ctx.strokeStyle = theme.border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const lensLabel =
+    assumptions.lens === "pe"
+      ? "Earnings (P/E)"
+      : assumptions.lens === "ebit"
+        ? "Operating (EBIT)"
+        : "True FCF";
+
+  ctx.fillStyle = theme.amber;
+  ctx.font = '600 13px "JetBrains Mono", ui-monospace, monospace';
+  ctx.textAlign = "left";
+  ctx.fillText(`5-YEAR VALUATION THESIS  /  ${lensLabel.toUpperCase()}`, 56, 72);
+
+  ctx.fillStyle = theme.textPrimary;
+  ctx.font = '600 32px "Inter", system-ui, -apple-system, sans-serif';
+  ctx.fillText(`${company.name} (${company.ticker})`, 56, 114);
+
+  ctx.fillStyle = theme.textSecondary;
+  ctx.font = '400 16px "Inter", system-ui, -apple-system, sans-serif';
+  ctx.fillText(
+    `Current Price $${company.price.toFixed(2)}  ·  Mkt Cap ${formatCurrencyCompact(company.marketCap)}`,
+    56,
+    144
+  );
+
+  // Main KPI cards
+  const irr = projection.irrPct;
+  const irrColor =
+    irr !== null && irr >= 12
+      ? "#4ADE80"
+      : irr !== null && irr >= 8
+        ? theme.amber
+        : theme.negativeBar;
+
+  const kpis = [
+    {
+      label: "EXPECTED 5Y IRR",
+      value: irr !== null ? `${formatPct(irr, true)}/yr` : "—",
+      sub: `${projection.upsidePct >= 0 ? "+" : ""}${projection.upsidePct.toFixed(0)}% 5Y total return`,
+      color: irrColor,
+    },
+    {
+      label: "5-YEAR TARGET PRICE",
+      value: `$${projection.yr5TargetPrice.toFixed(2)}`,
+      sub: `Today's fair value (10% hurdle): $${projection.fairValueToday.toFixed(2)}`,
+      color: theme.textPrimary,
+    },
+    {
+      label: "YEAR-5 METRIC",
+      value: formatCurrencyCompact(projection.yr5TrueFcf),
+      sub: `Year-5 Rev ${formatCurrencyCompact(projection.yr5Rev)}`,
+      color: theme.amber,
+    },
+  ];
+
+  kpis.forEach((kpi, idx) => {
+    const x = 56 + idx * 366;
+    const y = 178;
+    const w = 346;
+    const h = 152;
+    drawRoundedRect(ctx, x, y, w, h, 12);
+    ctx.fillStyle = theme.bg;
+    ctx.fill();
+    ctx.strokeStyle = theme.border;
+    ctx.stroke();
+
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = '600 12px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillText(kpi.label, x + 22, y + 34);
+
+    ctx.fillStyle = kpi.color;
+    ctx.font = '700 38px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillText(kpi.value, x + 22, y + 92);
+
+    ctx.fillStyle = theme.textSecondary;
+    ctx.font = '400 13px "Inter", system-ui, -apple-system, sans-serif';
+    ctx.fillText(kpi.sub, x + 22, y + 124);
+  });
+
+  // Assumptions strip
+  drawRoundedRect(ctx, 56, 356, width - 112, 118, 12);
+  ctx.fillStyle = theme.bg;
+  ctx.fill();
+  ctx.strokeStyle = theme.border;
+  ctx.stroke();
+
+  const inputs = [
+    { label: "5Y REVENUE CAGR", value: `${formatPct(assumptions.revGrowthPct, true)}/yr` },
+    { label: `TARGET ${lensLabel.toUpperCase()} MARGIN`, value: formatPct(assumptions.targetMarginPct) },
+    { label: "EXIT MULTIPLE", value: `${assumptions.exitMultiple.toFixed(1)}×` },
+  ];
+
+  inputs.forEach((inp, idx) => {
+    const x = 84 + idx * 356;
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = '600 12px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillText(inp.label, x, 396);
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = '700 28px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillText(inp.value, x, 438);
+  });
+
+  if (assumptions.thesisNote?.trim()) {
+    ctx.fillStyle = theme.textSecondary;
+    ctx.font = '400 15px "Inter", system-ui, -apple-system, sans-serif';
+    const noteLines = wrapCanvasLines(ctx, `“${assumptions.thesisNote.trim()}”`, width - 120, 2);
+    noteLines.forEach((line, i) => {
+      ctx.fillText(line, 56, 514 + i * 24);
+    });
+  } else {
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = '400 14px "Inter", system-ui, -apple-system, sans-serif';
+    ctx.fillText(
+      `Stress-test these assumptions interactively at ${SITE_HOST}/t/${company.ticker}/valuation`,
+      56,
+      522
+    );
+  }
+
+  drawAmberWatermark(
+    ctx,
+    width,
+    height,
+    theme,
+    `Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date})  |  5-Year Scenario Model`,
+    `/t/${company.ticker}/valuation`
+  );
+
+  return deliverCanvasCard(
+    canvas,
+    `amber-${company.ticker.toLowerCase()}-thesis.png`,
+    mode
   );
 }

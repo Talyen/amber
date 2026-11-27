@@ -9,6 +9,7 @@ import {
   getSearchIndex,
 } from "@/data/repository";
 import { selectFeaturedSignals } from "@/lib/featured-signals";
+import { toExploreEntry } from "@/data/search-index";
 import { getTrendingTickers } from "@/lib/trending";
 
 export const revalidate = 21600;
@@ -51,7 +52,7 @@ export default async function HomePage() {
 
   return (
     <SignalIndex
-      entries={entries}
+      entries={entries.map(toExploreEntry)}
       featuredDiffs={featuredDiffs}
       featuredInsiderBuy={featuredInsiderBuy}
       insiderBuySummaries={insiderBuySummaries}

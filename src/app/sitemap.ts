@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getAllTickers, getSearchIndex } from "@/data/repository";
 import { POPULAR_COMPARE_SLUGS, resolveComparisonTickers } from "@/lib/compare";
+import { sectorSlug } from "@/lib/agentic-data";
 import { DISCOVERY_LENSES } from "@/lib/insights";
 import { SITE_URL } from "@/lib/site";
 
@@ -69,5 +70,47 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.75,
   }));
 
-  return [...staticRoutes, ...lensRoutes, ...compareRoutes, ...tickerRoutes];
+  // Index high-intent wedge sub-routes (/sbc, /valuation, /filings) for top 150 issuers by market cap
+  const topWedgeTickers = [...entries]
+    .sort((a, b) => b.marketCap - a.marketCap)
+    .slice(0, 150)
+    .map((e) => e.ticker);
+  const wedgeRoutes: MetadataRoute.Sitemap = topWedgeTickers.flatMap((t) => [
+    {
+      url: `${SITE_URL}/t/${t}/sbc`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.72,
+    },
+    {
+      url: `${SITE_URL}/t/${t}/valuation`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.72,
+    },
+    {
+      url: `${SITE_URL}/t/${t}/filings`,
+      lastModified: now,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    },
+  ]);
+
+  const sectorRoutes: MetadataRoute.Sitemap = Array.from(
+    new Set(entries.map((e) => sectorSlug(e.sector)))
+  ).map((slug) => ({
+    url: `${SITE_URL}/sectors/${slug}`,
+    lastModified: now,
+    changeFrequency: "daily",
+    priority: 0.82,
+  }));
+
+  return [
+    ...staticRoutes,
+    ...lensRoutes,
+    ...sectorRoutes,
+    ...compareRoutes,
+    ...tickerRoutes,
+    ...wedgeRoutes,
+  ];
 }

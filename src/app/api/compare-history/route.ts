@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCompanySnapshot } from "@/data/repository";
-import { buildCompareCompanyHistory } from "@/lib/compare-history";
+import { getCompareHistory } from "@/data/repository";
+import { MAX_COMPARE_TICKERS } from "@/lib/compare";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -12,16 +12,13 @@ export async function GET(request: Request) {
         .map((t) => t.trim().toUpperCase())
         .filter((t) => /^[A-Z0-9.-]{1,10}$/.test(t))
     ),
-  ].slice(0, 5);
+  ].slice(0, MAX_COMPARE_TICKERS);
 
   if (tickers.length === 0) {
     return NextResponse.json({ series: [] });
   }
 
-  const snapshots = await Promise.all(tickers.map((t) => getCompanySnapshot(t)));
-  const series = snapshots
-    .filter((c): c is NonNullable<typeof c> => Boolean(c))
-    .map(buildCompareCompanyHistory);
+  const series = await getCompareHistory(tickers);
 
   return NextResponse.json(
     { series },

@@ -7,7 +7,7 @@ import {
   formatCurrencyCompact,
   formatPct,
   isFinancialInstitution,
-} from "@/lib/finance";
+} from "./finance.ts";
 import type { InsiderTradeItem } from "@/components/InsiderRadar";
 import type { SearchIndexEntry } from "@/data/search-index";
 
@@ -127,7 +127,7 @@ export function buildCompanyBriefing(
     headlineStat:
       netCash >= 0
         ? `+${formatCurrencyCompact(netCash)} net cash`
-        : `${formatCurrencyCompact(netCash)} net debt`,
+        : `${formatCurrencyCompact(Math.abs(netCash))} net debt`,
     explanation: `Holds ${formatCurrencyCompact(company.cashAndEquiv)} in cash & short-term investments against ${formatCurrencyCompact(company.totalDebt)} in total debt${
       netCashToMktCap > 5 ? ` (${formatPct(netCashToMktCap)} of market cap in net cash).` : "."
     }`,
@@ -326,6 +326,11 @@ export interface LensFilterContext {
   materialEventTickers?: ReadonlySet<string>;
 }
 
+type LensEntry = Pick<SearchIndexEntry,
+  "ticker" | "sector" | "marketCap" | "revenue" | "revenueCagr" | "trueFcf" | "trueFcfMargin" |
+  "sbcPctRevenue" | "netDilutionCagr" | "fairValueUpsidePct"
+>;
+
 export interface DiscoveryLens {
   id: string;
   title: string;
@@ -334,8 +339,8 @@ export interface DiscoveryLens {
   whyItMatters: string;
   defaultSortKey: IndexSortKey;
   defaultSortDir: "desc" | "asc";
-  filter: (entry: SearchIndexEntry, ctx?: LensFilterContext) => boolean;
-  sort: (a: SearchIndexEntry, b: SearchIndexEntry) => number;
+  filter: (entry: LensEntry, ctx?: LensFilterContext) => boolean;
+  sort: (a: LensEntry, b: LensEntry) => number;
 }
 
 export const DISCOVERY_LENSES: DiscoveryLens[] = [

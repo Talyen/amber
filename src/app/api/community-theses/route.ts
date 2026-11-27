@@ -9,9 +9,7 @@ import {
 } from "@/lib/valuation-presets";
 
 export const dynamic = "force-dynamic";
-const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1800",
-};
+const headers = { "Cache-Control": "private, no-store" };
 
 export interface MarketCommunityThesisItem extends CommunityThesisItem {
   ticker: string;
@@ -25,7 +23,7 @@ export async function GET(request: Request) {
   const db = getDb();
 
   if (!rawTicker) {
-    if (!db) return NextResponse.json([], { headers: CACHE_HEADERS });
+    if (!db) return NextResponse.json([], { headers });
     const [rows, searchIndex] = await Promise.all([
       db
         .select({
@@ -90,14 +88,14 @@ export async function GET(request: Request) {
         },
       ];
     });
-    return NextResponse.json(theses, { headers: CACHE_HEADERS });
+    return NextResponse.json(theses, { headers });
   }
 
   if (!/^[A-Z0-9.-]{1,10}$/.test(rawTicker)) {
-    return NextResponse.json({ error: "Invalid ticker." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid ticker." }, { status: 400, headers });
   }
 
-  if (!db) return NextResponse.json([], { headers: CACHE_HEADERS });
+  if (!db) return NextResponse.json([], { headers });
 
   const rows = await db
     .select({
@@ -134,5 +132,5 @@ export async function GET(request: Request) {
         ]
       : []
   );
-  return NextResponse.json(theses, { headers: CACHE_HEADERS });
+  return NextResponse.json(theses, { headers });
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, Link2, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Copy, Link2, Sparkles } from "lucide-react";
 import {
   type CompanySnapshot,
   buildScenarioBasis,
@@ -13,9 +13,12 @@ import {
 } from "@/lib/finance";
 import { REVERSE_DCF_PARAMS } from "@/lib/valuation-link";
 import {
-  appendLocalThesisHistory,
+  isMeaningfulThesisChange,
+  mergeThesisHistory,
   readLocalThesisHistory,
   readLocalValuationPreset,
+  thesisHistoryId,
+  writeLocalThesisHistory,
   writeLocalValuationPreset,
   type CommunityThesisItem,
   type SavedScenarioLens as ValuationLens,
@@ -116,7 +119,9 @@ function ScenarioSession({
   const [fromSharedLink, setFromSharedLink] = useState(false);
   const [restoredThesis, setRestoredThesis] = useState(false);
   const [copiedThesis, setCopiedThesis] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "failed">("idle");
+  const [copiedCard, setCopiedCard] = useState<"idle" | "copied" | "downloaded">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "failed" | "superseded">("idle");
+  const [supersededDraft, setSupersededDraft] = useState<SavedValuationPreset | null>(null);
   const editedThesis = useRef(false);
   const [unavailableSharedLens, setUnavailableSharedLens] = useState(false);
   const supportsLens = useCallback((candidate: string | null): candidate is ValuationLens =>
@@ -145,6 +150,7 @@ function ScenarioSession({
       if (!active) return;
       setRestoredThesis(true);
       if (editedThesis.current) return;
+      setThesisHistory(readLocalThesisHistory(company.ticker, userId));
       const params = new URLSearchParams(window.location.search);
       const lensParam = params.get("lens");
       const revParam = readScenarioInput(params, "rev", GROWTH_RANGE);
@@ -180,7 +186,6 @@ function ScenarioSession({
 
       const local = readLocalValuationPreset(company.ticker, userId);
       if (local) applySavedThesis(local);
-      setThesisHistory(readLocalThesisHistory(company.ticker, userId));
     });
     return () => {
       active = false;
@@ -194,8 +199,9 @@ function ScenarioSession({
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { preset?: SavedValuationPreset | null; history?: ThesisHistoryEntry[] } | null) => {
         if (controller.signal.aborted) return;
-        if (Array.isArray(data?.history) && data.history.length > 0) {
-          setThesisHistory(data.history);
+        const history = data?.history;
+        if (Array.isArray(history) && history.length > 0) {
+          setThesisHistory((previous) => mergeThesisHistory(previous, history));
         }
         const preset = data?.preset;
         if (!preset || fromSharedLink || editedThesis.current) return;
@@ -214,22 +220,36 @@ function ScenarioSession({
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
 
+  const draft = {
+    ticker: company.ticker,
+    lens,
+    revGrowth: Number(revGrowth.toFixed(1)),
+    targetMargin: Number(targetMargin.toFixed(1)),
+    exitMultiple: Number(exitMultiple.toFixed(1)),
+    thesisNote: thesisNote.replace(/\s+/g, " ").trim().slice(0, 240) || null,
+    isPublic: Boolean(userId && isPublicThesis),
+  };
+  const canSave = saveStatus !== "saving" && (saveStatus !== "superseded" ||
+    isMeaningfulThesisChange(supersededDraft, draft) || supersededDraft?.isPublic !== draft.isPublic);
+
   async function handleSaveThesis() {
+    if (!canSave) return;
     editedThesis.current = true;
-    const trimmedNote = thesisNote.replace(/\s+/g, " ").trim();
-    const payload: SavedValuationPreset = {
-      ticker: company.ticker,
-      lens,
-      revGrowth,
-      targetMargin,
-      exitMultiple,
-      thesisNote: trimmedNote ? trimmedNote.slice(0, 240) : null,
-      isPublic: Boolean(userId && isPublicThesis),
-      updatedAt: new Date().toISOString(),
-    };
-    const storedLocally = writeLocalValuationPreset({ ...payload, owner: userId });
+    const payload: SavedValuationPreset = { ...draft, updatedAt: new Date().toISOString() };
+    const previous = readLocalValuationPreset(company.ticker, userId);
+    const latest = thesisHistory[0];
+    const changed = isMeaningfulThesisChange(latest, payload);
+    const samePendingSave = previous && !isMeaningfulThesisChange(previous, payload) &&
+      Boolean(previous.isPublic) === Boolean(payload.isPublic);
+    const pendingSaveId = samePendingSave ? previous.pendingSaveId ?? (!changed ? latest.pendingSaveId : undefined) : undefined;
+    const saveId = pendingSaveId ?? crypto.randomUUID();
+    const storedLocally = writeLocalValuationPreset({
+      ...payload,
+      owner: userId,
+      pendingSaveId: userId ? saveId : undefined,
+    });
     const localSnapshot: ThesisHistoryEntry = {
-      id: `local-${Date.now()}`,
+      id: userId ? thesisHistoryId(userId, company.ticker, saveId) : saveId,
       ticker: company.ticker,
       lens: payload.lens,
       revGrowth: payload.revGrowth,
@@ -239,9 +259,13 @@ function ScenarioSession({
       priceAtSave: Number.isFinite(company.price) ? company.price : null,
       filingDateAtSave: company.lastFiling.date,
       createdAt: payload.updatedAt,
+      pendingSaveId: userId ? saveId : undefined,
     };
-    const nextLocalHistory = appendLocalThesisHistory(localSnapshot, userId);
-    setThesisHistory((prev) => (prev.length > nextLocalHistory.length ? prev : nextLocalHistory));
+    if (changed) {
+      const localHistory = readLocalThesisHistory(company.ticker, userId);
+      writeLocalThesisHistory(company.ticker, userId, [localSnapshot, ...localHistory]);
+      setThesisHistory((previous) => mergeThesisHistory([localSnapshot, ...previous], []));
+    }
     if (!userId) {
       setSaveStatus(storedLocally ? "saved" : "failed");
       return;
@@ -252,18 +276,31 @@ function ScenarioSession({
       const response = await fetch("/api/valuation-presets", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, saveId }),
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error("Could not sync thesis.");
-      const data = (await response.json()) as { historyEntry?: ThesisHistoryEntry };
-      if (data?.historyEntry) {
-        setThesisHistory((prev) => [
-          data.historyEntry!,
-          ...prev.filter((item) => item.id !== data.historyEntry!.id && item.id !== localSnapshot.id),
-        ].slice(0, 15));
+      const { preset, historyEntry } = (await response.json()) as {
+        preset?: SavedValuationPreset;
+        historyEntry?: ThesisHistoryEntry;
+      };
+      if (historyEntry) {
+        const localHistory = readLocalThesisHistory(company.ticker, userId)
+          .filter((entry) => entry.id !== localSnapshot.id);
+        writeLocalThesisHistory(company.ticker, userId, mergeThesisHistory(localHistory, [historyEntry]));
+        setThesisHistory((previous) => mergeThesisHistory(
+          previous.filter((entry) => entry.id !== localSnapshot.id),
+          [historyEntry]
+        ));
       }
-      setSaveStatus("saved");
+      const pending = readLocalValuationPreset(company.ticker, userId);
+      if (pending?.pendingSaveId === saveId) {
+        writeLocalValuationPreset({ ...(preset ?? payload), owner: userId });
+      }
+      const superseded = preset && (isMeaningfulThesisChange(preset, payload) ||
+        Boolean(preset.isPublic) !== Boolean(payload.isPublic));
+      setSupersededDraft(superseded ? payload : null);
+      setSaveStatus(superseded ? "superseded" : "saved");
     } catch {
       setSaveStatus(storedLocally ? "local" : "failed");
     }
@@ -369,7 +406,8 @@ function ScenarioSession({
             <strong className="font-semibold text-[var(--amber)]">
               Shared 5-Year Thesis:
             </strong>{" "}
-            Loaded custom assumptions ({revGrowth}% rev growth, {targetMargin}% margin, {exitMultiple}x exit). Drag any slider to stress-test your own view.
+            Loaded custom assumptions ({revGrowth}% rev growth · {targetMargin}% margin · {exitMultiple}× exit
+            {projection.irrPct !== null ? ` → ${formatPct(projection.irrPct, true)}/yr` : ""}). Adjust any slider to challenge or test your own view.
           </span>
           <button
             type="button"
@@ -399,7 +437,7 @@ function ScenarioSession({
             <button
               type="button"
               onClick={handleSaveThesis}
-              disabled={saveStatus === "saving"}
+              disabled={!canSave}
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer disabled:cursor-wait disabled:opacity-60"
             >
               {saveStatus === "saved" ? (
@@ -412,6 +450,7 @@ function ScenarioSession({
             <button
               type="button"
               onClick={handleCopyThesisLink}
+              title="Copy shareable link so others can stress-test your assumptions"
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
             >
               {copiedThesis ? (
@@ -422,7 +461,41 @@ function ScenarioSession({
               ) : (
                 <>
                   <Link2 className="h-3 w-3" />
-                  Share Thesis
+                  Challenge Link
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const { exportScenarioThesisCard } = await import("@/lib/export-card");
+                const res = await exportScenarioThesisCard(
+                  company,
+                  {
+                    lens,
+                    revGrowthPct: revGrowth,
+                    targetMarginPct: targetMargin,
+                    exitMultiple,
+                    thesisNote,
+                  },
+                  projection,
+                  "copy"
+                );
+                setCopiedCard(res === "copied" ? "copied" : "downloaded");
+                window.setTimeout(() => setCopiedCard("idle"), 1800);
+              }}
+              title="Copy 5-Year Valuation Thesis card PNG to clipboard"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
+            >
+              {copiedCard !== "idle" ? (
+                <>
+                  <Check className="h-3 w-3 text-[var(--positive)]" />
+                  {copiedCard === "copied" ? "Copied PNG" : "Saved PNG"}
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3 w-3" />
+                  Copy Card
                 </>
               )}
             </button>
@@ -433,6 +506,11 @@ function ScenarioSession({
             {saveStatus === "local"
               ? "Saved on this device. Account sync could not be confirmed."
               : "Could not save your thesis. Please try again."}
+          </p>
+        )}
+        {saveStatus === "superseded" && (
+          <p role="status" className="mt-2 text-xs text-[var(--text-secondary)]">
+            A newer thesis is saved to your account. Reload to view it, or edit this draft to save a new revision.
           </p>
         )}
 

@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/search-index";
 import { formatPct } from "@/lib/finance";
 import {
   computePortfolioStress,
   computeSbcDilutionAttribution,
   type PortfolioStressInputs,
+  type StressHoldingInput,
 } from "@/lib/portfolio-stress";
 import type { SavedValuationPreset } from "@/lib/valuation-presets";
 
@@ -28,7 +28,7 @@ const STRESS_PRESETS: Array<{ label: string; inputs: PortfolioStressInputs }> = 
 ];
 
 interface PortfolioStressPanelProps {
-  holdings: SearchIndexEntry[];
+  holdings: StressHoldingInput[];
   normalizedWeights: ReadonlyMap<string, number>;
   savedPresets: Readonly<Record<string, SavedValuationPreset>>;
   inputMode: "weight" | "dollars";
@@ -85,6 +85,7 @@ export function PortfolioStressPanel({
                 <button
                   key={preset.label}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => setInputs(preset.inputs)}
                   className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
                     active
@@ -185,8 +186,12 @@ export function PortfolioStressPanel({
                 }))
               }
               aria-label="Top holding drawdown shock percentage"
+              aria-describedby="stress-top-holding-impact"
               className="amber-range w-full"
             />
+            <p id="stress-top-holding-impact" className="text-[11px] text-[var(--text-muted)]">
+              Applies to the estimated value and the modeled exit price of this holding.
+            </p>
           </div>
         </div>
 
@@ -213,17 +218,40 @@ export function PortfolioStressPanel({
 
           <div>
             <div className="text-[11px] text-[var(--text-muted)]">
-              Stressed 5Y CAGR
+              Stressed 5Y Weighted IRR
             </div>
             <div className="font-mono-num mt-0.5 text-lg font-semibold text-[var(--text-primary)]">
-              {stress.stressedThesisIrrPct !== null
-                ? `${formatPct(stress.stressedThesisIrrPct, true)}/yr`
+              {stress.stressedModelIrrPct !== null
+                ? `${formatPct(stress.stressedModelIrrPct, true)}/yr`
                 : "—"}
             </div>
             <div className="font-mono-num text-[11px] text-[var(--text-secondary)]">
-              {stress.thesisIrrDeltaPct !== null && stress.thesisCoveredCount > 0
-                ? `${formatPct(stress.thesisIrrDeltaPct, true)} pts vs. base (${stress.thesisCoveredCount})`
-                : "Save theses to model"}
+              {stress.irrSource === "theses" && stress.thesisIrrDeltaPct !== null ? (
+                `${formatPct(stress.thesisIrrDeltaPct, true)} pts vs. base (${stress.thesisCoveredCount})`
+              ) : stress.irrSource === "mixed" && stress.modelIrrDeltaPct !== null ? (
+                `${formatPct(stress.modelIrrDeltaPct, true)} pts vs. base (${stress.thesisCoveredCount} theses + base)`
+              ) : stress.irrSource === "base" && stress.modelIrrDeltaPct !== null ? (
+                <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                  <span>{formatPct(stress.modelIrrDeltaPct, true)} pts (base model)</span>
+                  {stress.topHoldingTicker && (
+                    <Link
+                      href={`/t/${stress.topHoldingTicker}?tab=dcf&model=scenario`}
+                      className="font-sans font-medium text-[var(--amber)] hover:underline"
+                    >
+                      Customize →
+                    </Link>
+                  )}
+                </span>
+              ) : stress.topHoldingTicker ? (
+                <Link
+                  href={`/t/${stress.topHoldingTicker}?tab=dcf&model=scenario`}
+                  className="font-sans font-medium text-[var(--amber)] hover:underline"
+                >
+                  Save a thesis to model →
+                </Link>
+              ) : (
+                "Save theses to model"
+              )}
             </div>
           </div>
         </div>

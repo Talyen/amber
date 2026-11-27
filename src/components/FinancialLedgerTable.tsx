@@ -11,6 +11,7 @@ import { exportFinancialLedgerCsv } from "@/lib/export-csv";
 interface FinancialLedgerTableProps {
   ticker: string;
   series: ComputedAnnual[];
+  showFcf?: boolean;
   cadence?: "annual" | "quarterly";
   yoyRevByPeriod?: Record<string, number | null>;
 }
@@ -18,6 +19,7 @@ interface FinancialLedgerTableProps {
 export function FinancialLedgerTable({
   ticker,
   series,
+  showFcf = true,
   cadence = "annual",
   yoyRevByPeriod,
 }: FinancialLedgerTableProps) {
@@ -29,7 +31,7 @@ export function FinancialLedgerTable({
           id="ledger-caption"
           className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
         >
-          {ticker} {isQuarterly ? "Quarterly " : ""}Cash Flow &amp; Dilution Ledger (SEC 10-K / 10-Q)
+          {ticker} {isQuarterly ? "Quarterly " : ""}{showFcf ? "Cash Flow & Dilution" : "SBC & Dilution"} Ledger (SEC 10-K / 10-Q)
         </h3>
         <div className="flex items-center gap-3">
           <span className="hidden text-[11px] text-[var(--text-muted)] sm:inline">
@@ -37,7 +39,7 @@ export function FinancialLedgerTable({
           </span>
           <button
             type="button"
-            onClick={() => exportFinancialLedgerCsv(ticker, series)}
+            onClick={() => exportFinancialLedgerCsv(ticker, series, showFcf)}
             className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -59,10 +61,9 @@ export function FinancialLedgerTable({
               <th scope="col">Revenue</th>
               <th scope="col">Op. Cash Flow</th>
               <th scope="col">CapEx</th>
-              <th scope="col">Reported FCF</th>
+              {showFcf && <th scope="col">Reported FCF</th>}
               <th scope="col">SBC</th>
-              <th scope="col">True FCF</th>
-              <th scope="col">True Margin</th>
+              {showFcf && <><th scope="col">True FCF</th><th scope="col">True Margin</th></>}
               <th scope="col">Diluted Shares</th>
             </tr>
           </thead>
@@ -95,31 +96,35 @@ export function FinancialLedgerTable({
                 >
                   {formatCurrencyCompact(-row.capex)}
                 </td>
-                <td data-label="Reported FCF" className="font-mono-num">
+                {showFcf && <td data-label="Reported FCF" className="font-mono-num">
                   {formatCurrencyCompact(row.reportedFcf)}
-                </td>
+                </td>}
                 <td
                   data-label="SBC"
                   className="font-mono-num text-[var(--sbc)]"
                 >
                   {formatCurrencyCompact(row.sbc)}
                 </td>
-                <td
-                  data-label="True FCF"
-                  className={`font-mono-num font-semibold ${
-                    row.trueFcf >= 0
-                      ? "text-[var(--amber)]"
-                      : "text-[var(--negative)]"
-                  }`}
-                >
-                  {formatCurrencyCompact(row.trueFcf)}
-                </td>
-                <td
-                  data-label="True Margin"
-                  className="font-mono-num text-[var(--text-secondary)]"
-                >
-                  {formatPct(row.trueFcfMargin)}
-                </td>
+                {showFcf && (
+                  <>
+                    <td
+                      data-label="True FCF"
+                      className={`font-mono-num font-semibold ${
+                        row.trueFcf >= 0
+                          ? "text-[var(--amber)]"
+                          : "text-[var(--negative)]"
+                      }`}
+                    >
+                      {formatCurrencyCompact(row.trueFcf)}
+                    </td>
+                    <td
+                      data-label="True Margin"
+                      className="font-mono-num text-[var(--text-secondary)]"
+                    >
+                      {formatPct(row.trueFcfMargin)}
+                    </td>
+                  </>
+                )}
                 <td data-label="Diluted Shares" className="font-mono-num">
                   {row.dilutedShares.toLocaleString()}M
                   {row.yoyShareChangePct !== null && (

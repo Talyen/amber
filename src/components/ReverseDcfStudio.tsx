@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Download, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
@@ -12,6 +12,7 @@ import {
   solveReverseDcf,
 } from "@/lib/finance";
 import { exportReverseDcfCard } from "@/lib/export-card";
+import { ChartShareBar } from "@/components/ChartShareBar";
 import { MetricHint } from "@/components/MetricHint";
 
 interface ReverseDcfStudioProps {
@@ -61,7 +62,6 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
   const [sbcDrag, setSbcDrag] = useState(() =>
     readSharedValue(sharedParams, "sbc", defaults.sbcDragPct, 0, sbcMax)
   );
-  const [exported, setExported] = useState(false);
 
   // Keep URL query params cleanly synced so "Share" captures exact assumptions
   useEffect(() => {
@@ -353,9 +353,8 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
+            <ChartShareBar
+              onDeliverCard={(mode) =>
                 exportReverseDcfCard(
                   company,
                   {
@@ -364,25 +363,14 @@ export function ReverseDcfStudio({ company, latest }: ReverseDcfStudioProps) {
                     targetTrueFcfMarginPct: effectiveTargetTrueMargin,
                     enterpriseValue,
                   },
-                  result
-                );
-                setExported(true);
-                window.setTimeout(() => setExported(false), 1800);
-              }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
-            >
-              {exported ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
-                  Exported
-                </>
-              ) : (
-                <>
-                  <Download className="h-3.5 w-3.5" />
-                  Export PNG
-                </>
-              )}
-            </button>
+                  result,
+                  mode
+                )
+              }
+              embedPath={`/embed/${company.ticker}?chart=reverse-dcf`}
+              pagePath={`/t/${company.ticker}/valuation`}
+              embedTitle={`${company.ticker} Reverse DCF Priced-In Growth on Amber`}
+            />
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-4 sm:grid-cols-3">

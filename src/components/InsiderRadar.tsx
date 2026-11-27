@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowDownRight, ArrowLeftRight, ArrowUpRight } from "lucide-react";
 import { formatCurrencyCompact } from "@/lib/finance";
+import { formatInsiderName, formatInsiderTitle } from "@/lib/insider-format";
 
 export interface InsiderTradeItem {
   id: string;
@@ -19,35 +20,6 @@ export interface InsiderTradeItem {
 interface InsiderRadarProps {
   ticker: string;
   trades: InsiderTradeItem[];
-}
-
-function formatInsiderName(raw: string): string {
-  const cleaned = raw
-    .replace(/&amp;/gi, "&")
-    .replace(/&apos;|&#39;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .trim();
-  if (cleaned === cleaned.toUpperCase() && cleaned.length > 3) {
-    return cleaned
-      .toLowerCase()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  return cleaned;
-}
-
-function formatInsiderTitle(raw: string): string {
-  const cleaned = raw
-    .replace(/&amp;/gi, "&")
-    .replace(/&apos;|&#39;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/See Remarks below\.?/i, "Executive Officer")
-    .trim();
-  if (!cleaned || cleaned === "Dir") return "Director";
-  return cleaned
-    .replace(/\bDir\b/g, "Director")
-    .replace(/\bPres\b/g, "President")
-    .replace(/\bTreas\b/g, "Treasurer")
-    .replace(/\bSec\b/g, "Secretary");
 }
 
 export function InsiderRadar({ ticker, trades }: InsiderRadarProps) {

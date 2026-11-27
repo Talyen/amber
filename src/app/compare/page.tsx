@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { getCompanySnapshot, getSearchIndex } from "@/data/repository";
-import { DEFAULT_COMPARE_TICKERS } from "@/lib/compare";
-import { buildCompareCompanyHistory } from "@/lib/compare-history";
+import { getCompareHistory, getSearchIndex } from "@/data/repository";
+import { DEFAULT_COMPARE_TICKERS, toComparisonEntry } from "@/lib/compare";
 import { CompareStudio } from "@/components/CompareStudio";
 
 export const revalidate = 86400;
@@ -13,13 +12,9 @@ export const metadata: Metadata = {
 };
 
 export default async function ComparePage() {
-  const [entries, defaultSnapshots] = await Promise.all([
+  const [entries, initialHistory] = await Promise.all([
     getSearchIndex(),
-    Promise.all(DEFAULT_COMPARE_TICKERS.map((t) => getCompanySnapshot(t))),
+    getCompareHistory(DEFAULT_COMPARE_TICKERS),
   ]);
-  const initialHistory = defaultSnapshots
-    .filter((c): c is NonNullable<typeof c> => Boolean(c))
-    .map(buildCompareCompanyHistory);
-
-  return <CompareStudio entries={entries} initialHistory={initialHistory} />;
+  return <CompareStudio entries={entries.map(toComparisonEntry)} initialHistory={initialHistory} />;
 }

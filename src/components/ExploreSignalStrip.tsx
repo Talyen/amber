@@ -8,9 +8,10 @@ import type {
   MarketInsiderFeedItem,
 } from "@/data/repository";
 import { formatCurrencyCompact } from "@/lib/finance";
+import { formatInsiderName, formatInsiderTitle } from "@/lib/insider-format";
 
 interface ExploreSignalStripProps {
-  entries: SearchIndexEntry[];
+  entries: Pick<SearchIndexEntry, "ticker" | "name">[];
   featuredDiffs: MarketFilingDiffItem[];
   featuredInsiderBuy: MarketInsiderFeedItem | null;
   hasInWatchlist: (ticker: string) => boolean;
@@ -148,9 +149,9 @@ export function ExploreSignalStrip({
                   open-market purchase
                 </h3>
                 <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                  {featuredInsiderBuy.insiderName}
+                  {formatInsiderName(featuredInsiderBuy.insiderName)}
                   {featuredInsiderBuy.insiderTitle
-                    ? ` (${featuredInsiderBuy.insiderTitle})`
+                    ? ` (${formatInsiderTitle(featuredInsiderBuy.insiderTitle)})`
                     : ""}{" "}
                   bought{" "}
                   {Math.round(featuredInsiderBuy.shares).toLocaleString()} shares

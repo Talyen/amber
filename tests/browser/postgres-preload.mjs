@@ -10,7 +10,7 @@ const originalFetch = globalThis.fetch;
 const rawText = { getTypeParser: () => (value) => value };
 async function query(client, { query: statement, params }) {
   const { fields, rows, rowCount, command } = await client.query({
-    text: statement, values: params, rowMode: "array", types: rawText,
+    text: statement, values: params, queryMode: "extended", rowMode: "array", types: rawText,
   });
   return { fields, rows, rowCount, command };
 }

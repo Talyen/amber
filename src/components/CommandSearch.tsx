@@ -4,19 +4,19 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useDialogLightDismiss } from "@/lib/dialog-light-dismiss";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/search-index";
+import type { CommandSearchEntry } from "@/data/search-index";
 import { searchCompanies } from "@/lib/company-search";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 
-let cachedSearchIndex: SearchIndexEntry[] | null = null;
-let inFlightSearchIndex: Promise<SearchIndexEntry[] | null> | null = null;
+let cachedSearchIndex: CommandSearchEntry[] | null = null;
+let inFlightSearchIndex: Promise<CommandSearchEntry[] | null> | null = null;
 
-function loadSearchIndex(): Promise<SearchIndexEntry[] | null> {
+function loadSearchIndex(): Promise<CommandSearchEntry[] | null> {
   if (cachedSearchIndex) return Promise.resolve(cachedSearchIndex);
   if (!inFlightSearchIndex) {
     inFlightSearchIndex = fetch("/api/search-index/compact")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: SearchIndexEntry[] | null) => {
+      .then((data: CommandSearchEntry[] | null) => {
         if (Array.isArray(data) && data.length > 0) {
           cachedSearchIndex = data;
           return data;
@@ -33,7 +33,7 @@ function loadSearchIndex(): Promise<SearchIndexEntry[] | null> {
 
 interface CommandSearchProps {
   variant?: "nav" | "hero";
-  initialEntries?: SearchIndexEntry[];
+  initialEntries?: CommandSearchEntry[];
 }
 
 export function CommandSearch({
@@ -45,7 +45,7 @@ export function CommandSearch({
   const lightDismiss = useDialogLightDismiss(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
-  const [loadedEntries, setLoadedEntries] = useState<SearchIndexEntry[]>([]);
+  const [loadedEntries, setLoadedEntries] = useState<CommandSearchEntry[]>([]);
   const entries = initialEntries?.length ? initialEntries : loadedEntries;
   const [loadStatus, setLoadStatus] = useState<"idle" | "loading" | "failed">("idle");
   const [query, setQuery] = useState("");
@@ -254,12 +254,12 @@ export function CommandSearch({
                           </div>
                           <div
                             className={`font-mono-num text-xs font-medium ${
-                              item.trueFcf >= 0
-                                ? "text-[var(--text-primary)]"
-                                : "text-[var(--negative)]"
+                              item.trueFcf < 0
+                                ? "text-[var(--negative)]"
+                                : "text-[var(--text-primary)]"
                             }`}
                           >
-                            {formatCurrencyCompact(item.trueFcf)}
+                            {Number.isFinite(item.trueFcf) ? formatCurrencyCompact(item.trueFcf) : "—"}
                           </div>
                         </div>
                         <div className="hidden sm:block">

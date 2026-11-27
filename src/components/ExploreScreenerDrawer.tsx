@@ -270,7 +270,7 @@ export function ExploreScreenerDrawer({
           <select
             value={selectedSector}
             onChange={(e) => onChangeSector(e.target.value)}
-            className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 text-xs text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
+            className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-0 text-xs leading-normal text-[var(--text-primary)] focus:border-[var(--amber-border)] focus:outline-none"
           >
             {sectors.map((s) => (
               <option key={s} value={s}>

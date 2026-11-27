@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCompanySnapshot, getSearchIndex } from "@/data/repository";
+import { getCompareHistory, getSearchIndex } from "@/data/repository";
 import { CompareStudio } from "@/components/CompareStudio";
-import { POPULAR_COMPARE_SLUGS, resolveComparisonTickers } from "@/lib/compare";
-import { buildCompareCompanyHistory } from "@/lib/compare-history";
+import { POPULAR_COMPARE_SLUGS, resolveComparisonTickers, toComparisonEntry } from "@/lib/compare";
+import { SITE_URL } from "@/lib/site";
 
 export const revalidate = 86400;
 export const dynamicParams = true;
@@ -27,9 +27,13 @@ export async function generateMetadata({
   if (tickers.length === 0) notFound();
 
   const title = `${tickers.join(" vs. ")}: True FCF, SBC & Valuation`;
+  const description = `Compare ${tickers.join(" and ")} side-by-side on SBC-adjusted True Free Cash Flow, net share dilution, and Reverse DCF implied growth.`;
+  const canonicalUrl = `${SITE_URL}/compare/${tickers.join("-vs-")}`;
   return {
     title,
-    description: `Compare ${tickers.join(" and ")} side-by-side on SBC-adjusted True Free Cash Flow, net share dilution, and Reverse DCF implied growth.`,
+    description,
+    alternates: { canonical: canonicalUrl },
+    openGraph: { title, description, url: canonicalUrl },
   };
 }
 
@@ -43,14 +47,11 @@ export default async function HeadToHeadComparePage({
   const initialTickers = resolveComparisonTickers(slug, new Set(entries.map((entry) => entry.ticker)));
   if (initialTickers.length === 0) notFound();
 
-  const snapshots = await Promise.all(initialTickers.map((t) => getCompanySnapshot(t)));
-  const initialHistory = snapshots
-    .filter((c): c is NonNullable<typeof c> => Boolean(c))
-    .map(buildCompareCompanyHistory);
+  const initialHistory = await getCompareHistory(initialTickers);
 
   return (
     <CompareStudio
-      entries={entries}
+      entries={entries.map(toComparisonEntry)}
       initialTickers={initialTickers}
       initialHistory={initialHistory}
     />

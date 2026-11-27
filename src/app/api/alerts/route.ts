@@ -71,24 +71,23 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (!db || !resendKey) {
+    return NextResponse.json(
+      { error: "Filing alerts are currently unavailable. Please try again later." },
+      { status: 503 },
+    );
+  }
   let account: { id?: string; email: string; emailVerified: boolean } | undefined;
-  if (db) {
-    try {
-      const session = await getAuth().api.getSession({ headers: request.headers });
-      account = session?.user;
-    } catch {
-      // Email confirmation is available without an authenticated session.
-    }
+  try {
+    const session = await getAuth().api.getSession({ headers: request.headers });
+    account = session?.user;
+  } catch {
+    // Email confirmation is available without an authenticated session.
   }
 
   // Batch watchlist alert subscription for authenticated verified-email accounts
   if (body?.scope === "watchlist") {
-    if (!db) {
-      return NextResponse.json(
-        { error: "Filing alerts are currently unavailable. Please try again later." },
-        { status: 503 }
-      );
-    }
     const email = account?.email?.trim().toLowerCase() ?? "";
     if (!account?.id || !email || !filingAlertEmailIsVerified(email, account)) {
       return NextResponse.json(
@@ -161,13 +160,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!db) {
-    return NextResponse.json(
-      { error: "Filing alerts are currently unavailable. Please try again later." },
-      { status: 503 }
-    );
-  }
-
   try {
     const exists = await db
       .select({ ticker: companies.ticker })
@@ -190,14 +182,6 @@ export async function POST(request: Request) {
         ticker,
         message: `You're subscribed to ${ticker} 10-K & 10-Q filing alerts.`,
       });
-    }
-
-    const resendKey = process.env.RESEND_API_KEY;
-    if (!resendKey) {
-      return NextResponse.json(
-        { error: "Filing alert confirmation is temporarily unavailable. Please try again later." },
-        { status: 503 },
-      );
     }
 
     const token = await requestAlertConfirmation(db, id, email, ticker);

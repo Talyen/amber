@@ -3,22 +3,22 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { userPortfolios, type UserPortfolioHoldingJson } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { MAX_PORTFOLIO_HOLDINGS, PORTFOLIO_HOLDING_LIMIT_MESSAGE } from "@/lib/portfolio-link";
 
 function normalizeHoldings(raw: unknown): UserPortfolioHoldingJson[] | null {
   if (!Array.isArray(raw)) return null;
   const seen = new Set<string>();
   const out: UserPortfolioHoldingJson[] = [];
   for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
+    if (!item || typeof item !== "object") return null;
     const obj = item as Record<string, unknown>;
     const ticker = typeof obj.ticker === "string" ? obj.ticker.trim().toUpperCase() : "";
-    const value = typeof obj.value === "number" ? obj.value : Number(obj.value);
-    if (!/^[A-Z0-9.-]{1,10}$/.test(ticker)) continue;
-    if (!Number.isFinite(value) || value < 0 || value > 1e9) continue;
-    if (seen.has(ticker)) continue;
+    const value = typeof obj.value === "number" || (typeof obj.value === "string" && obj.value.trim())
+      ? Number(obj.value) : NaN;
+    if (!/^[A-Z0-9.-]{1,10}$/.test(ticker) || seen.has(ticker)) return null;
+    if (!Number.isFinite(value) || value < 0 || value > 1e9) return null;
     seen.add(ticker);
     out.push({ ticker, value: Number(value.toFixed(2)) });
-    if (out.length >= 40) break;
   }
   return out;
 }
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         : null,
     });
   } catch {
-    return NextResponse.json({ authenticated: false, portfolio: null });
+    return NextResponse.json({ error: "Could not load your portfolio." }, { status: 503 });
   }
 }
 
@@ -75,6 +75,9 @@ export async function PUT(request: Request) {
 
   const raw = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const inputMode = raw.inputMode === "dollars" ? "dollars" : "weight";
+  if (Array.isArray(raw.holdings) && raw.holdings.length > MAX_PORTFOLIO_HOLDINGS) {
+    return NextResponse.json({ error: PORTFOLIO_HOLDING_LIMIT_MESSAGE }, { status: 400 });
+  }
   const holdings = normalizeHoldings(raw.holdings);
   if (!holdings) {
     return NextResponse.json({ error: "Invalid portfolio holdings." }, { status: 400 });

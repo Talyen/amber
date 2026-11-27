@@ -1,3 +1,22 @@
+import type { SearchIndexEntry } from "../data/search-index.ts";
+
+export function toComparisonEntry(entry: SearchIndexEntry) {
+  const {
+    ticker, name, sector, marketCap, revenue, sbc, sbcPctRevenue,
+    netDilutionCagr, impliedCagr, scenarioBasis,
+  } = entry;
+  return {
+    ticker, name, sector, marketCap, revenue, sbc, sbcPctRevenue,
+    netDilutionCagr, impliedCagr,
+    reportedFcf: scenarioBasis.equityLensOnly ? null : entry.reportedFcf,
+    trueFcf: scenarioBasis.equityLensOnly ? null : entry.trueFcf,
+    trueFcfMargin: scenarioBasis.equityLensOnly ? null : entry.trueFcfMargin,
+  };
+}
+
+export type ComparisonEntry = ReturnType<typeof toComparisonEntry>;
+
+export const MAX_COMPARE_TICKERS = 5;
 export const DEFAULT_COMPARE_TICKERS = ["NVDA", "GOOGL", "AMZN", "MSFT", "META"];
 
 export const POPULAR_COMPARE_SLUGS = [
@@ -24,7 +43,7 @@ export function resolveComparisonTickers(
   available: ReadonlySet<string>
 ): string[] {
   const tickers = slug.split(/-vs-/i).map((ticker) => ticker.trim().toUpperCase());
-  if (tickers.length < 2 || tickers.length > 4 || new Set(tickers).size !== tickers.length) {
+  if (tickers.length < 2 || tickers.length > MAX_COMPARE_TICKERS || new Set(tickers).size !== tickers.length) {
     return [];
   }
   return tickers.every((ticker) => available.has(ticker)) ? tickers : [];

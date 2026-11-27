@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Download } from "lucide-react";
 import {
   type CompanySnapshot,
   type ComputedAnnual,
@@ -10,6 +9,7 @@ import {
   formatPct,
 } from "@/lib/finance";
 import { exportTrueFcfCard } from "@/lib/export-card";
+import { ChartShareBar } from "@/components/ChartShareBar";
 
 interface TrueFcfChartProps {
   company: CompanySnapshot;
@@ -36,7 +36,6 @@ export function TrueFcfChart({
     setInternalCadence(next);
     onCadenceChange?.(next);
   };
-  const [exported, setExported] = useState(false);
   const activeSeries =
     cadence === "quarterly" && quarterlySeries.length >= 4
       ? quarterlySeries
@@ -139,27 +138,12 @@ export function TrueFcfChart({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => {
-              exportTrueFcfCard(company, activeSeries);
-              setExported(true);
-              window.setTimeout(() => setExported(false), 1800);
-            }}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--amber-border)] hover:bg-[var(--amber-soft)] hover:text-[var(--amber)] cursor-pointer"
-          >
-            {exported ? (
-              <>
-                <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
-                Exported
-              </>
-            ) : (
-              <>
-                <Download className="h-3.5 w-3.5" />
-                Export PNG
-              </>
-            )}
-          </button>
+          <ChartShareBar
+            onDeliverCard={(mode) => exportTrueFcfCard(company, activeSeries, mode)}
+            embedPath={`/embed/${company.ticker}?chart=true-fcf`}
+            pagePath={`/t/${company.ticker}/sbc`}
+            embedTitle={`${company.ticker} True Free Cash Flow vs. SBC on Amber`}
+          />
         </div>
       </div>
 

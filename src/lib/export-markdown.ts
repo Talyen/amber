@@ -5,8 +5,9 @@ import {
   computeNetDilutionCagr,
   formatCurrencyCompact,
   formatPct,
+  isFinancialInstitution,
 } from "@/lib/finance";
-import type { SearchIndexEntry } from "@/data/search-index";
+import type { ComparisonEntry } from "@/lib/compare";
 import { SITE_URL } from "@/lib/site";
 
 export function buildTickerMarkdown(
@@ -18,8 +19,9 @@ export function buildTickerMarkdown(
   const latest = series[series.length - 1];
   const ev = computeEnterpriseValue(company);
   const dilution = computeNetDilutionCagr(company.annuals);
+  const showFcf = !isFinancialInstitution(company);
   const sbcRatios = [`${formatPct(latest.sbcPctRevenue)} of rev`];
-  if (latest.sbcPctReportedFcf !== null) {
+  if (showFcf && latest.sbcPctReportedFcf !== null) {
     sbcRatios.push(`${formatPct(latest.sbcPctReportedFcf, false, 0)} of Reported FCF`);
   }
 
@@ -27,7 +29,9 @@ export function buildTickerMarkdown(
     `### ${company.name} (${company.ticker}): Fundamental Snapshot`,
     "",
     `- **Price / Market Cap / EV:** $${company.price.toFixed(2)} | ${formatCurrencyCompact(company.marketCap)} Mkt Cap | ${formatCurrencyCompact(ev)} EV`,
-    `- **True Free Cash Flow (${latest.fiscalYear}):** **${formatCurrencyCompact(latest.trueFcf)}** (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
+    showFcf
+      ? `- **True Free Cash Flow (${latest.fiscalYear}):** **${formatCurrencyCompact(latest.trueFcf)}** (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`
+      : "- **True Free Cash Flow:** Unavailable for this sector",
     `- **Stock-Based Comp (SBC):** ${formatCurrencyCompact(latest.sbc)} (${sbcRatios.join(" | ")})`,
     `- **Net Share Dilution (4Y CAGR):** ${formatPct(dilution, true)} (${latest.dilutedShares.toLocaleString()}M diluted shares)`,
     `- **Market-Implied 10Y Revenue CAGR:** ${impliedCagr === null ? "Unavailable" : `${formatPct(impliedCagr)}/yr`}`,
@@ -36,7 +40,7 @@ export function buildTickerMarkdown(
     "| :--- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...[...series].reverse().map(
       (r) =>
-        `| ${r.fiscalYear} | ${formatCurrencyCompact(r.revenue)} | ${formatCurrencyCompact(r.reportedFcf)} | ${formatCurrencyCompact(r.sbc)} | **${formatCurrencyCompact(r.trueFcf)}** | ${formatPct(r.trueFcfMargin)} | ${r.dilutedShares.toLocaleString()}M |`
+        `| ${r.fiscalYear} | ${formatCurrencyCompact(r.revenue)} | ${showFcf ? formatCurrencyCompact(r.reportedFcf) : "—"} | ${formatCurrencyCompact(r.sbc)} | ${showFcf ? `**${formatCurrencyCompact(r.trueFcf)}**` : "—"} | ${showFcf ? formatPct(r.trueFcfMargin) : "—"} | ${r.dilutedShares.toLocaleString()}M |`
     ),
     "",
     `*Source: SEC EDGAR ${company.lastFiling.type} (${company.lastFiling.date}) | Interactive model on [Amber](${siteOrigin}/t/${company.ticker})*`,
@@ -54,12 +58,15 @@ export function buildTickerPlainText(
   const latest = series[series.length - 1];
   const ev = computeEnterpriseValue(company);
   const dilution = computeNetDilutionCagr(company.annuals);
+  const showFcf = !isFinancialInstitution(company);
 
   return [
     `${company.name} (${company.ticker}) — $${company.price.toFixed(2)}`,
     `Market Cap: ${formatCurrencyCompact(company.marketCap)} | Enterprise Value: ${formatCurrencyCompact(ev)}`,
     `Revenue (${latest.fiscalYear}): ${formatCurrencyCompact(latest.revenue)}`,
-    `True FCF: ${formatCurrencyCompact(latest.trueFcf)} (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`,
+    showFcf
+      ? `True FCF: ${formatCurrencyCompact(latest.trueFcf)} (${formatPct(latest.trueFcfMargin)} margin) vs. ${formatCurrencyCompact(latest.reportedFcf)} Reported FCF`
+      : "True FCF: Unavailable for this sector",
     `Stock-Based Comp: ${formatCurrencyCompact(latest.sbc)} (${formatPct(latest.sbcPctRevenue)} of rev)`,
     `Share Count (4Y CAGR): ${formatPct(dilution, true)}/yr (${latest.dilutedShares.toLocaleString()}M shares)`,
     `Implied 10Y Revenue Growth: ${impliedCagr === null ? "Unavailable" : `${formatPct(impliedCagr)}/yr`}`,
@@ -78,6 +85,7 @@ export function buildTickerAiContext(
   const ev = computeEnterpriseValue(company);
   const dilution = computeNetDilutionCagr(company.annuals);
   const topDiffs = company.filingDiffs.slice(0, 4);
+  const showFcf = !isFinancialInstitution(company);
 
   const lines = [
     `Analyze ${company.name} (${company.ticker}) using the SEC EDGAR data below:`,
@@ -92,7 +100,7 @@ export function buildTickerAiContext(
     `Financial History ($M):`,
     ...series.map(
       (r) =>
-        `- ${r.fiscalYear}: Rev ${formatCurrencyCompact(r.revenue)}, Rep FCF ${formatCurrencyCompact(r.reportedFcf)}, SBC ${formatCurrencyCompact(r.sbc)} (${formatPct(r.sbcPctRevenue)}), True FCF ${formatCurrencyCompact(r.trueFcf)} (${formatPct(r.trueFcfMargin)} margin), Shares ${r.dilutedShares.toLocaleString()}M`
+        `- ${r.fiscalYear}: Rev ${formatCurrencyCompact(r.revenue)}${showFcf ? `, Rep FCF ${formatCurrencyCompact(r.reportedFcf)}` : ""}, SBC ${formatCurrencyCompact(r.sbc)} (${formatPct(r.sbcPctRevenue)})${showFcf ? `, True FCF ${formatCurrencyCompact(r.trueFcf)} (${formatPct(r.trueFcfMargin)} margin)` : ""}, Shares ${r.dilutedShares.toLocaleString()}M`
     ),
   ];
 
@@ -113,7 +121,7 @@ export function buildTickerAiContext(
 }
 
 export function buildComparisonMarkdown(
-  items: SearchIndexEntry[],
+  items: ComparisonEntry[],
   siteOrigin = SITE_URL
 ): string {
   if (items.length === 0) return "";
@@ -130,10 +138,10 @@ export function buildComparisonMarkdown(
     "| :--- | " + items.map(() => "---:").join(" | ") + " |",
     "| Market Cap | " + items.map((i) => formatCurrencyCompact(i.marketCap)).join(" | ") + " |",
     "| Revenue | " + items.map((i) => formatCurrencyCompact(i.revenue)).join(" | ") + " |",
-    "| Reported FCF | " + items.map((i) => i.scenarioBasis.equityLensOnly ? "—" : formatCurrencyCompact(i.reportedFcf)).join(" | ") + " |",
+    "| Reported FCF | " + items.map((i) => i.reportedFcf === null ? "—" : formatCurrencyCompact(i.reportedFcf)).join(" | ") + " |",
     "| Stock-Based Comp | " + items.map((i) => formatCurrencyCompact(i.sbc)).join(" | ") + " |",
-    "| **True FCF (FCF − SBC)** | " + items.map((i) => `**${formatCurrencyCompact(i.trueFcf)}**`).join(" | ") + " |",
-    "| True FCF Margin | " + items.map((i) => formatPct(i.scenarioBasis.equityLensOnly ? null : i.trueFcfMargin)).join(" | ") + " |",
+    "| **True FCF (FCF − SBC)** | " + items.map((i) => i.trueFcf === null ? "—" : `**${formatCurrencyCompact(i.trueFcf)}**`).join(" | ") + " |",
+    "| True FCF Margin | " + items.map((i) => formatPct(i.trueFcfMargin)).join(" | ") + " |",
     "| SBC % of Revenue | " + items.map((i) => formatPct(i.sbcPctRevenue)).join(" | ") + " |",
     "| Net Dilution (4Y) | " + items.map((i) => formatPct(i.netDilutionCagr, true)).join(" | ") + " |",
     "| **Implied 10Y Rev CAGR** | " + items.map((i) => `**${formatPct(i.impliedCagr)}**`).join(" | ") + " |",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -19,7 +19,7 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import type { SearchIndexEntry } from "@/data/search-index";
+import type { ExploreEntry } from "@/data/search-index";
 import type {
   InsiderBuySummary,
   MarketFilingDiffItem,
@@ -27,12 +27,11 @@ import type {
   MaterialEventSummary,
 } from "@/data/repository";
 import { useWatchlist } from "@/lib/watchlist";
+import { useSavedValuationPresets } from "@/lib/use-saved-valuation-presets";
 import { authClient } from "@/lib/auth-client";
 import {
   computePresetExpectedReturn,
   computeThesisDrift,
-  readAllLocalValuationPresets,
-  type SavedValuationPreset,
 } from "@/lib/valuation-presets";
 import {
   readLocalSavedScreens,
@@ -42,7 +41,6 @@ import {
 import { TopNav } from "@/components/TopNav";
 import { CommandSearch } from "@/components/CommandSearch";
 import { ExploreSignalStrip } from "@/components/ExploreSignalStrip";
-import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { SiteFooter } from "@/components/SiteFooter";
 
 const ExploreScreenerDrawer = dynamic(
@@ -51,6 +49,7 @@ const ExploreScreenerDrawer = dynamic(
 );
 import {
   matchesReitPriceToFfo, formatCurrencyCompact, formatPct } from "@/lib/finance";
+import { formatInsiderName, formatInsiderTitle } from "@/lib/insider-format";
 import {
   computeRuleOf40Score,
   DISCOVERY_LENSES,
@@ -233,23 +232,19 @@ function sortableKeys(lensId: string | null) {
 }
 
 export function SignalIndex({
-  entries = [],
+  entries,
   initialLensId = null,
-  featuredDiffs: preselectedDiffs,
-  featuredInsiderBuy: preselectedInsiderBuy,
-  recentDiffs = [],
-  recentInsiders = [],
-  trendingTickers = [],
+  lensHeader = null,
+  featuredDiffs = [],
+  featuredInsiderBuy = null,
   insiderBuySummaries = {},
   materialEventSummaries = {},
 }: {
-  entries?: SearchIndexEntry[];
+  entries: ExploreEntry[];
   initialLensId?: string | null;
+  lensHeader?: React.ReactNode;
   featuredDiffs?: MarketFilingDiffItem[];
   featuredInsiderBuy?: MarketInsiderFeedItem | null;
-  recentDiffs?: MarketFilingDiffItem[];
-  recentInsiders?: MarketInsiderFeedItem[];
-  trendingTickers?: string[];
   insiderBuySummaries?: Record<string, InsiderBuySummary>;
   materialEventSummaries?: Record<string, MaterialEventSummary>;
 }) {
@@ -282,45 +277,12 @@ export function SignalIndex({
   const [minThesisIrr, setMinThesisIrr] = useState("");
   const [savedScreens, setSavedScreens] = useState<SavedScreen[]>([]);
   const [visibleLimit, setVisibleLimit] = useState(30);
+  const heroSearchRef = useRef<HTMLDivElement>(null);
+  const [heroSearchVisible, setHeroSearchVisible] = useState(true);
   const watchlist = useWatchlist();
   const { data: session } = authClient.useSession();
   const sessionUserId = session?.user?.id ?? null;
-  const [savedTheses, setSavedTheses] = useState<Record<string, SavedValuationPreset>>({});
-
-  useEffect(() => {
-    let active = true;
-    const local = readAllLocalValuationPresets(sessionUserId);
-    queueMicrotask(() => {
-      if (active) setSavedTheses(local);
-    });
-    if (!sessionUserId) {
-      return () => {
-        active = false;
-      };
-    }
-    const controller = new AbortController();
-    fetch("/api/valuation-presets", { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { presets?: SavedValuationPreset[] } | null) => {
-        if (!active || !data?.presets) return;
-        const merged: Record<string, SavedValuationPreset> = { ...local };
-        for (const preset of data.presets) {
-          const existing = merged[preset.ticker];
-          if (
-            !existing ||
-            Date.parse(preset.updatedAt) >= Date.parse(existing.updatedAt)
-          ) {
-            merged[preset.ticker] = preset;
-          }
-        }
-        setSavedTheses(merged);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [sessionUserId]);
+  const savedTheses = useSavedValuationPresets(sessionUserId);
 
   useEffect(() => {
     let active = true;
@@ -551,7 +513,7 @@ export function SignalIndex({
     [leaderboardEligible]
   );
 
-  const rows = useMemo<SearchIndexEntry[]>(() => {
+  const rows = useMemo<ExploreEntry[]>(() => {
     const q = filter.trim().toLowerCase();
     const minFcfVal = minFcfMargin.trim() !== "" ? Number(minFcfMargin) : null;
     const maxSbcVal = maxSbcPct.trim() !== "" ? Number(maxSbcPct) : null;
@@ -632,7 +594,7 @@ export function SignalIndex({
         const db = materialEventSummaries[b.ticker]?.filingDate ?? "";
         diff = da.localeCompare(db) || a.marketCap - b.marketCap;
       } else if (sortKey === "fairValueUpsidePct" || sortKey === "impliedCagr" || sortKey === "trueFcfMargin") {
-        const metric = (row: SearchIndexEntry) => sortKey === "trueFcfMargin" && row.scenarioBasis.equityLensOnly
+        const metric = (row: ExploreEntry) => sortKey === "trueFcfMargin" && row.scenarioBasis.equityLensOnly
           ? null : row[sortKey];
         const first = metric(a);
         const second = metric(b);
@@ -676,7 +638,7 @@ export function SignalIndex({
 
   const groupedBySector = useMemo(() => {
     if (!groupBySector) return [];
-    const map = new Map<string, SearchIndexEntry[]>();
+    const map = new Map<string, ExploreEntry[]>();
     // Cap per-sector DOM rows when viewing the full universe so toggling Group by Sector stays instant
     for (const c of visibleRows) {
       const list = map.get(c.sector) ?? [];
@@ -685,6 +647,19 @@ export function SignalIndex({
     }
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [groupBySector, visibleRows]);
+
+  useEffect(() => {
+    const el = heroSearchRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setHeroSearchVisible(entry.isIntersecting);
+      },
+      { threshold: 0, rootMargin: "-56px 0px 0px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const isInsiderLens = activeLensId === "insider-buys";
   const isEventLens = activeLensId === "material-events";
@@ -695,7 +670,7 @@ export function SignalIndex({
 
   const colCount = sortColumns.length + 1;
 
-  function renderRow(c: SearchIndexEntry) {
+  function renderRow(c: ExploreEntry) {
     const starred = watchlist.has(c.ticker);
     const href = isInsiderLens
       ? `/t/${c.ticker}?tab=insiders`
@@ -715,6 +690,11 @@ export function SignalIndex({
               type="button"
               disabled={!watchlist.canEdit}
               onClick={() => watchlist.toggle(c.ticker)}
+              title={
+                starred
+                  ? `Remove ${c.ticker} from watchlist`
+                  : `Add ${c.ticker} to watchlist`
+              }
               aria-label={
                 starred
                   ? `Remove ${c.ticker} from watchlist`
@@ -723,7 +703,7 @@ export function SignalIndex({
               className={`transition-colors cursor-pointer disabled:cursor-wait ${
                 starred
                   ? "text-[var(--amber)]"
-                  : "text-[var(--border-strong)] hover:text-[var(--text-secondary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--amber)]"
               }`}
             >
               <Star
@@ -792,11 +772,11 @@ export function SignalIndex({
             </td>
             <td data-label="Latest Buyer" className="!text-left">
               <div className="max-w-[200px] truncate text-xs text-[var(--text-primary)]">
-                {buyInfo?.latestBuyer ?? "—"}
+                {buyInfo?.latestBuyer ? formatInsiderName(buyInfo.latestBuyer) : "—"}
               </div>
               {buyInfo?.latestTitle && (
                 <div className="max-w-[200px] truncate text-[11px] text-[var(--text-muted)]">
-                  {buyInfo.latestTitle}
+                  {formatInsiderTitle(buyInfo.latestTitle)}
                 </div>
               )}
             </td>
@@ -974,32 +954,18 @@ export function SignalIndex({
     );
   }
 
-  const { featuredDiffs, featuredInsiderBuy } = useMemo(() => {
-    if (preselectedDiffs !== undefined) {
-      return {
-        featuredDiffs: preselectedDiffs,
-        featuredInsiderBuy: preselectedInsiderBuy ?? null,
-      };
-    }
-    return selectFeaturedSignals({
-      diffs: recentDiffs,
-      insiders: recentInsiders,
-      entries,
-      trendingTickers,
-    });
-  }, [preselectedDiffs, preselectedInsiderBuy, recentDiffs, recentInsiders, entries, trendingTickers]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <TopNav />
+      <TopNav hideNavSearch={heroSearchVisible} />
 
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 pb-16 pt-7 sm:px-6">
         {/* Quiet Tool Header */}
-        <section className="border-b border-[var(--border)] pb-8">
+        <section className="border-b border-[var(--border)] pb-6">
           <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] text-[var(--text-primary)] sm:text-4xl">
             Understand any public company in 60 seconds.
           </h1>
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[var(--text-secondary)]">
+          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[var(--text-secondary)]">
             <span className="font-mono-num font-medium text-[var(--text-primary)]">
               {entries.length} SEC-verified companies
             </span>
@@ -1011,7 +977,7 @@ export function SignalIndex({
             <span>Form 4 Insiders</span>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+          <div ref={heroSearchRef} className="mt-4 flex flex-wrap items-center gap-2.5">
             <CommandSearch variant="hero" initialEntries={entries} />
             <div className="flex items-center gap-1.5">
               {(["NVDA", "MSFT", "COST"] as const).map((sym, idx) => (
@@ -1031,6 +997,9 @@ export function SignalIndex({
             </div>
           </div>
         </section>
+
+        {/* Living Lens Report Header (on /lenses/[slug]) */}
+        {lensHeader}
 
         {/* Trending Filings & Insider Activity */}
         {!initialLensId && (
@@ -1103,7 +1072,7 @@ export function SignalIndex({
                   setSortKey(k);
                   setSortDir(d);
                 }}
-                className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-xs text-[var(--text-secondary)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)] @min-[642px]/explore:hidden"
+                className="h-8 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0 text-xs leading-normal text-[var(--text-secondary)] focus:border-[var(--amber-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber-border)] @min-[642px]/explore:hidden"
               >
                 {sortColumns.flatMap(({ key, label }) => key ? (
                   (["desc", "asc"] as const).map((direction) => (

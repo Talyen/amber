@@ -67,6 +67,7 @@ interface CompanyWorkspaceProps {
   insiderTrades?: InsiderTradeItem[];
   sectorBenchmark?: SectorBenchmark | null;
   sectorPeers?: SearchIndexEntry[];
+  initialTab?: ActiveTab;
 }
 
 export function CompanyWorkspace({
@@ -74,8 +75,9 @@ export function CompanyWorkspace({
   insiderTrades = [],
   sectorBenchmark = null,
   sectorPeers = [],
+  initialTab = "overview",
 }: CompanyWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
   const [valuationMode, setValuationMode] = useState<"scenario" | "reverse">("scenario");
   const [fcfCadence, setFcfCadence] = useState<"annual" | "quarterly">("annual");
   const quarterlyMomentum = useMemo(
@@ -240,7 +242,7 @@ export function CompanyWorkspace({
     badge?: string;
   }> = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
-    { id: "fcf", label: "Cash & Dilution", icon: Banknote },
+    { id: "fcf", label: isFinancialInstitution ? "SBC & Dilution" : "Cash & Dilution", icon: Banknote },
     { id: "dcf", label: "Valuation", icon: Calculator },
     {
       id: "diffs",
@@ -729,47 +731,54 @@ export function CompanyWorkspace({
           </div>
 
           {/* Cell 2: True FCF & Multiple */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setActiveTab("fcf")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setActiveTab("fcf");
-              }
-            }}
-            className="group p-3.5 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
-          >
-            <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
-              <span className="inline-flex items-center gap-1">
-                <span>True FCF ({latest.fiscalYear})</span>
-                <MetricHint
-                  label="True Free Cash Flow"
-                  description="Operating Cash Flow minus CapEx minus Stock-Based Compensation — real cash left for owners after dilution."
-                />
-              </span>
-              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                {evToTrueFcf !== null && evToTrueFcf < 250
-                  ? `${evToTrueFcf.toFixed(1)}x EV`
-                  : "FCF − SBC"}
-              </span>
+          {isFinancialInstitution ? (
+            <div className="p-3.5 text-left">
+              <div className="text-[11px] text-[var(--text-secondary)]">True FCF</div>
+              <p className="mt-1 text-sm font-semibold text-[var(--text-primary)]">Sector metrics apply</p>
             </div>
-            <div className="mt-1 flex items-baseline justify-between gap-2">
-              <span
-                className={`font-mono-num text-xl font-semibold tracking-[-0.02em] ${
-                  latest.trueFcf >= 0
-                    ? "text-[var(--amber)]"
-                    : "text-[var(--negative)]"
-                }`}
-              >
-                {formatCurrencyCompact(latest.trueFcf)}
-              </span>
-              <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
-                {formatPct(latest.trueFcfMargin)} margin
-              </span>
+          ) : (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setActiveTab("fcf")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setActiveTab("fcf");
+                }
+              }}
+              className="group p-3.5 text-left transition-colors hover:bg-[var(--surface-subtle)] cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
+                <span className="inline-flex items-center gap-1">
+                  <span>True FCF ({latest.fiscalYear})</span>
+                  <MetricHint
+                    label="True Free Cash Flow"
+                    description="Operating Cash Flow minus CapEx minus Stock-Based Compensation — real cash left for owners after dilution."
+                  />
+                </span>
+                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                  {evToTrueFcf !== null && evToTrueFcf < 250
+                    ? `${evToTrueFcf.toFixed(1)}x EV`
+                    : "FCF − SBC"}
+                </span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between gap-2">
+                <span
+                  className={`font-mono-num text-xl font-semibold tracking-[-0.02em] ${
+                    latest.trueFcf >= 0
+                      ? "text-[var(--amber)]"
+                      : "text-[var(--negative)]"
+                  }`}
+                >
+                  {formatCurrencyCompact(latest.trueFcf)}
+                </span>
+                <span className="font-mono-num text-[11px] text-[var(--text-muted)]">
+                  {formatPct(latest.trueFcfMargin)} margin
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Cell 3: Share Count & Stock Comp % */}
           <div
@@ -910,12 +919,12 @@ export function CompanyWorkspace({
                     impliedCagr={impliedGrowth}
                     onNavigateTab={(t) => setActiveTab(t)}
                   />
-                  <RevenueSankey
+                  {!isFinancialInstitution && <RevenueSankey
                     ticker={company.ticker}
                     companyName={company.name}
                     period={latest}
                     fyPeriod={latestFy}
-                  />
+                  />}
                   <MoatQualityCard company={company} series={series} />
 
                   <SectorPeersTable
@@ -948,19 +957,29 @@ export function CompanyWorkspace({
             >
               {activeTab === "fcf" && (
                 <div>
-                  <TrueFcfChart
-                    company={company}
-                    series={series}
-                    cadence={fcfCadence}
-                    onCadenceChange={setFcfCadence}
-                  />
-                  <TrueFcfWaterfall period={latest} />
+                  {isFinancialInstitution ? (
+                    <p className="rounded-xl border border-[var(--border)] p-4 text-sm text-[var(--text-secondary)]">
+                      True FCF is unavailable for {company.ticker}. Use sector-specific valuation metrics.
+                    </p>
+                  ) : (
+                    <>
+                      <TrueFcfChart
+                        company={company}
+                        series={series}
+                        cadence={fcfCadence}
+                        onCadenceChange={setFcfCadence}
+                      />
+                      <TrueFcfWaterfall period={latest} />
+                    </>
+                  )}
                   <BuybackRealityCard
                     series={series}
                     marketCap={company.marketCap}
+                    showFcf={!isFinancialInstitution}
                   />
                   <FinancialLedgerTable
                     ticker={company.ticker}
+                    showFcf={!isFinancialInstitution}
                     series={
                       fcfCadence === "quarterly" && quarterlyMomentum.quarters.length >= 4
                         ? quarterlyMomentum.quarters

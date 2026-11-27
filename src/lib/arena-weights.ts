@@ -25,3 +25,28 @@ export function parseArenaWeights(positions: unknown) {
   }
   return allocations;
 }
+
+/**
+ * Rounds an array of positive percentage weights to integers summing to 100
+ * using the largest-remainder (Hamilton) method so displayed chips never sum
+ * to 98% or 102%.
+ */
+export function roundWeightsToHundred(weights: readonly number[]): number[] {
+  if (weights.length === 0) return [];
+  const sanitized = weights.map((w) => (Number.isFinite(w) && w > 0 ? w : 0));
+  const total = sanitized.reduce((sum, w) => sum + w, 0);
+  if (total <= 0) return sanitized.map(() => 0);
+
+  const exact = sanitized.map((w) => (w / total) * 100);
+  const floors = exact.map((v) => Math.floor(v));
+  const remainder = 100 - floors.reduce((sum, v) => sum + v, 0);
+
+  const order = exact
+    .map((v, index) => ({ index, frac: v - floors[index] }))
+    .sort((a, b) => b.frac - a.frac || a.index - b.index);
+
+  for (let i = 0; i < remainder && i < order.length; i++) {
+    floors[order[i].index] += 1;
+  }
+  return floors;
+}

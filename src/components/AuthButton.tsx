@@ -240,7 +240,7 @@ export function AuthButton() {
     return (
       <div
         aria-hidden="true"
-        className="h-8 w-[84px] rounded-md border border-[var(--border)] bg-[var(--surface)] opacity-60"
+        className="h-8 w-[84px] animate-pulse rounded-md border border-[var(--border)] bg-[var(--surface-subtle)]"
       />
     );
   }

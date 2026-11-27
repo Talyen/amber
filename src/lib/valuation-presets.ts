@@ -26,9 +26,10 @@ export interface ThesisHistoryEntry {
   priceAtSave?: number | null;
   filingDateAtSave?: string | null;
   createdAt: string;
+  pendingSaveId?: string;
 }
 
-export type LocalValuationPreset = SavedValuationPreset & { owner?: string };
+export type LocalValuationPreset = SavedValuationPreset & { owner?: string; pendingSaveId?: string };
 
 const STORAGE_KEY = "amber-valuation-presets-v1";
 const HISTORY_STORAGE_KEY = "amber-valuation-history-v1";
@@ -68,26 +69,49 @@ export function readLocalThesisHistory(
   }
 }
 
-export function appendLocalThesisHistory(
-  entry: ThesisHistoryEntry,
-  owner: string | null | undefined
+export function thesisHistoryId(owner: string, ticker: string, saveId: string): string {
+  return JSON.stringify([owner, ticker, saveId]);
+}
+
+export function mergeThesisHistory(
+  local: readonly ThesisHistoryEntry[],
+  server: readonly ThesisHistoryEntry[]
 ): ThesisHistoryEntry[] {
-  const ticker = entry.ticker.toUpperCase();
-  const current = readLocalThesisHistory(ticker, owner);
-  if (!isMeaningfulThesisChange(current[0], entry)) return current;
-  const next = [entry, ...current].slice(0, MAX_HISTORY_PER_TICKER);
-  try {
-    if (typeof window !== "undefined") {
-      const key = historyStorageKey(owner);
-      const raw = window.localStorage.getItem(key);
-      const map = raw ? (JSON.parse(raw) as Record<string, ThesisHistoryEntry[]>) : {};
-      map[ticker] = next;
-      window.localStorage.setItem(key, JSON.stringify(map));
+  const entries = new Map(local.map((entry) => [entry.id, entry]));
+  for (const entry of server) {
+    if (!entries.has(entry.id)) {
+      // Older clients stored a separate timestamp-based ID for the same save.
+      const legacyMatch = [...entries.values()].find((candidate) =>
+        /^local-\d+$/.test(candidate.id) &&
+        candidate.ticker === entry.ticker &&
+        Math.abs(Date.parse(candidate.createdAt) - Date.parse(entry.createdAt)) <= 10_000 &&
+        !isMeaningfulThesisChange(candidate, entry)
+      );
+      if (legacyMatch) entries.delete(legacyMatch.id);
     }
-  } catch {
-    // Ignore storage quota errors
+    entries.set(entry.id, entry);
   }
-  return next;
+
+  return [...entries.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, MAX_HISTORY_PER_TICKER);
+}
+
+export function writeLocalThesisHistory(
+  ticker: string,
+  owner: string | null | undefined,
+  history: readonly ThesisHistoryEntry[]
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const key = historyStorageKey(owner);
+    const raw = window.localStorage.getItem(key);
+    const map = raw ? (JSON.parse(raw) as Record<string, ThesisHistoryEntry[]>) : {};
+    map[ticker.toUpperCase()] = history.slice(0, MAX_HISTORY_PER_TICKER);
+    window.localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // Keep the journal usable when storage is unavailable.
+  }
 }
 
 function readNumber(value: unknown): number {

@@ -17,6 +17,7 @@ import { setTheme, useSystemDark, useTheme } from "@/lib/theme";
 
 interface TopNavProps {
   activeTicker?: string;
+  hideNavSearch?: boolean;
   activeRoute?:
     | "index"
     | "compare"
@@ -41,7 +42,7 @@ const NAV_LINKS: Array<{
   { href: "/arena", label: "Arena", route: "arena", icon: Trophy },
 ];
 
-export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
+export function TopNav({ activeTicker, hideNavSearch = false, activeRoute }: TopNavProps) {
   const currentRoute = activeRoute ?? (activeTicker ? "ticker" : "index");
   const theme = useTheme();
   const systemDark = useSystemDark();
@@ -91,7 +92,7 @@ export function TopNav({ activeTicker, activeRoute }: TopNavProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <CommandSearch variant="nav" />
+          {!hideNavSearch && <CommandSearch variant="nav" />}
 
           <button
             type="button"

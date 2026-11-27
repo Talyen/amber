@@ -11,6 +11,18 @@ export interface FeaturedSignals {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const EXEC_TITLE_PATTERN = /\b(ceo|cfo|coo|chief|pres|president|founder)\b/i;
+const BOILERPLATE_8K_PATTERN = /filed\s+SEC\s+Form\s+8-K\s+on\s+\d{4}-\d{2}-\d{2}\s+disclosing\b/i;
+
+function isBoilerplateEightK(diff: MarketFilingDiffItem): boolean {
+  if (diff.filingType !== "8-K") return false;
+  const summary = diff.summary.trim();
+  const headline = diff.headline.trim();
+  if (BOILERPLATE_8K_PATTERN.test(summary)) return true;
+  if (headline.length > 0 && summary.toLowerCase().includes(headline.toLowerCase()) && summary.length < headline.length + 75) {
+    return true;
+  }
+  return false;
+}
 
 function ageInDays(dateStr: string, nowMs: number): number {
   const parsed = Date.parse(dateStr);
@@ -53,6 +65,13 @@ function scoreFilingDiff(
   // Materiality
   if (diff.materiality === "High") score += 18;
   else if (diff.materiality === "Medium") score += 8;
+
+  // Prefer substantive 10-K/10-Q prose diffs or detailed 8-Ks over templated 8-K notices
+  if (isBoilerplateEightK(diff)) {
+    score -= 42;
+  } else if (diff.filingType === "10-K" || diff.filingType === "10-Q") {
+    score += 12;
+  }
 
   return score;
 }
@@ -180,7 +199,24 @@ export function selectFeaturedSignals({
     usedTickers.add(featuredInsiderBuy.ticker);
   }
 
+  const usedHeadlines = new Set<string>();
+  const deferredDuplicates: MarketFilingDiffItem[] = [];
+
   for (const diff of rankedDiffs) {
+    if (featuredDiffs.length >= targetDiffCount) break;
+    if (usedTickers.has(diff.ticker)) continue;
+    const normHeadline = diff.headline.trim().toLowerCase();
+    if (normHeadline && usedHeadlines.has(normHeadline)) {
+      deferredDuplicates.push(diff);
+      continue;
+    }
+    usedTickers.add(diff.ticker);
+    if (normHeadline) usedHeadlines.add(normHeadline);
+    featuredDiffs.push(diff);
+  }
+
+  // Fallback only if not enough distinct-headline filings exist
+  for (const diff of deferredDuplicates) {
     if (featuredDiffs.length >= targetDiffCount) break;
     if (usedTickers.has(diff.ticker)) continue;
     usedTickers.add(diff.ticker);

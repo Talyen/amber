@@ -49,6 +49,8 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0011_valuation_alerts.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0012_company_quote_date.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0013_valuation_thesis_history.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0014_weekly_digest_subscribers.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0015_valuation_save_receipts.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -219,6 +221,48 @@ async function migrate() {
     throw new Error("Could not verify the user_valuation_history schema.");
   }
   console.log("[amber-migrate] Verified user_valuation_history.");
+
+  const [digestSchema] = await sql`
+    select
+      (select count(*)::int from information_schema.columns
+        where table_schema = 'public' and table_name = 'weekly_digest_subscribers' and (
+          (column_name = 'id' and udt_name = 'text' and is_nullable = 'NO')
+          or (column_name = 'email' and udt_name = 'text' and is_nullable = 'NO')
+          or (column_name = 'unsubscribe_token' and udt_name = 'uuid' and is_nullable = 'NO'
+            and column_default like '%gen_random_uuid()%')
+          or (column_name = 'is_active' and udt_name = 'bool' and is_nullable = 'NO' and column_default = 'true')
+          or (column_name = 'last_sent_at' and udt_name = 'timestamptz')
+          or (column_name = 'created_at' and udt_name = 'timestamptz' and is_nullable = 'NO')
+        )) as columns,
+      (select count(*)::int from pg_index
+        where indrelid = to_regclass('public.weekly_digest_subscribers')
+          and indisunique and indisvalid and indisready and indpred is null and indnkeyatts = 1
+          and ((indexrelid = to_regclass('public.weekly_digest_email_idx') and pg_get_indexdef(indexrelid, 1, true) = 'email')
+            or (indexrelid = to_regclass('public.weekly_digest_unsub_token_idx') and pg_get_indexdef(indexrelid, 1, true) = 'unsubscribe_token'))
+      ) as unique_indexes
+  `;
+  if (digestSchema?.columns !== 6 || digestSchema.unique_indexes !== 2) {
+    throw new Error("Could not verify weekly digest subscribers and unique indexes.");
+  }
+  console.log("[amber-migrate] Verified weekly digest subscribers.");
+
+  const [saveSchema] = await sql`
+    select exists (
+      select 1 from pg_constraint
+      where conrelid = to_regclass('public.user_valuation_saves') and contype = 'p' and convalidated
+        and pg_get_constraintdef(oid) = 'PRIMARY KEY (id)'
+    ) as primary_key,
+    (select count(*)::int from pg_constraint
+      where conrelid = to_regclass('public.user_valuation_saves') and contype = 'f' and convalidated
+        and confdeltype = 'c' and (
+          (confrelid = to_regclass('public."user"') and pg_get_constraintdef(oid) like 'FOREIGN KEY (user_id) REFERENCES %')
+          or (confrelid = to_regclass('public.companies') and pg_get_constraintdef(oid) like 'FOREIGN KEY (ticker) REFERENCES %')
+        )) as ownership_references
+  `;
+  if (!saveSchema?.primary_key || saveSchema.ownership_references !== 2) {
+    throw new Error("Could not verify valuation save receipts.");
+  }
+  console.log("[amber-migrate] Verified valuation save receipts.");
 }
 
 await migrate();

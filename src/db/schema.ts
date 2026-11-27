@@ -378,6 +378,16 @@ export const userValuationHistory = pgTable(
   ]
 );
 
+export const userValuationSaves = pgTable(
+  "user_valuation_saves",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    ticker: text("ticker").notNull().references(() => companies.ticker, { onDelete: "cascade" }),
+  },
+  (table) => [index("user_valuation_saves_user_idx").on(table.userId)]
+);
+
 export const userAlertPreferences = pgTable("user_alert_preferences", {
   userId: text("user_id")
     .primaryKey()
@@ -439,3 +449,21 @@ export const userPortfolios = pgTable("user_portfolios", {
     .defaultNow()
     .notNull(),
 });
+
+export const weeklyDigestSubscribers = pgTable(
+  "weekly_digest_subscribers",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    unsubscribeToken: uuid("unsubscribe_token").defaultRandom().notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("weekly_digest_email_idx").on(table.email),
+    uniqueIndex("weekly_digest_unsub_token_idx").on(table.unsubscribeToken),
+  ]
+);

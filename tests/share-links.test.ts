@@ -61,17 +61,17 @@ test("uses the explicitly selected valuation model when both sets of assumptions
 });
 
 test("rejects comparison slugs with missing, unknown, or repeated companies", () => {
-  const available = new Set(["NVDA", "AMD", "MSFT", "AAPL", "COST"]);
+  const available = new Set(["NVDA", "AMD", "MSFT", "AAPL", "COST", "META"]);
   assert.deepEqual(resolveComparisonTickers("nvda-vs-amd", available), ["NVDA", "AMD"]);
-  assert.deepEqual(resolveComparisonTickers("NVDA-vs-AMD-vs-MSFT-vs-AAPL", available), [
-    "NVDA", "AMD", "MSFT", "AAPL",
+  assert.deepEqual(resolveComparisonTickers("NVDA-vs-AMD-vs-MSFT-vs-AAPL-vs-COST", available), [
+    "NVDA", "AMD", "MSFT", "AAPL", "COST",
   ]);
   for (const slug of [
     "NVDA",
     "NVDA-vs-NOTREAL",
     "NVDA-vs-nvda",
     "NVDA-vs--vs-AMD",
-    "NVDA-vs-AMD-vs-MSFT-vs-AAPL-vs-COST",
+    "NVDA-vs-AMD-vs-MSFT-vs-AAPL-vs-COST-vs-META",
   ]) {
     assert.deepEqual(resolveComparisonTickers(slug, available), [], slug);
   }

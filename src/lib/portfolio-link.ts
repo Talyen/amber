@@ -1,3 +1,6 @@
+export const MAX_PORTFOLIO_HOLDINGS = 40;
+export const PORTFOLIO_HOLDING_LIMIT_MESSAGE = `A portfolio can contain up to ${MAX_PORTFOLIO_HOLDINGS} holdings.`;
+
 export function parsePortfolioHoldings(
   value: string,
   knownTickers: ReadonlyMap<string, unknown>

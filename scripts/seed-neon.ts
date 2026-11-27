@@ -13,7 +13,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, notInArray, sql } from "drizzle-orm";
 import {
   annualFinancials,
   companies,
@@ -109,6 +109,7 @@ async function run() {
 
   // Keep existing quotes; sync-prices owns market data updates after the first insert.
   // Replace each company's financial window in the same transaction as its filing metadata.
+  let seededCompanyCount = 0;
   let seededAnnualCount = 0;
   const fresh = validSnapshots.filter((company) => !company.edgarFallback);
   const fallback = validSnapshots.filter((company) => company.edgarFallback);
@@ -170,65 +171,101 @@ async function run() {
     if (batch[0].edgarFallback) {
       // A concurrent insert aborts this whole batch, preserving the newer row.
       await db.batch([insertCompanies, insertAnnuals]);
+      seededCompanyCount += batch.length;
       seededAnnualCount += annualRows.length;
       continue;
     }
 
-    const olderFiling = sql`(excluded.last_filing_period_end, excluded.last_filing_date) <
-      (${companies.lastFilingPeriodEnd}, ${companies.lastFilingDate})`;
-    await db.batch([
-      insertCompanies.onConflictDoUpdate({
-        target: companies.ticker,
-        set: {
-          cik: sql`excluded.cik`,
-          name: sql`excluded.name`,
-          exchange: sql`excluded.exchange`,
-          sector: sql`excluded.sector`,
-          tagline: sql`excluded.tagline`,
-          cashAndEquiv: sql`excluded.cash_and_equiv`,
-          totalDebt: sql`excluded.total_debt`,
-          lastFilingType: sql`case when ${olderFiling} then ${companies.lastFilingType} else excluded.last_filing_type end`,
-          lastFilingDate: sql`case when ${olderFiling} then ${companies.lastFilingDate} else excluded.last_filing_date end`,
-          lastFilingPeriodEnd: sql`case when ${olderFiling} then ${companies.lastFilingPeriodEnd} else excluded.last_filing_period_end end`,
-          lastFilingAccession: sql`case when ${olderFiling} then ${companies.lastFilingAccession} else excluded.last_filing_accession end`,
-          defaultDcf: sql`excluded.default_dcf`,
-          quarterlyFinancials: sql`excluded.quarterly_financials`,
-          isActive: true,
-          updatedAt: sql`excluded.updated_at`,
-        },
-      }),
-      insertAnnuals.onConflictDoUpdate({
-        target: annualFinancials.id,
-        set: {
-          sortOrder: sql`excluded.sort_order`,
-          revenue: sql`excluded.revenue`,
-          operatingCashFlow: sql`excluded.operating_cash_flow`,
-          capex: sql`excluded.capex`,
-          sbc: sql`excluded.sbc`,
-          buybacks: sql`excluded.buybacks`,
-          dilutedShares: sql`excluded.diluted_shares`,
-          grossProfit: sql`excluded.gross_profit`,
-          rdExpense: sql`excluded.rd_expense`,
-          sgaExpense: sql`excluded.sga_expense`,
-          operatingIncome: sql`excluded.operating_income`,
-          netIncome: sql`excluded.net_income`,
-          stockholdersEquity: sql`excluded.stockholders_equity`,
-          depreciationAmortization: sql`excluded.depreciation_amortization`,
-          goodwillIntangibles: sql`excluded.goodwill_intangibles`,
-          dividendsPaid: sql`excluded.dividends_paid`,
-          periodEndDate: sql`excluded.period_end_date`,
-          cashAndEquiv: sql`excluded.cash_and_equiv`,
-          totalDebt: sql`excluded.total_debt`,
-        },
-      }),
-      db.delete(annualFinancials).where(
-        and(
-          inArray(annualFinancials.ticker, batch.map((c) => c.ticker)),
-          notInArray(annualFinancials.id, annualRows.map((row) => row.id))
-        )
+    const accepted = insertCompanies.onConflictDoUpdate({
+      target: companies.ticker,
+      setWhere: sql`(excluded.last_filing_period_end, excluded.last_filing_date) >=
+        (${companies.lastFilingPeriodEnd}, ${companies.lastFilingDate})`,
+      set: {
+        cik: sql`excluded.cik`,
+        name: sql`excluded.name`,
+        exchange: sql`excluded.exchange`,
+        sector: sql`excluded.sector`,
+        tagline: sql`excluded.tagline`,
+        cashAndEquiv: sql`excluded.cash_and_equiv`,
+        totalDebt: sql`excluded.total_debt`,
+        lastFilingType: sql`excluded.last_filing_type`,
+        lastFilingDate: sql`excluded.last_filing_date`,
+        lastFilingPeriodEnd: sql`excluded.last_filing_period_end`,
+        lastFilingAccession: sql`excluded.last_filing_accession`,
+        defaultDcf: sql`excluded.default_dcf`,
+        quarterlyFinancials: sql`excluded.quarterly_financials`,
+        isActive: true,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+
+    const columns = Object.entries(getTableColumns(annualFinancials));
+    const records = annualRows.map((row) => Object.fromEntries(
+      columns.map(([key, column]) => [column.name, row[key as keyof typeof row]])
+    ));
+    const incomingColumns = columns.map(([, column]) => sql`incoming.${sql.identifier(column.name)}`);
+    const written = db.insert(annualFinancials).select(sql`
+      select ${sql.join(incomingColumns, sql`, `)}
+      from incoming join accepted on incoming.ticker = accepted.ticker
+    `).onConflictDoUpdate({
+      target: annualFinancials.id,
+      set: {
+        sortOrder: sql`excluded.sort_order`,
+        revenue: sql`excluded.revenue`,
+        operatingCashFlow: sql`excluded.operating_cash_flow`,
+        capex: sql`excluded.capex`,
+        sbc: sql`excluded.sbc`,
+        buybacks: sql`excluded.buybacks`,
+        dilutedShares: sql`excluded.diluted_shares`,
+        grossProfit: sql`excluded.gross_profit`,
+        rdExpense: sql`excluded.rd_expense`,
+        sgaExpense: sql`excluded.sga_expense`,
+        operatingIncome: sql`excluded.operating_income`,
+        netIncome: sql`excluded.net_income`,
+        stockholdersEquity: sql`excluded.stockholders_equity`,
+        depreciationAmortization: sql`excluded.depreciation_amortization`,
+        goodwillIntangibles: sql`excluded.goodwill_intangibles`,
+        dividendsPaid: sql`excluded.dividends_paid`,
+        periodEndDate: sql`excluded.period_end_date`,
+        cashAndEquiv: sql`excluded.cash_and_equiv`,
+        totalDebt: sql`excluded.total_debt`,
+      },
+    }).returning({ id: annualFinancials.id });
+
+    const filingDates = JSON.stringify(companyRows.map((row) => ({
+      ticker: row.ticker,
+      filing_period_end: row.lastFilingPeriodEnd,
+      filing_date: row.lastFilingDate,
+    })));
+    // The upsert holds each company lock until commit. Reading in a new statement
+    // lets a waiting seed also see periods committed by an earlier seed.
+    const [, result] = await db.batch([accepted, db.execute<{ companies: number; written: number }>(sql`
+      with accepted as (
+        select ${companies.ticker}
+        from ${companies}
+        join jsonb_to_recordset(${filingDates}::jsonb) as snapshot(ticker text, filing_period_end text, filing_date text)
+          on snapshot.ticker = ${companies.ticker}
+          and (snapshot.filing_period_end, snapshot.filing_date) =
+            (${companies.lastFilingPeriodEnd}, ${companies.lastFilingDate})
       ),
-    ]);
-    seededAnnualCount += annualRows.length;
+      incoming as (
+        select * from jsonb_populate_recordset(null::${annualFinancials}, ${JSON.stringify(records)}::jsonb)
+      ),
+      written as ${written},
+      pruned as (
+        delete from ${annualFinancials}
+        using accepted
+        where ${annualFinancials.ticker} = accepted.ticker
+          and not exists (select 1 from incoming where incoming.id = ${annualFinancials.id})
+      )
+      select (select count(*)::int from accepted) as companies, count(*)::int as written from written
+    `)]);
+    seededCompanyCount += result.rows[0].companies;
+    seededAnnualCount += result.rows[0].written;
+  }
+  const staleCount = validSnapshots.length - seededCompanyCount;
+  if (staleCount > 0) {
+    console.warn(`[amber-seed] Preserved newer snapshots for ${staleCount} ticker(s).`);
   }
 
   // Batch filing diffs without deleting previously extracted prose.
@@ -293,7 +330,7 @@ async function run() {
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(
-    `[amber-seed] ✓ Batch-seeded ${validSnapshots.length} companies (${seededAnnualCount} financial periods, ${diffRows.length + fallbackDiffRows.length} diffs) into Neon in ${elapsed}s.`
+    `[amber-seed] ✓ Batch-seeded ${seededCompanyCount} companies (${seededAnnualCount} financial periods, ${diffRows.length + fallbackDiffRows.length} diffs) into Neon in ${elapsed}s.`
   );
 }
 

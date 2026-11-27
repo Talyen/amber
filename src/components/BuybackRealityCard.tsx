@@ -6,6 +6,7 @@ import {
 } from "@/lib/finance";
 
 interface BuybackRealityCardProps {
+  showFcf?: boolean;
   series: ComputedAnnual[];
   marketCap: number;
 }
@@ -13,6 +14,7 @@ interface BuybackRealityCardProps {
 export function BuybackRealityCard({
   series,
   marketCap,
+  showFcf = true,
 }: BuybackRealityCardProps) {
   // Exclude TTM when summing multi-year cumulative FY totals so we don't double-count
   const fyOnly = series.filter((r) => r.fiscalYear !== "TTM");
@@ -29,7 +31,7 @@ export function BuybackRealityCard({
   const totalShareholderYieldPct =
     marketCap > 0 ? (latestNetReturn / marketCap) * 100 : 0;
   const payoutVsTrueFcf =
-    latestDividends > 0 && latest.trueFcf > 0
+    showFcf && latestDividends > 0 && latest.trueFcf > 0
       ? (latestDividends / latest.trueFcf) * 100
       : null;
 

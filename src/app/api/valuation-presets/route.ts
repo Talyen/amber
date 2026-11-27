@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { companies, userValuationHistory, userValuationPresets } from "@/db/schema";
+import { companies, userValuationHistory, userValuationPresets, userValuationSaves } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import {
-  isMeaningfulThesisChange,
   normalizeValuationPresetInput,
+  thesisHistoryId,
   type SavedScenarioLens,
 } from "@/lib/valuation-presets";
 
@@ -38,6 +38,11 @@ function serializeHistoryRow(row: typeof userValuationHistory.$inferSelect) {
     filingDateAtSave: row.filingDateAtSave ?? null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function lockThesis(userId: string, ticker: string) {
+  const key = `amber-thesis:${JSON.stringify([userId, ticker])}`;
+  return sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
 }
 
 export async function GET(request: Request) {
@@ -101,7 +106,7 @@ export async function GET(request: Request) {
               eq(userValuationHistory.ticker, ticker)
             )
           )
-          .orderBy(desc(userValuationHistory.createdAt))
+          .orderBy(desc(userValuationHistory.createdAt), desc(userValuationHistory.id))
           .limit(15);
         history = histRows.map(serializeHistoryRow);
       } catch {
@@ -145,6 +150,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Invalid valuation assumptions." }, { status: 400 });
   }
 
+  const saveId = (body as { saveId?: unknown }).saveId;
+  const snapshotId = typeof saveId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(saveId)
+    ? thesisHistoryId(userId, normalized.ticker, saveId)
+    : null;
+
   const [exists] = await db
     .select({
       ticker: companies.ticker,
@@ -158,96 +169,80 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: `Unknown ticker: ${normalized.ticker}.` }, { status: 404 });
   }
 
-  const now = new Date();
-  await db
-    .insert(userValuationPresets)
-    .values({
-      id: `${userId}:${normalized.ticker}`,
-      userId,
-      ticker: normalized.ticker,
-      lens: normalized.lens,
-      revGrowth: normalized.revGrowth,
-      targetMargin: normalized.targetMargin,
-      exitMultiple: normalized.exitMultiple,
-      thesisNote: normalized.thesisNote ?? null,
-      isPublic: normalized.isPublic === true,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [userValuationPresets.userId, userValuationPresets.ticker],
-      set: {
-        lens: normalized.lens,
-        revGrowth: normalized.revGrowth,
-        targetMargin: normalized.targetMargin,
-        exitMultiple: normalized.exitMultiple,
-        thesisNote: normalized.thesisNote ?? null,
-        isPublic: normalized.isPublic === true,
-        updatedAt: now,
-      },
-    });
-
-  // Append a Decision Journal snapshot when assumptions or notes change
-  let historyEntry: ReturnType<typeof serializeHistoryRow> | null = null;
-  try {
-    const [latestHist] = await db
-      .select()
-      .from(userValuationHistory)
-      .where(
-        and(
-          eq(userValuationHistory.userId, userId),
-          eq(userValuationHistory.ticker, normalized.ticker)
-        )
+  const { ticker, lens, revGrowth, targetMargin, exitMultiple } = normalized;
+  const thesisNote = normalized.thesisNote ?? null;
+  const historyId = snapshotId ?? randomUUID();
+  const writes = sql`
+    with claimed as (
+      insert into ${userValuationSaves} (id, user_id, ticker)
+      select ${historyId}, ${userId}, ${ticker}
+      where ${snapshotId !== null} and not exists (
+        select 1 from ${userValuationHistory} where id = ${historyId}
       )
-      .orderBy(desc(userValuationHistory.createdAt))
-      .limit(1);
+      on conflict (id) do nothing
+      returning id
+    ),
+    previous as (
+      select lens, rev_growth, target_margin, exit_multiple, thesis_note
+      from ${userValuationHistory}
+      where user_id = ${userId} and ticker = ${ticker}
+      order by created_at desc, id desc
+      limit 1
+    ),
+    saved as (
+      insert into ${userValuationPresets}
+        (id, user_id, ticker, lens, rev_growth, target_margin, exit_multiple, thesis_note, is_public, updated_at)
+      select ${`${userId}:${ticker}`}, ${userId}, ${ticker}, ${lens}, ${revGrowth}, ${targetMargin},
+        ${exitMultiple}, ${thesisNote}, ${normalized.isPublic === true}, statement_timestamp()
+      where ${snapshotId === null} or exists (select 1 from claimed)
+      on conflict (user_id, ticker) do update set
+        lens = excluded.lens, rev_growth = excluded.rev_growth, target_margin = excluded.target_margin,
+        exit_multiple = excluded.exit_multiple, thesis_note = excluded.thesis_note,
+        is_public = excluded.is_public, updated_at = excluded.updated_at
+      returning *
+    )
+    insert into ${userValuationHistory}
+      (id, user_id, ticker, lens, rev_growth, target_margin, exit_multiple, thesis_note,
+       price_at_save, filing_date_at_save, created_at)
+    select ${historyId}, user_id, ticker, lens, rev_growth, target_margin, exit_multiple, thesis_note,
+      ${Number.isFinite(exists.price) ? exists.price : null}, ${exists.lastFilingDate}, updated_at
+    from saved
+    where not exists (
+      select 1 from previous
+      where (previous.lens, previous.rev_growth, previous.target_margin, previous.exit_multiple, previous.thesis_note)
+        is not distinct from (saved.lens, saved.rev_growth, saved.target_margin, saved.exit_multiple, saved.thesis_note)
+    )
+  `;
 
-    const prevComparable = latestHist
-      ? {
-          lens: (latestHist.lens === "ebit" || latestHist.lens === "pe" ? latestHist.lens : "fcf") as SavedScenarioLens,
-          revGrowth: latestHist.revGrowth,
-          targetMargin: latestHist.targetMargin,
-          exitMultiple: latestHist.exitMultiple,
-          thesisNote: latestHist.thesisNote ?? null,
-        }
-      : null;
-
-    if (isMeaningfulThesisChange(prevComparable, normalized)) {
-      const id = randomUUID();
-      await db.insert(userValuationHistory).values({
-        id,
-        userId,
-        ticker: normalized.ticker,
-        lens: normalized.lens,
-        revGrowth: normalized.revGrowth,
-        targetMargin: normalized.targetMargin,
-        exitMultiple: normalized.exitMultiple,
-        thesisNote: normalized.thesisNote ?? null,
-        priceAtSave: Number.isFinite(exists.price) ? exists.price : null,
-        filingDateAtSave: exists.lastFilingDate ?? null,
-        createdAt: now,
-      });
-      historyEntry = {
-        id,
-        ticker: normalized.ticker,
-        lens: normalized.lens,
-        revGrowth: normalized.revGrowth,
-        targetMargin: normalized.targetMargin,
-        exitMultiple: normalized.exitMultiple,
-        thesisNote: normalized.thesisNote ?? null,
-        priceAtSave: Number.isFinite(exists.price) ? exists.price : null,
-        filingDateAtSave: exists.lastFilingDate ?? null,
-        createdAt: now.toISOString(),
-      };
+  try {
+    // Batch runs in one transaction. Taking the lock in its own statement gives a
+    // waiting save a fresh snapshot of the journal and receipts after it acquires the lock.
+    const [, , [preset], [historyEntry]] = await db.batch([
+      db.execute(lockThesis(userId, ticker)),
+      db.execute(writes),
+      db.select().from(userValuationPresets)
+        .where(and(eq(userValuationPresets.userId, userId), eq(userValuationPresets.ticker, ticker)))
+        .limit(1),
+      db.select().from(userValuationHistory)
+        .where(and(eq(userValuationHistory.userId, userId), eq(userValuationHistory.ticker, ticker)))
+        .orderBy(desc(sql`${userValuationHistory.id} = ${historyId}`), desc(userValuationHistory.createdAt),
+          desc(userValuationHistory.id))
+        .limit(1),
+    ]);
+    if (!preset) {
+      return NextResponse.json({ error: "This thesis has been deleted." }, { status: 409 });
     }
-  } catch {
-    // History table is additive; never fail the primary thesis save
+    return NextResponse.json({
+      ok: true,
+      preset: serializePreset(preset),
+      ...(historyEntry && (snapshotId || historyEntry.id === historyId)
+        ? { historyEntry: serializeHistoryRow(historyEntry) }
+        : {}),
+    });
+  } catch (error) {
+    console.error("[valuation-presets] Save failed:", error);
+    return NextResponse.json({ error: "Could not save thesis." }, { status: 503 });
   }
-
-  return NextResponse.json({
-    ok: true,
-    preset: { ...normalized, updatedAt: now.toISOString() },
-    ...(historyEntry ? { historyEntry } : {}),
-  });
 }
 
 export async function DELETE(request: Request) {
@@ -268,14 +263,11 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Invalid ticker." }, { status: 400 });
   }
 
-  await db
-    .delete(userValuationPresets)
-    .where(
-      and(
-        eq(userValuationPresets.userId, userId),
-        eq(userValuationPresets.ticker, ticker)
-      )
-    );
+  await db.batch([
+    db.execute(lockThesis(userId, ticker)),
+    db.delete(userValuationPresets)
+      .where(and(eq(userValuationPresets.userId, userId), eq(userValuationPresets.ticker, ticker))),
+  ]);
 
   return NextResponse.json({ ok: true, deleted: ticker });
 }

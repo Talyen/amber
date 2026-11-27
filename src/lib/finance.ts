@@ -458,6 +458,13 @@ export function reverseDcfTargetMargin(targetFcfMargin: number, sbcDragPct: numb
 
 export type ScenarioLens = "fcf" | "ebit" | "pe";
 
+export interface ScenarioAssumptions {
+  lens: ScenarioLens;
+  revGrowth: number;
+  targetMargin: number;
+  exitMultiple: number;
+}
+
 export interface ScenarioBasis {
   price: number;
   dilutedShares: number;
@@ -496,12 +503,7 @@ export function buildScenarioBasis(company: Pick<CompanySnapshot,
 
 export function computeScenarioProjection(
   basis: ScenarioBasis,
-  { lens, revGrowth, targetMargin, exitMultiple }: {
-    lens: ScenarioLens;
-    revGrowth: number;
-    targetMargin: number;
-    exitMultiple: number;
-  }
+  { lens, revGrowth, targetMargin, exitMultiple }: ScenarioAssumptions,
 ): FiveYearScenarioResult | null {
   const currentMargin = lens === "pe" ? basis.netMargin
     : lens === "ebit" ? basis.operatingMargin : basis.trueFcfMargin;

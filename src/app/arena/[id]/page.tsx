@@ -14,6 +14,7 @@ import {
 } from "@/components/ArenaScorecardActions";
 import { formatPct } from "@/lib/finance";
 import { arenaPortfolioAnalysisHref } from "@/lib/portfolio-link";
+import { SITE_URL } from "@/lib/site";
 
 export const revalidate = 21600;
 
@@ -26,9 +27,14 @@ export async function generateMetadata({
   const portfolio = await getArenaPortfolioById(id);
   if (!portfolio) return { title: "Portfolio Not Found" };
 
+  const title = `${portfolio.title} (${portfolio.handle}) | Arena`;
+  const description = `Amber Arena portfolio started ${portfolio.lockedAt.slice(0, 10)}: ${formatPct(portfolio.totalReturnPct, true)} return.`;
+  const canonicalUrl = `${SITE_URL}/arena/${portfolio.id}`;
   return {
-    title: `${portfolio.title} (${portfolio.handle}) | Arena`,
-    description: `Amber Arena portfolio started ${portfolio.lockedAt.slice(0, 10)}: ${formatPct(portfolio.totalReturnPct, true)} return.`,
+    title,
+    description,
+    alternates: { canonical: canonicalUrl },
+    openGraph: { title, description, url: canonicalUrl },
   };
 }
 

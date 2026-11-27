@@ -1,8 +1,5 @@
-import { computeScenarioProjection, type ScenarioBasis } from "./finance.ts";
-import {
-  computePresetExpectedReturn,
-  type SavedValuationPreset,
-} from "./valuation-presets.ts";
+import { computeScenarioProjection, type ScenarioAssumptions, type ScenarioBasis } from "./finance.ts";
+import type { SavedValuationPreset } from "./valuation-presets.ts";
 
 export interface StressHoldingInput {
   ticker: string;
@@ -11,6 +8,7 @@ export interface StressHoldingInput {
   sbcPctRevenue: number;
   netDilutionCagr: number;
   scenarioBasis: ScenarioBasis;
+  baseScenario?: ScenarioAssumptions;
 }
 
 export interface PortfolioStressInputs {
@@ -30,6 +28,10 @@ export interface PortfolioStressResult {
   stressedThesisIrrPct: number | null;
   thesisIrrDeltaPct: number | null;
   thesisCoveredCount: number;
+  /** Allocation-weighted five-year IRR using saved theses and Studio defaults. */
+  stressedModelIrrPct: number | null;
+  modelIrrDeltaPct: number | null;
+  irrSource: "theses" | "mixed" | "base" | null;
 }
 
 export interface SbcAttributionRow {
@@ -70,49 +72,51 @@ export function computePortfolioStress(
   let baseIrrSum = 0;
   let stressedIrrSum = 0;
   let thesisCoveredCount = 0;
+  let modelIrrWeight = 0;
+  let modelBaseIrrSum = 0;
+  let modelStressedIrrSum = 0;
+  let baseFallbackCount = 0;
 
   const multFactor = 1 + multCompression / 100;
+  // Approximate duration-weighted repricing with a five-year growth haircut.
+  const growthFactor = Math.pow(1 - growthHaircut / 100, 5);
 
   for (const h of holdings) {
     const w = normalizedWeights.get(h.ticker) ?? 0;
     if (w <= 0) continue;
     totalWeight += w;
 
-    // Approximate duration-weighted repricing: multiple compression + 5Y compounded growth haircut
-    const growthFactor =
-      growthHaircut > 0
-        ? Math.pow(Math.max(0.5, 1 - growthHaircut / 100), 5)
-        : 1;
-    // Higher priced-in growth stocks carry slightly higher duration sensitivity
-    const durationSensitivity =
-      h.impliedCagr !== null && h.impliedCagr > 15 ? 1.15 : 1.0;
-    const baseHoldingShock = Math.max(
-      -0.85,
-      (multFactor * growthFactor - 1) * durationSensitivity
-    );
-    const holdingReturn =
-      h.ticker === topHoldingTicker
-        ? (1 + baseHoldingShock) * (1 + topShock / 100) - 1
-        : baseHoldingShock;
-
+    // Higher priced-in growth stocks have slightly higher duration sensitivity.
+    const durationSensitivity = h.impliedCagr !== null && h.impliedCagr > 15 ? 1.15 : 1;
+    const topHoldingFactor = h.ticker === topHoldingTicker ? 1 + topShock / 100 : 1;
+    const baseHoldingShock = Math.max(-0.85, (multFactor * growthFactor - 1) * durationSensitivity);
+    const holdingReturn = (1 + baseHoldingShock) * topHoldingFactor - 1;
     weightedDrawdown += holdingReturn * 100 * w;
 
     const preset = presetsByTicker[h.ticker];
-    if (preset) {
-      const baseProj = computePresetExpectedReturn(preset, h);
-      const stressedScenario = computeScenarioProjection(h.scenarioBasis, {
-        lens: preset.lens,
-        revGrowth: Math.max(-10, preset.revGrowth - growthHaircut),
-        targetMargin: preset.targetMargin,
-        exitMultiple: Math.max(4, preset.exitMultiple * multFactor),
-      });
-      if (baseProj && stressedScenario && stressedScenario.irrPct !== null) {
-        thesisCoveredCount++;
-        baseIrrWeight += w;
-        baseIrrSum += baseProj.irrPct * w;
-        stressedIrrSum += stressedScenario.irrPct * w;
-      }
+    const thesisIrr = preset ? computeScenarioProjection(h.scenarioBasis, preset)?.irrPct : null;
+    const usesThesis = thesisIrr != null;
+    const assumptions = usesThesis ? preset : h.baseScenario;
+    if (!assumptions) continue;
+    const baseIrr = thesisIrr ?? computeScenarioProjection(h.scenarioBasis, assumptions)?.irrPct;
+    const stressedIrr = computeScenarioProjection(h.scenarioBasis, {
+      ...assumptions,
+      revGrowth: Math.max(-10, assumptions.revGrowth - growthHaircut),
+      exitMultiple: assumptions.exitMultiple * multFactor * topHoldingFactor,
+    })?.irrPct;
+    if (baseIrr == null || stressedIrr == null) continue;
+
+    if (usesThesis) {
+      thesisCoveredCount++;
+      baseIrrWeight += w;
+      baseIrrSum += baseIrr * w;
+      stressedIrrSum += stressedIrr * w;
+    } else {
+      baseFallbackCount++;
     }
+    modelIrrWeight += w;
+    modelBaseIrrSum += baseIrr * w;
+    modelStressedIrrSum += stressedIrr * w;
   }
 
   const estimatedDrawdownPct =
@@ -126,6 +130,23 @@ export function computePortfolioStress(
       ? Number((stressedThesisIrrPct - baseThesisIrrPct).toFixed(1))
       : null;
 
+  const baseModelIrrPct =
+    modelIrrWeight > 0 ? Number((modelBaseIrrSum / modelIrrWeight).toFixed(1)) : null;
+  const stressedModelIrrPct =
+    modelIrrWeight > 0 ? Number((modelStressedIrrSum / modelIrrWeight).toFixed(1)) : null;
+  const modelIrrDeltaPct =
+    baseModelIrrPct !== null && stressedModelIrrPct !== null
+      ? Number((stressedModelIrrPct - baseModelIrrPct).toFixed(1))
+      : null;
+  const irrSource: PortfolioStressResult["irrSource"] =
+    thesisCoveredCount > 0 && baseFallbackCount > 0
+      ? "mixed"
+      : thesisCoveredCount > 0
+        ? "theses"
+        : baseFallbackCount > 0
+          ? "base"
+          : null;
+
   return {
     estimatedDrawdownPct,
     topHoldingTicker,
@@ -134,6 +155,9 @@ export function computePortfolioStress(
     stressedThesisIrrPct,
     thesisIrrDeltaPct,
     thesisCoveredCount,
+    stressedModelIrrPct,
+    modelIrrDeltaPct,
+    irrSource,
   };
 }
 

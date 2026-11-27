@@ -6,6 +6,7 @@ import {
   computeRevenueCagr,
   computeShareholderYieldMetrics,
   type CompanySnapshot,
+  type ScenarioAssumptions,
   type ScenarioBasis,
 } from "../lib/finance.ts";
 import { normalizeCompanyName } from "../lib/company-name.ts";
@@ -40,6 +41,48 @@ export interface SearchIndexEntry {
   lastFilingDate: string;
 }
 
+export interface SearchIndexEntryWithBaseScenario extends SearchIndexEntry {
+  baseScenario?: ScenarioAssumptions;
+}
+
+export function toSearchIndexEntry({ baseScenario: _baseScenario, ...entry }: SearchIndexEntryWithBaseScenario): SearchIndexEntry {
+  return entry;
+}
+
+export function toCommandSearchEntry({
+  ticker, name, sector, marketCap, trueFcf, sbcPctRevenue,
+}: SearchIndexEntry) {
+  return { ticker, name, sector, marketCap, trueFcf, sbcPctRevenue };
+}
+
+export type CommandSearchEntry = ReturnType<typeof toCommandSearchEntry>;
+
+export function toExploreEntry({
+  ticker, name, sector, price, marketCap, revenue, revenueCagr, trueFcf, trueFcfMargin,
+  sbcPctRevenue, netDilutionCagr, impliedCagr, scenarioBasis, fairValue, fairValueUpsidePct,
+  shareholderYieldPct, priceToTbv, rotcePct, priceToFfo,
+}: SearchIndexEntry) {
+  return {
+    ticker, name, sector, price, marketCap, revenue, revenueCagr, trueFcf, trueFcfMargin,
+    sbcPctRevenue, netDilutionCagr, impliedCagr, scenarioBasis, fairValue, fairValueUpsidePct,
+    shareholderYieldPct, priceToTbv, rotcePct, priceToFfo,
+  };
+}
+
+export type ExploreEntry = ReturnType<typeof toExploreEntry>;
+
+export function toPortfolioEntry({
+  ticker, name, sector, priceAsOf, impliedCagr, trueFcfMargin, sbcPctRevenue,
+  netDilutionCagr, revenueCagr, scenarioBasis, baseScenario,
+}: SearchIndexEntryWithBaseScenario) {
+  return {
+    ticker, name, sector, priceAsOf, impliedCagr, trueFcfMargin, sbcPctRevenue,
+    netDilutionCagr, revenueCagr, scenarioBasis, baseScenario,
+  };
+}
+
+export type PortfolioEntry = ReturnType<typeof toPortfolioEntry>;
+
 type SearchIndexCompany = Pick<
   CompanySnapshot,
   | "ticker"
@@ -56,7 +99,7 @@ type SearchIndexCompany = Pick<
   | "defaultDcf"
 > & { lastFiling: Pick<CompanySnapshot["lastFiling"], "date"> };
 
-export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexEntry {
+export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexEntryWithBaseScenario {
   const { latest, netDilutionCagr, reverseDcf } = computeCompanyValuation(company);
   const scenarioBasis = buildScenarioBasis(company);
   const baseCase = computeBaseCaseValuation(company, scenarioBasis);
@@ -72,6 +115,12 @@ export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexE
     price: company.price,
     priceAsOf: company.priceAsOf ?? null,
     scenarioBasis,
+    baseScenario: baseCase ? {
+      lens: baseCase.lens,
+      revGrowth: baseCase.revGrowthPct,
+      targetMargin: baseCase.targetMarginPct,
+      exitMultiple: baseCase.exitMultiple,
+    } : undefined,
     marketCap: company.marketCap,
     revenue: latest.revenue,
     revenueCagr: Number(revenueCagr.toFixed(1)),

@@ -24,9 +24,11 @@ import { selectFeaturedSignals } from "@/lib/featured-signals";
 import { useWatchlist } from "@/lib/watchlist";
 import { TopNav } from "@/components/TopNav";
 import { SiteFooter } from "@/components/SiteFooter";
+import { RssFeedBanner } from "@/components/RssFeedBanner";
 import { UpcomingFilingsPanel } from "@/components/UpcomingFilingsPanel";
 import { computeUpcomingFilings } from "@/lib/filing-calendar";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
+import { formatInsiderName, formatInsiderTitle } from "@/lib/insider-format";
 
 export interface FeedCompanyEntry {
   ticker: string;
@@ -889,9 +891,9 @@ export function SignalFeed({
                             </h3>
                           </div>
                           <p className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
-                            {cleanEntity(briefInsiderBuy.insiderName)}
+                            {formatInsiderName(briefInsiderBuy.insiderName)}
                             {briefInsiderBuy.insiderTitle
-                              ? ` (${cleanEntity(briefInsiderBuy.insiderTitle)})`
+                              ? ` (${formatInsiderTitle(briefInsiderBuy.insiderTitle)})`
                               : ""}
                           </p>
                         </Link>
@@ -1193,9 +1195,9 @@ export function SignalFeed({
                                 </span>
                               </div>
                               <div className="mt-1 truncate text-xs text-[var(--text-secondary)]">
-                                {cleanEntity(t.insiderName)}{" "}
+                                {formatInsiderName(t.insiderName)}{" "}
                                 <span className="text-[var(--text-muted)]">
-                                  ({cleanEntity(t.insiderTitle)})
+                                  ({formatInsiderTitle(t.insiderTitle)})
                                 </span>
                               </div>
                             </Link>
@@ -1318,6 +1320,8 @@ export function SignalFeed({
             )}
           </>
         )}
+
+        <RssFeedBanner />
 
         <SiteFooter />
       </main>
