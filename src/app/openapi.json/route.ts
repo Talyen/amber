@@ -1,287 +1,170 @@
-import { NextResponse } from "next/server";
-import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
+import { API_VERSION, REST_LIMIT, REST_WINDOW } from "@/lib/public-api";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const revalidate = 86400;
 
+const string = { type: "string" };
+const number = { type: "number" };
+const integer = { type: "integer" };
+const nullableNumber = { type: ["number", "null"] };
+const date = { type: "string", format: "date" };
+const uri = { type: "string", format: "uri" };
+const nullableUri = { type: ["string", "null"], format: "uri" };
+const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+const array = (items: object) => ({ type: "array", items });
+const fields = (properties: Record<string, object>) => ({
+  type: "object", required: Object.keys(properties), properties,
+});
+const limit = { type: "integer", minimum: 1, maximum: 50, default: 20 };
+
+const filingDiff = {
+  id: string, filing_type: string, filing_date: date, section: string,
+  category: string, materiality: string, headline: string, summary: string, url: uri,
+};
+const insiderBuy = {
+  filing_date: date, insider_name: string, insider_title: string,
+  shares: integer, price_per_share: number, total_value_m: number,
+};
+const companyMetrics = {
+  sbc_pct_revenue: number, net_dilution_4y_cagr_pct: number,
+  true_fcf_m: nullableNumber, true_fcf_margin_pct: nullableNumber,
+  implied_10y_revenue_cagr_pct: nullableNumber,
+};
+
+const schemas = {
+  ErrorResponse: fields({ code: string, error: string, message: string, resolution: string }),
+  CompanyFundamentalsResponse: fields({
+    ticker: string, name: string, exchange: string, sector: string, sector_slug: string, cik: string,
+    price_usd: number, price_as_of: { type: ["string", "null"], format: "date" },
+    market_cap_m: integer, enterprise_value_m: integer, cash_and_equiv_m: integer,
+    total_debt_m: integer, net_cash_m: integer, latest_period: string,
+    last_filing: fields({ type: string, date, accession_number: string }),
+    metrics: fields({
+      ...companyMetrics, revenue_m: integer, reported_fcf_m: nullableNumber,
+      sbc_m: integer, diluted_shares_m: number,
+    }),
+    recent_filing_diffs: array(fields(filingDiff)),
+    recent_insider_buys: array(fields(insiderBuy)),
+    urls: fields({
+      overview: uri, sbc_and_true_fcf: uri, valuation: uri, filings: uri, rss: uri,
+      embed_sankey: nullableUri, embed_true_fcf: nullableUri,
+    }),
+    attribution: string,
+  }),
+  ScreenerResponse: fields({
+    total_matches: integer, returned: integer,
+    companies: array(fields({
+      ticker: string, name: string, sector: string, market_cap_m: integer, ...companyMetrics, url: uri,
+    })),
+    explore_url: uri, attribution: string,
+  }),
+  SignalsResponse: fields({
+    filing_diffs: array(fields({ ...filingDiff, ticker: string, company_name: string })),
+    insider_buys: array(fields({ ...insiderBuy, id: string, ticker: string, url: uri })),
+    feed_url: uri, rss_url: uri,
+  }),
+};
+
+const responseHeaders = {
+  "X-API-Version": { description: "Active version.", schema: { type: "string", const: API_VERSION } },
+  "RateLimit-Policy": {
+    description: "Shared quota for legacy and v1 public REST endpoints, per client IP.",
+    schema: { type: "string", example: `public-api;q=${REST_LIMIT};w=${REST_WINDOW}` },
+  },
+  RateLimit: {
+    description: "Remaining quota units (r) and seconds until the current window resets (t).",
+    schema: { type: "string", example: "public-api;r=119;t=31" },
+  },
+  "RateLimit-Limit": { description: "Requests allowed per window.", schema: integer },
+  "RateLimit-Remaining": { description: "Requests remaining in the window.", schema: integer },
+  "RateLimit-Reset": { description: "Seconds until the window resets.", schema: integer },
+};
+const retryAfter = { "Retry-After": { description: "Seconds to wait before retrying.", schema: integer } };
+const content = (name: string) => ({ "application/json": { schema: ref(name) } });
+const error = (description: string, headers: object = responseHeaders) => ({
+  description, headers, content: content("ErrorResponse"),
+});
+const version = {
+  name: "X-API-Version", in: "header",
+  description: "Optional compatibility header. Omit it or send 1.0 when requesting v1.",
+  schema: { type: "string", enum: [API_VERSION], default: API_VERSION },
+};
+const query = (name: string, schema: object) => ({ name, in: "query", schema });
+
+function responses(name: string, invalid: string, markdown = false) {
+  return {
+    "200": {
+      description: "Successful response.",
+      headers: responseHeaders,
+      content: { ...content(name), ...(markdown && { "text/markdown": { schema: string } }) },
+    },
+    "400": error(invalid),
+    "429": error("API quota exceeded.", { ...responseHeaders, ...retryAfter }),
+    "500": error("Amber could not complete the request."),
+    "503": error("Quota storage is temporarily unavailable.", { "X-API-Version": responseHeaders["X-API-Version"], ...retryAfter }),
+  };
+}
+
 export function GET() {
-  const versionHeaderParam = {
-    name: "X-API-Version",
-    in: "header",
-    required: false,
-    description: "Optional API version header (current: 1.0). Breaking changes are announced via RFC 8594 Deprecation and Sunset headers with at least 90 days notice.",
-    schema: { type: "string", enum: ["1.0"], default: "1.0" },
-  };
-
-  const errorResponseRef = {
-    "application/json": {
-      schema: { $ref: "#/components/schemas/ErrorResponse" },
-    },
-  };
-
-  const rateLimitHeaders = {
-    "X-API-Version": {
-      description: "Active API version",
-      schema: { type: "string", example: "1.0" },
-    },
-    "RateLimit-Policy": {
-      description: "RFC RateLimit policy (requests per window in seconds)",
-      schema: { type: "string", example: "120;w=60" },
-    },
-    "RateLimit-Limit": {
-      description: "Maximum requests allowed in the current window",
-      schema: { type: "integer", example: 120 },
-    },
-    "RateLimit-Remaining": {
-      description: "Remaining requests in the current window",
-      schema: { type: "integer", example: 119 },
-    },
-  };
-
   const spec = {
     openapi: "3.1.0",
     info: {
-      title: `${SITE_NAME} Public Fundamental Data API`,
+      title: `${SITE_NAME} Stock Screener and SEC Filings API`,
       version: "1.0.0",
-      description: `${SITE_TAGLINE} Free, read-only, SEC EDGAR-verified JSON and Markdown endpoints for AI agents and researchers. Streamable HTTP MCP server available at ${SITE_URL}/api/mcp. Versioning & Deprecation Policy: versioned via the X-API-Version header (current 1.0); any breaking changes publish RFC 8594 Deprecation and Sunset headers at least 90 days before removal.`,
-      contact: {
-        name: "Amber Research",
-        email: "research@amberstocks.com",
-        url: `${SITE_URL}/contact`,
-      },
+      description: "Free, keyless, read-only US equity fundamentals, screening, and signals. Breaking contract changes use a new major version in the URL. Announced retirements use RFC 9745 Deprecation and RFC 8594 Sunset headers, with at least 90 days of notice.",
+      contact: { name: "Amber Research", email: "research@amberstocks.com", url: `${SITE_URL}/contact` },
     },
-    servers: [{ url: SITE_URL, description: "Production (v1.0)" }],
+    externalDocs: { description: "API quickstart, errors and deprecation policy", url: `${SITE_URL}/docs` },
+    servers: [{ url: SITE_URL }],
+    security: [],
     paths: {
-      "/api/public/t/{ticker}": {
+      "/api/v1/t/{ticker}": {
         get: {
           operationId: "getCompanyFundamentals",
-          summary: "Get SEC-verified True FCF, SBC, Dilution, Reverse DCF, and Filing Diffs for a ticker",
+          summary: "Get company fundamentals, filing diffs and insider purchases",
           parameters: [
             { name: "ticker", in: "path", required: true, schema: { type: "string", example: "NVDA" } },
-            {
-              name: "format",
-              in: "query",
-              required: false,
-              schema: { type: "string", enum: ["json", "markdown"] },
-            },
-            versionHeaderParam,
+            query("format", { type: "string", enum: ["json", "markdown"] }),
+            version,
           ],
           responses: {
-            "200": {
-              description: "Company fundamentals in JSON or text/markdown",
-              headers: rateLimitHeaders,
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/CompanyFundamentalsResponse" },
-                },
-                "text/markdown": {
-                  schema: { type: "string" },
-                },
-              },
-            },
-            "404": {
-              description: "Ticker not found in Amber coverage",
-              headers: rateLimitHeaders,
-              content: errorResponseRef,
-            },
-            "500": {
-              description: "Internal server error",
-              content: errorResponseRef,
-            },
+            ...responses("CompanyFundamentalsResponse", "Unsupported API version.", true),
+            "404": error("Ticker is outside Amber coverage."),
           },
         },
       },
-      "/api/public/screener": {
+      "/api/v1/screener": {
         get: {
           operationId: "screenCompanies",
-          summary: "Screen 700+ Nasdaq/NYSE companies by True FCF, SBC, Dilution, Reverse DCF, Sector, or Lens",
+          summary: "Screen companies by sector, lens, cash flow, dilution or valuation",
           parameters: [
-            { name: "lens", in: "query", schema: { type: "string" } },
-            { name: "sector", in: "query", schema: { type: "string" } },
-            { name: "minTrueFcfMargin", in: "query", schema: { type: "number" } },
-            { name: "maxSbcPct", in: "query", schema: { type: "number" } },
-            { name: "maxImpliedCagr", in: "query", schema: { type: "number" } },
-            { name: "maxDilution", in: "query", schema: { type: "number" } },
-            { name: "minMarketCapB", in: "query", schema: { type: "number" } },
-            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50 } },
-            versionHeaderParam,
+            query("lens", string), query("sector", string),
+            query("minTrueFcfMargin", number), query("maxSbcPct", number),
+            query("maxImpliedCagr", number), query("maxDilution", number),
+            query("minMarketCapB", number), query("limit", limit), version,
           ],
-          responses: {
-            "200": {
-              description: "Ranked matching companies with canonical Amber URLs",
-              headers: rateLimitHeaders,
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/ScreenerResponse" },
-                },
-              },
-            },
-            "400": {
-              description: "Invalid screener filter parameter",
-              headers: rateLimitHeaders,
-              content: errorResponseRef,
-            },
-            "500": {
-              description: "Internal server error",
-              content: errorResponseRef,
-            },
-          },
+          responses: responses("ScreenerResponse", "Unsupported API version or invalid screener filter."),
         },
       },
-      "/api/public/signals": {
+      "/api/v1/signals": {
         get: {
           operationId: "getRecentSignals",
-          summary: "Get recent SEC 10-K/10-Q filing diffs and open-market Form 4 insider buys",
+          summary: "Get recent 10-K and 10-Q filing diffs and open-market Form 4 purchases",
           parameters: [
-            { name: "ticker", in: "query", schema: { type: "string" } },
-            { name: "type", in: "query", schema: { type: "string", enum: ["all", "diffs", "insiders"] } },
-            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50 } },
-            versionHeaderParam,
+            query("ticker", string), query("type", { type: "string", enum: ["all", "diffs", "insiders"], default: "all" }),
+            query("limit", limit), version,
           ],
-          responses: {
-            "200": {
-              description: "Recent filing diffs and Form 4 open-market buys",
-              headers: rateLimitHeaders,
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/SignalsResponse" },
-                },
-              },
-            },
-            "400": {
-              description: "Invalid signal query parameter",
-              headers: rateLimitHeaders,
-              content: errorResponseRef,
-            },
-            "500": {
-              description: "Internal server error",
-              content: errorResponseRef,
-            },
-          },
+          responses: responses("SignalsResponse", "Unsupported API version or invalid signal query."),
         },
       },
     },
-    components: {
-      schemas: {
-        ErrorResponse: {
-          type: "object",
-          required: ["code", "message"],
-          properties: {
-            code: { type: "string", example: "ticker_not_found" },
-            error: { type: "string", example: "Ticker XYZ not found in Amber coverage." },
-            message: { type: "string", example: "Ticker XYZ not found in Amber coverage." },
-            resolution: { type: "string", example: "Query /api/public/screener to list covered tickers." },
-          },
-        },
-        CompanyFundamentalsResponse: {
-          type: "object",
-          required: ["ticker", "name", "sector", "price", "market_cap_m", "urls", "attribution"],
-          properties: {
-            ticker: { type: "string", example: "NVDA" },
-            name: { type: "string", example: "NVIDIA Corporation" },
-            exchange: { type: "string", example: "Nasdaq" },
-            sector: { type: "string", example: "Semiconductors" },
-            cik: { type: "string" },
-            price: { type: "number" },
-            price_as_of: { type: ["string", "null"] },
-            market_cap_m: { type: "number" },
-            enterprise_value_m: { type: "number" },
-            latest_period: { type: "object", additionalProperties: true },
-            valuation: { type: "object", additionalProperties: true },
-            annual_history: { type: "array", items: { type: "object", additionalProperties: true } },
-            recent_filing_diffs: { type: "array", items: { type: "object", additionalProperties: true } },
-            recent_insider_buys: { type: "array", items: { type: "object", additionalProperties: true } },
-            urls: {
-              type: "object",
-              properties: {
-                overview: { type: "string", format: "uri" },
-                sbc: { type: "string", format: "uri" },
-                valuation: { type: "string", format: "uri" },
-                filings: { type: "string", format: "uri" },
-              },
-            },
-            attribution: { type: "string" },
-          },
-        },
-        ScreenerResponse: {
-          type: "object",
-          required: ["total_matches", "companies", "explore_url", "attribution"],
-          properties: {
-            total_matches: { type: "integer" },
-            applied_filters: { type: "object", additionalProperties: true },
-            companies: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  ticker: { type: "string" },
-                  name: { type: "string" },
-                  sector: { type: "string" },
-                  price: { type: "number" },
-                  market_cap_m: { type: "number" },
-                  true_fcf_margin_pct: { type: ["number", "null"] },
-                  sbc_pct_revenue: { type: ["number", "null"] },
-                  net_dilution_4y_cagr_pct: { type: ["number", "null"] },
-                  implied_10y_rev_cagr_pct: { type: ["number", "null"] },
-                  url: { type: "string", format: "uri" },
-                },
-              },
-            },
-            explore_url: { type: "string", format: "uri" },
-            attribution: { type: "string" },
-          },
-        },
-        SignalsResponse: {
-          type: "object",
-          required: ["filing_diffs", "insider_buys", "feed_url", "rss_url"],
-          properties: {
-            filing_diffs: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  ticker: { type: "string" },
-                  company_name: { type: "string" },
-                  filing_type: { type: "string" },
-                  filing_date: { type: "string" },
-                  section: { type: "string" },
-                  category: { type: "string" },
-                  materiality: { type: "string" },
-                  headline: { type: "string" },
-                  summary: { type: "string" },
-                  url: { type: "string", format: "uri" },
-                },
-              },
-            },
-            insider_buys: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  ticker: { type: "string" },
-                  filing_date: { type: "string" },
-                  insider_name: { type: "string" },
-                  insider_title: { type: "string" },
-                  shares: { type: "integer" },
-                  price_per_share: { type: "number" },
-                  total_value_m: { type: "number" },
-                  url: { type: "string", format: "uri" },
-                },
-              },
-            },
-            feed_url: { type: "string", format: "uri" },
-            rss_url: { type: "string", format: "uri" },
-          },
-        },
-      },
-    },
+    components: { schemas },
   };
 
-  return NextResponse.json(spec, {
+  return Response.json(spec, {
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "X-API-Version": "1.0",
+      "X-API-Version": API_VERSION,
       "Cache-Control": "public, s-maxage=86400",
     },
   });

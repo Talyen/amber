@@ -1,29 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { SITE_URL } from "@/lib/site";
+import { apiError } from "@/lib/public-api";
 
-function notFoundResponse(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  return NextResponse.json(
-    {
-      type: `${SITE_URL}/docs#errors`,
-      title: "Endpoint Not Found",
-      status: 404,
-      code: "endpoint_not_found",
-      error: `API endpoint ${pathname} does not exist.`,
-      message: `API endpoint ${pathname} does not exist.`,
-      resolution: `Inspect ${SITE_URL}/openapi.json or ${SITE_URL}/docs for valid public endpoints.`,
-    },
-    {
-      status: 404,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "X-API-Version": "1.0",
-        "RateLimit-Policy": "120;w=60",
-        "RateLimit-Limit": "120",
-        "RateLimit-Remaining": "119",
-      },
-    }
-  );
+function notFoundResponse() {
+  return apiError(404, "endpoint_not_found", "This API endpoint does not exist.", "Inspect /openapi.json or /docs for supported public endpoints.");
 }
 
 export const GET = notFoundResponse;

@@ -1,38 +1,21 @@
-import { NextResponse } from "next/server";
+import { apiError, servePublicApi } from "@/lib/public-api";
 import { getPublicSignals, isPublicSignalType } from "@/data/public-market";
 import { formatInsiderName, formatInsiderTitle } from "@/lib/insider-format";
 import { SITE_URL } from "@/lib/site";
 
-export const revalidate = 1800;
-
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const ticker = searchParams.get("ticker")?.trim().toUpperCase();
-  const type = searchParams.get("type") ?? "all";
-  const limit = Number(searchParams.get("limit") ?? 20);
-  const commonHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "X-API-Version": "1.0",
-    "RateLimit-Policy": "120;w=60",
-    "RateLimit-Limit": "120",
-    "RateLimit-Remaining": "119",
-  };
-  if (!isPublicSignalType(type) || !Number.isInteger(limit) || limit < 1 || limit > 50) {
-    const msg = "Select all, diffs, or insiders and a whole-number limit between 1 and 50.";
-    return NextResponse.json(
-      {
-        code: "invalid_signal_query",
-        error: msg,
-        message: msg,
-        resolution: "Pass type=all|diffs|insiders and an integer limit from 1 to 50.",
-      },
-      { status: 400, headers: commonHeaders },
-    );
-  }
-  const { diffs, buys } = await getPublicSignals({ ticker, type, limit });
+  return servePublicApi(request, async () => {
+    const { searchParams } = new URL(request.url);
+    const ticker = searchParams.get("ticker")?.trim().toUpperCase();
+    const type = searchParams.get("type") ?? "all";
+    const limit = Number(searchParams.get("limit") ?? 20);
+    if (!isPublicSignalType(type) || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+      const msg = "Select all, diffs, or insiders and a whole-number limit between 1 and 50.";
+      return apiError(400, "invalid_signal_query", msg, "Pass type=all|diffs|insiders and an integer limit from 1 to 50.");
+    }
+    const { diffs, buys } = await getPublicSignals({ ticker, type, limit });
 
-  return NextResponse.json(
-    {
+    return Response.json({
       filing_diffs: diffs.map((d) => ({
         id: d.id,
         ticker: d.ticker,
@@ -59,12 +42,14 @@ export async function GET(request: Request) {
       })),
       feed_url: `${SITE_URL}/feed`,
       rss_url: `${SITE_URL}/feed.xml`,
-    },
-    {
-      headers: {
-        ...commonHeaders,
-        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
-      },
-    }
-  );
+    });
+  });
 }
+
+export {
+  publicApiMethodNotAllowed as POST,
+  publicApiMethodNotAllowed as PUT,
+  publicApiMethodNotAllowed as PATCH,
+  publicApiMethodNotAllowed as DELETE,
+  publicApiOptions as OPTIONS,
+} from "@/lib/public-api";

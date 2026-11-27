@@ -22,25 +22,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      {
-        source: "/",
-        headers: [
-          {
-            key: "Vary",
-            value: "Accept",
-          },
-        ],
-      },
-      {
-        source: "/llms.txt",
-        headers: [
-          {
-            key: "Vary",
-            value: "Accept",
-          },
-        ],
-      },
     ];
+  },
+  async rewrites() {
+    return {
+      fallback: [{
+        source: "/:path*",
+        has: [{ type: "header", key: "x-amber-markdown-fallback", value: "1" }],
+        destination: "/agent-not-found",
+      }],
+    };
   },
 };
 

@@ -3,6 +3,7 @@ import {
   pgTable,
   text,
   boolean,
+  bigint,
   date,
   doublePrecision,
   integer,
@@ -35,6 +36,16 @@ export interface QuarterlyFinancialJson {
   buybacks: number;
   dilutedShares: number;
 }
+
+export const apiRateWindows = pgTable(
+  "api_rate_windows",
+  {
+    windowStart: bigint("window_start", { mode: "number" }).notNull(),
+    clientKey: text("client_key").notNull(),
+    used: integer("used").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.windowStart, table.clientKey] })],
+);
 
 export const companies = pgTable("companies", {
   ticker: text("ticker").primaryKey(),

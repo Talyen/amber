@@ -18,6 +18,7 @@ if (postgresUrl) {
   env = {
     ...env,
     DATABASE_URL: "postgresql://fixture:fixture@db.amber-test.invalid/fixture",
+    VERCEL: "1",
     BETTER_AUTH_URL: url,
     BETTER_AUTH_SECRET: process.env.AMBER_BROWSER_TEST_AUTH_SECRET,
     AMBER_BROWSER_TEST_DATABASE_URL: process.env.AMBER_BROWSER_TEST_DATABASE_URL,

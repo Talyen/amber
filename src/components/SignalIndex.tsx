@@ -235,6 +235,7 @@ export function SignalIndex({
   entries,
   initialLensId = null,
   lensHeader = null,
+  researchGuide = null,
   featuredDiffs = [],
   featuredInsiderBuy = null,
   insiderBuySummaries = {},
@@ -243,6 +244,7 @@ export function SignalIndex({
   entries: ExploreEntry[];
   initialLensId?: string | null;
   lensHeader?: React.ReactNode;
+  researchGuide?: React.ReactNode;
   featuredDiffs?: MarketFilingDiffItem[];
   featuredInsiderBuy?: MarketInsiderFeedItem | null;
   insiderBuySummaries?: Record<string, InsiderBuySummary>;
@@ -1555,6 +1557,7 @@ export function SignalIndex({
           </div>
         </section>
 
+        {researchGuide}
         <SiteFooter />
       </main>
     </div>

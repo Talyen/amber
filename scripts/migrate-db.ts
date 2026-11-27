@@ -51,6 +51,7 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0013_valuation_thesis_history.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0014_weekly_digest_subscribers.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0015_valuation_save_receipts.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0016_public_api_rate_windows.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -263,6 +264,25 @@ async function migrate() {
     throw new Error("Could not verify valuation save receipts.");
   }
   console.log("[amber-migrate] Verified valuation save receipts.");
+
+  const [rateSchema] = await sql`
+    select
+      exists (
+        select 1 from pg_constraint
+        where conrelid = to_regclass('public.api_rate_windows')
+          and contype = 'p' and convalidated
+          and pg_get_constraintdef(oid) = 'PRIMARY KEY (window_start, client_key)'
+      ) as primary_key,
+      exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'api_rate_windows'
+          and column_name = 'used' and udt_name = 'int4' and is_nullable = 'NO'
+      ) as count_column
+  `;
+  if (!rateSchema?.primary_key || !rateSchema.count_column) {
+    throw new Error("Could not verify the public API quota counters.");
+  }
+  console.log("[amber-migrate] Verified public API quota counters.");
 }
 
 await migrate();

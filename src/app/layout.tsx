@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
+import { AMBER_HOME_TITLE, AMBER_PRODUCT_TERMS } from "@/lib/agent-readiness";
 import "./globals.css";
 
 const inter = Inter({
@@ -24,20 +25,20 @@ const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("amber-the
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} | SEC Filings, Cash Flow & Valuation`,
+    default: AMBER_HOME_TITLE,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_TAGLINE,
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
-    title: `${SITE_NAME} | SEC Filings, Cash Flow & Valuation`,
+    title: AMBER_HOME_TITLE,
     description: SITE_TAGLINE,
     url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} | SEC Filings, Cash Flow & Valuation`,
+    title: AMBER_HOME_TITLE,
     description: SITE_TAGLINE,
   },
 };
@@ -51,7 +52,7 @@ const structuredDataJsonLd = [
     operatingSystem: "Web",
     url: SITE_URL,
     description: SITE_TAGLINE,
-    keywords: "SEC EDGAR, fundamental analysis, True Free Cash Flow, stock-based compensation, reverse DCF, filing diffs, insider trading, stock screener",
+    keywords: AMBER_PRODUCT_TERMS,
     offers: {
       "@type": "Offer",
       price: "0",
@@ -70,12 +71,6 @@ const structuredDataJsonLd = [
       email: "research@amberstocks.com",
       contactType: "customer support",
       url: `${SITE_URL}/contact`,
-    },
-    address: {
-      "@type": "PostalAddress",
-      addressLocality: "West Linn",
-      addressRegion: "OR",
-      addressCountry: "US",
     },
   },
 ];

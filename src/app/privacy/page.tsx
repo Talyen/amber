@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TopNav } from "@/components/TopNav";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
+  alternates: { canonical: `${SITE_URL}/privacy` },
   description: "How Amber handles account data, OAuth sign-in, and watchlists.",
 };
 
@@ -29,6 +31,13 @@ export default function PrivacyPage() {
             </h2>
             <p className="mt-2">
               Amber uses third-party OAuth sign-in (Google or GitHub) and never collects or stores passwords. When you sign in, we store your display name, email address, and provider account identifier so we can maintain your session, cloud-synced watchlist, and Portfolio Arena entry. If you subscribe to SEC filing alerts, we store your email address and selected tickers and use Resend solely to deliver those filing notifications.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Public API request limits</h2>
+            <p className="mt-2">
+              The public REST API uses a keyed hash of your IP address to count requests in each rate-limit window. Amber stores the count and the window-specific hash, and removes expired counters as later requests arrive.
             </p>
           </section>
 

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TopNav } from "@/components/TopNav";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Amber Public API & MCP Documentation",
+  title: { absolute: "Amber API Documentation | Stock Screener and SEC Filings" },
   description:
     "Free, read-only SEC EDGAR fundamental data REST API, Markdown endpoints, and Streamable HTTP MCP server for AI agents and researchers.",
   alternates: {
@@ -21,10 +21,10 @@ export default function DocsPage() {
           DEVELOPERS &amp; AI AGENTS
         </div>
         <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
-          {SITE_NAME} Public API &amp; MCP Documentation
+          Amber API Documentation
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-          Amber provides free, read-only, SEC EDGAR-verified fundamental data for 700+ Nasdaq and NYSE companies with no API key required. All endpoints return structured JSON or token-light Markdown with canonical links back to interactive charts.
+          Amber provides free, read-only, SEC EDGAR-verified fundamental data for 700+ Nasdaq and NYSE companies with no API key required. The endpoints return JSON with links back to interactive charts. The company endpoint also serves Markdown.
         </p>
 
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-[var(--text-secondary)]">
@@ -68,38 +68,38 @@ export default function DocsPage() {
             <div className="mt-3 space-y-4">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
                 <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-                  GET /api/public/t/{"{ticker}"}
+                  GET /api/v1/t/{"{ticker}"}
                 </div>
                 <p className="mt-1.5">
                   Returns SEC-verified revenue, reported FCF, Stock-Based Compensation (SBC), True FCF (FCF minus SBC), 4-year net share dilution, Reverse DCF implied 10-year revenue growth, recent 10-K/10-Q prose diffs, and open-market Form 4 insider buys. Pass <code className="font-mono-num text-xs">?format=markdown</code> or <code className="font-mono-num text-xs">Accept: text/markdown</code> for Markdown.
                 </p>
                 <pre className="mt-2.5 overflow-x-auto rounded bg-[var(--bg)] p-2.5 font-mono-num text-xs text-[var(--text-primary)]">
-{`curl -s "${SITE_URL}/api/public/t/NVDA"
-curl -s -H "Accept: text/markdown" "${SITE_URL}/api/public/t/NVDA"`}
+{`curl -s "${SITE_URL}/api/v1/t/NVDA"
+curl -s -H "Accept: text/markdown" "${SITE_URL}/api/v1/t/NVDA"`}
                 </pre>
               </div>
 
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
                 <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-                  GET /api/public/screener
+                  GET /api/v1/screener
                 </div>
                 <p className="mt-1.5">
                   Screen 700+ companies by <code className="font-mono-num text-xs">lens</code>, <code className="font-mono-num text-xs">sector</code>, <code className="font-mono-num text-xs">minTrueFcfMargin</code>, <code className="font-mono-num text-xs">maxSbcPct</code>, <code className="font-mono-num text-xs">maxImpliedCagr</code>, <code className="font-mono-num text-xs">maxDilution</code>, <code className="font-mono-num text-xs">minMarketCapB</code>, and <code className="font-mono-num text-xs">limit</code> (1–50).
                 </p>
                 <pre className="mt-2.5 overflow-x-auto rounded bg-[var(--bg)] p-2.5 font-mono-num text-xs text-[var(--text-primary)]">
-{`curl -s "${SITE_URL}/api/public/screener?lens=cash-machines&minTrueFcfMargin=20&maxSbcPct=5&limit=10"`}
+{`curl -s "${SITE_URL}/api/v1/screener?lens=cash-machines&minTrueFcfMargin=20&maxSbcPct=5&limit=10"`}
                 </pre>
               </div>
 
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
                 <div className="font-mono-num text-xs font-semibold text-[var(--amber)]">
-                  GET /api/public/signals
+                  GET /api/v1/signals
                 </div>
                 <p className="mt-1.5">
                   Fetch recent high-materiality SEC 10-K/10-Q filing diffs and open-market Form 4 executive buys. Filter by <code className="font-mono-num text-xs">ticker</code>, <code className="font-mono-num text-xs">type</code> (<code className="font-mono-num text-xs">all</code> | <code className="font-mono-num text-xs">diffs</code> | <code className="font-mono-num text-xs">insiders</code>), and <code className="font-mono-num text-xs">limit</code> (1–50).
                 </p>
                 <pre className="mt-2.5 overflow-x-auto rounded bg-[var(--bg)] p-2.5 font-mono-num text-xs text-[var(--text-primary)]">
-{`curl -s "${SITE_URL}/api/public/signals?type=all&limit=15"`}
+{`curl -s "${SITE_URL}/api/v1/signals?type=all&limit=15"`}
                 </pre>
               </div>
             </div>
@@ -128,15 +128,24 @@ curl -s -H "Accept: text/markdown" "${SITE_URL}/api/public/t/NVDA"`}
               4. Rate Limits, Versioning &amp; Errors
             </h2>
             <p className="mt-2">
-              Public endpoints include standard <code className="font-mono-num text-xs">RateLimit-Policy</code>, <code className="font-mono-num text-xs">RateLimit-Limit</code>, and <code className="font-mono-num text-xs">RateLimit-Remaining</code> headers (120 requests per 60-second window) along with <code className="font-mono-num text-xs">X-API-Version: 1.0</code>. Any breaking schema changes are announced via RFC 8594 <code className="font-mono-num text-xs">Deprecation</code> and <code className="font-mono-num text-xs">Sunset</code> headers at least 90 days in advance.
+              The public REST endpoints share a quota of 120 requests per IP address per 60-second window. <code>RateLimit-Policy</code> describes the quota. <code>RateLimit</code> reports how many requests remain (<code>r</code>) and the seconds until reset (<code>t</code>). Wait the number of seconds in <code>Retry-After</code> after a <code>429</code> response.
             </p>
             <p className="mt-2">
-              All API errors return structured JSON with machine-readable <code className="font-mono-num text-xs">code</code>, <code className="font-mono-num text-xs">message</code>, and <code className="font-mono-num text-xs">resolution</code> fields so agents can recover cleanly without scraping HTML.
+              The supported routes start with <code>/api/v1/</code>. Existing <code>/api/public/</code> URLs remain available. Breaking changes get a new major version in the URL. Amber signals any planned retirement at least 90 days in advance using <code>Deprecation</code> (RFC 9745), <code>Sunset</code> (RFC 8594) and a link to migration instructions.
+            </p>
+            <p className="mt-2">
+              Public REST errors return JSON with machine-readable <code className="font-mono-num text-xs">code</code>, <code className="font-mono-num text-xs">message</code>, and <code className="font-mono-num text-xs">resolution</code> fields. The OpenAPI document defines the error schema and HTTP status codes.
             </p>
           </section>
         </div>
 
         <div className="mt-10 border-t border-[var(--border)] pt-6 text-xs text-[var(--text-muted)]">
+          <Link href="/developers" className="mr-4 text-[var(--amber)] hover:underline">
+            Developer portal
+          </Link>
+          <Link href="/mcp" className="mr-4 text-[var(--amber)] hover:underline">
+            MCP server setup
+          </Link>
           <Link href="/" className="text-[var(--amber)] hover:underline">
             Back to Amber
           </Link>

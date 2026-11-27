@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { apiError, servePublicApi } from "@/lib/public-api";
 import { getCompanySnapshot, getInsiderTradesForTickers } from "@/data/repository";
 import {
   buildPublicCompanyPayload,
@@ -6,62 +6,41 @@ import {
 } from "@/lib/agentic-data";
 import { prefersMarkdown } from "@/lib/http-accept";
 
-export const revalidate = 3600;
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
-  const { ticker } = await params;
-  const company = await getCompanySnapshot(ticker);
-  if (!company) {
-    const sym = ticker.toUpperCase();
-    return NextResponse.json(
-      {
-        code: "ticker_not_found",
-        error: `Ticker ${sym} not found in Amber coverage.`,
-        message: `Ticker ${sym} not found in Amber coverage.`,
-        resolution: `Verify the US equity ticker symbol or query /api/public/screener to list covered Nasdaq and NYSE companies.`,
-      },
-      {
-        status: 404,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "X-API-Version": "1.0",
-          "RateLimit-Policy": "120;w=60",
-          "RateLimit-Limit": "120",
-          "RateLimit-Remaining": "119",
-        },
-      }
-    );
-  }
+  return servePublicApi(request, async () => {
+    const { ticker } = await params;
+    const company = await getCompanySnapshot(ticker);
+    if (!company) {
+      return apiError(404, "ticker_not_found", `Ticker ${ticker.toUpperCase()} not found in Amber coverage.`,
+        "Verify the ticker symbol or query /api/v1/screener for covered companies.");
+    }
 
-  const insiderTrades = await getInsiderTradesForTickers([company.ticker], 5, true);
-  const payload = buildPublicCompanyPayload(company, insiderTrades);
+    const insiderTrades = await getInsiderTradesForTickers([company.ticker], 5, true);
+    const payload = buildPublicCompanyPayload(company, insiderTrades);
+    const format = new URL(request.url).searchParams.get("format");
+    const wantsMarkdown = format === "markdown" ||
+      (format !== "json" && prefersMarkdown(request.headers.get("accept")));
+    const headers = {
+      Link: `</t/${company.ticker}>; rel="canonical", </llms.txt>; rel="describedby"; type="text/markdown"`,
+    };
 
-  const format = new URL(request.url).searchParams.get("format");
-  const wantsMarkdown = format === "markdown" ||
-    (format !== "json" && prefersMarkdown(request.headers.get("accept")));
+    if (wantsMarkdown) {
+      return new Response(formatCompanyMarkdown(payload), {
+        headers: { ...headers, "Content-Type": "text/markdown; charset=utf-8" },
+      });
+    }
 
-  const commonHeaders = {
-    Vary: "Accept",
-    "Access-Control-Allow-Origin": "*",
-    "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-    "X-API-Version": "1.0",
-    "RateLimit-Policy": "120;w=60",
-    "RateLimit-Limit": "120",
-    "RateLimit-Remaining": "119",
-    Link: `</t/${company.ticker}>; rel="canonical", </llms.txt>; rel="describedby"; type="text/markdown"`,
-  };
-
-  if (wantsMarkdown) {
-    return new Response(formatCompanyMarkdown(payload), {
-      headers: {
-        ...commonHeaders,
-        "Content-Type": "text/markdown; charset=utf-8",
-      },
-    });
-  }
-
-  return NextResponse.json(payload, { headers: commonHeaders });
+    return Response.json(payload, { headers });
+  }, "Accept");
 }
+
+export {
+  publicApiMethodNotAllowed as POST,
+  publicApiMethodNotAllowed as PUT,
+  publicApiMethodNotAllowed as PATCH,
+  publicApiMethodNotAllowed as DELETE,
+  publicApiOptions as OPTIONS,
+} from "@/lib/public-api";

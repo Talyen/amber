@@ -42,7 +42,7 @@ export default async function setupPostgres() {
   try {
     await client.connect();
     await client.query(readFixtureSchema());
-    await client.query("DROP TABLE weekly_digest_subscribers, user_valuation_saves");
+    await client.query("DROP TABLE weekly_digest_subscribers, user_valuation_saves, api_rate_windows");
     for (let pass = 0; pass < 2; pass++) {
       execFileSync("pnpm", ["db:migrate"], {
         env: {
