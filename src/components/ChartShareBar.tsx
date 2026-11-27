@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Code2, Copy, Download } from "lucide-react";
 import type { CardDeliveryMode, CardDeliveryResult } from "@/lib/export-card";
 import { SITE_URL } from "@/lib/site";
+import { trackDistribution } from "@/lib/distribution";
 
 interface ChartShareBarProps {
   onDeliverCard: (mode: CardDeliveryMode) => Promise<CardDeliveryResult> | void;
@@ -46,6 +47,8 @@ export function ChartShareBar({
 
   async function handleAction(mode: CardDeliveryMode) {
     const res = await onDeliverCard(mode);
+    if (res === "failed") return;
+    if (res) trackDistribution(res === "copied" ? "chart_copy" : "chart_download");
     const next = res === "copied" ? "copied" : "downloaded";
     setStatus(next);
     window.setTimeout(() => setStatus("idle"), 1800);
@@ -63,6 +66,7 @@ export function ChartShareBar({
   async function copyText(kind: "iframe" | "markdown", text: string) {
     try {
       await navigator.clipboard.writeText(text);
+      if (kind === "iframe") trackDistribution("embed_copy");
       setCopiedSnippet(kind);
       window.setTimeout(() => setCopiedSnippet(null), 1800);
     } catch {

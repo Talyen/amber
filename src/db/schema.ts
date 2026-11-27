@@ -468,6 +468,9 @@ export const weeklyDigestSubscribers = pgTable(
     email: text("email").notNull(),
     unsubscribeToken: uuid("unsubscribe_token").defaultRandom().notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    confirmationToken: uuid("confirmation_token"),
+    confirmationExpiresAt: timestamp("confirmation_expires_at", { withTimezone: true }),
     lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -476,5 +479,27 @@ export const weeklyDigestSubscribers = pgTable(
   (table) => [
     uniqueIndex("weekly_digest_email_idx").on(table.email),
     uniqueIndex("weekly_digest_unsub_token_idx").on(table.unsubscribeToken),
+    uniqueIndex("weekly_digest_confirmation_idx").on(table.confirmationToken),
   ]
 );
+
+export const weeklyDigestIssues = pgTable("weekly_digest_issues", {
+  issueDate: date("issue_date").primaryKey(),
+  message: jsonb("message").notNull(),
+});
+
+export const weeklyDigestDeliveries = pgTable("weekly_digest_deliveries", {
+  issueDate: date("issue_date").notNull().references(() => weeklyDigestIssues.issueDate, { onDelete: "cascade" }),
+  subscriberId: text("subscriber_id").notNull().references(() => weeklyDigestSubscribers.id, { onDelete: "cascade" }),
+  unsubscribeToken: uuid("unsubscribe_token").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+}, (table) => [primaryKey({ columns: [table.issueDate, table.subscriberId] })]);
+
+export const distributionCounts = pgTable("distribution_counts", {
+  day: date("day").notNull(),
+  routeGroup: text("route_group").notNull(),
+  event: text("event").notNull(),
+  sourceGroup: text("source_group").notNull(),
+  count: integer("count").notNull().default(1),
+}, (table) => [primaryKey({ columns: [table.day, table.routeGroup, table.event, table.sourceGroup] })]);

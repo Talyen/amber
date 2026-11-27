@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import { AMBER_HOME_TITLE, AMBER_PRODUCT_TERMS } from "@/lib/agent-readiness";
+import { DistributionPageView } from "@/components/DistributionPageView";
 import "./globals.css";
 
 const inter = Inter({
@@ -98,6 +99,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredDataJsonLd) }}
         />
+        <DistributionPageView />
         {children}
       </body>
     </html>

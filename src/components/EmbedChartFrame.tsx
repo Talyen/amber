@@ -7,6 +7,7 @@ import { TrueFcfChart } from "@/components/TrueFcfChart";
 import { ReverseDcfStudio } from "@/components/ReverseDcfStudio";
 import { computeCompanyValuation, isFinancialInstitution, type CompanySnapshot } from "@/lib/finance";
 import { SITE_HOST, SITE_URL } from "@/lib/site";
+import { trackDistribution } from "@/lib/distribution";
 
 export type EmbedChartType = "sankey" | "true-fcf" | "reverse-dcf";
 
@@ -64,6 +65,7 @@ export function EmbedChartFrame({ company, chart, theme }: EmbedChartFrameProps)
           <div className="inline-flex items-center gap-2">
             <a
               href={`${SITE_URL}${targetPath}`}
+              onClick={() => trackDistribution("embed_click")}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 font-medium text-[var(--text-secondary)] hover:text-[var(--amber)]"
@@ -74,6 +76,7 @@ export function EmbedChartFrame({ company, chart, theme }: EmbedChartFrameProps)
           </div>
           <a
             href={`${SITE_URL}${targetPath}`}
+            onClick={() => trackDistribution("embed_click")}
             target="_blank"
             rel="noopener noreferrer"
             className="font-mono-num font-semibold text-[var(--amber)] hover:underline"

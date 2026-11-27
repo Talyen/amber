@@ -7,6 +7,7 @@ import type { ExploreEntry } from "@/data/search-index";
 import { deliverCanvasCard, type CardDeliveryMode } from "@/lib/export-card";
 import { formatCurrencyCompact, formatPct } from "@/lib/finance";
 import { SITE_HOST } from "@/lib/site";
+import { trackDistribution } from "@/lib/distribution";
 
 interface LensReportHeaderProps {
   lensId: string;
@@ -178,6 +179,7 @@ export function LensReportHeader({
       `amber-top-10-${lensId}-${year}.png`,
       mode
     );
+    if (res !== "failed") trackDistribution(res === "copied" ? "chart_copy" : "chart_download");
     setStatus(res === "copied" ? "copied" : "idle");
     window.setTimeout(() => setStatus("idle"), 1800);
   }

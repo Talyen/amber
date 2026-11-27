@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.amberstocks/amber-finance",
+  "title": "Amber Finance",
+  "description": "SEC filings, stock-based compensation, cash flow, and valuation data for US companies.",
+  "repository": {
+    "url": "https://github.com/Talyen/amber",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://amberstocks.com/api/mcp"
+    }
+  ]
+}

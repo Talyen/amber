@@ -25,10 +25,12 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
 - [x] **Submit sitemaps to Search + AI Search indexes**
   - **Google Search Console:** Verify domain via DNS TXT record and submit `https://amberstocks.com/sitemap.xml` (1,527 pages discovered).
   - **Bing Webmaster Tools:** Verify domain and submit `sitemap.xml` (~1,500 URLs discovered).
-- [ ] **Run an Agent-Readiness Audit**
+- [x] **Run an Agent-Readiness Audit**
+  - November 27, 2026: 100/100 on [Is Agentic](https://is-agentic.com/scan/amberstocks.com), with all eight essential checks passing. The NVDA page advertises its Markdown alternate in the HTTP Link header. Search visibility for Amber’s brand, docs, and MCP remains a follow-up.
   - Run `npx is-agentic <your-domain>` after deploy to get a 0–100 agent-readiness score and fix any remaining `essential` or `recommended` issues.
   - Verify `curl 'https://<your-domain>/api/public/t/NVDA?format=markdown'` returns Markdown with canonical Amber links and that the ticker page advertises this URL as an alternate.
 - [ ] **Register Amber's public MCP server (`/api/mcp`)**
+  - The repository includes a validated [registry manifest](../server.json) and [client configuration and verification notes](MCP_DISTRIBUTION.md).
   - Submit `https://<your-domain>/api/mcp` to public MCP directories:
     - Official MCP Registry
     - Smithery (`smithery.ai`)
@@ -36,6 +38,7 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
     - PulseMCP (`pulsemcp.com`)
   - Test connecting to `https://<your-domain>/api/mcp` from Claude Desktop, Cursor, and Antigravity to verify all 4 tools (`amber_get_company`, `amber_screen_companies`, `amber_compare_companies`, `amber_get_recent_signals`) return crisp responses with clickable Amber links.
 - [ ] **Publish a lightweight `amber-finance` Agent Skill (`SKILL.md`)**
+  - [Skill draft](../skills/amber-finance/SKILL.md).
   - Publish a minimal public GitHub repo (or directory) with a `SKILL.md` instructing coding/research agents how to query Amber's MCP server and `/api/public/*` endpoints for True FCF, SBC dilution, Reverse DCF, and SEC filing diffs, always citing canonical Amber links.
 
 ---
@@ -61,8 +64,9 @@ Lead with *data insights*, never *"check out my app."* Let the watermarked chart
 ## Phase 3 — Retention & Automated Flywheels (Months 1–3)
 
 - [ ] **Wire the Sunday Signal Weekly Digest sender**
-  - Add a scheduled Sunday workflow (GitHub Actions or Vercel Schedule) that compiles the week's Top 5 high-materiality SEC filing diffs, largest open-market Form 4 insider buys, and 1 featured Reverse DCF/lens insight, and dispatches via Resend to `weekly_digest_subscribers` with a 1-click unsubscribe endpoint (`/api/digest-unsubscribe?token=...`).
+  - Implementation prepared in the checkout. Apply migration 0017 on the next authorized release. Verify the GitHub Actions test issue and production signup before sharing the digest.
 - [ ] **Track which distribution loops actually drive repeat visits**
+  - The checkout includes anonymous aggregate counts for landing routes, referral groups, and chart actions. Apply migration 0018 on release and review the initial counts with `pnpm analytics:report 14`. Unique visitors and repeat visits still need separate measurement.
   - Add lightweight, privacy-friendly analytics (e.g., Vercel Web Analytics or Plausible) to measure:
     - Top landing routes (`/t/[ticker]/sbc` vs. `/valuation` vs. `/sectors/*` vs. `/lenses/*` vs. `/compare/*`).
     - Chart copy/download and embed click rates.

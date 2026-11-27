@@ -45,3 +45,8 @@ jobs:
       - run: pnpm test:browser
         env:
           AMBER_TEST_POSTGRES_URL: postgres://amber:amber_test_password@127.0.0.1:5432/amber_test
+      - name: Verify Sunday Signal with the simulated Resend provider
+        run: pnpm test:browser tests/browser/launch-distribution.spec.ts --grep "confirms signup"
+        env:
+          AMBER_TEST_POSTGRES_URL: postgres://amber:amber_test_password@127.0.0.1:5432/amber_test
+          AMBER_TEST_DIGEST_RESEND: "1"

@@ -35,10 +35,9 @@ export function publicApiOptions() {
   } });
 }
 
-let localWindow = 0;
-let localCount = 0;
+const localQuotas = new Map<string, { window: number; count: number }>();
 
-async function consumeQuota(request: Request) {
+export async function consumeQuota(request: Request, scope = "", limit = REST_LIMIT) {
   const now = Math.floor(Date.now() / 1000);
   const window = now - now % REST_WINDOW;
   const ip = process.env.VERCEL ? request.headers.get("x-vercel-forwarded-for") : null;
@@ -47,7 +46,8 @@ async function consumeQuota(request: Request) {
 
   if (db) {
     const partition = ip && isIP(ip) ? ip : "local";
-    const key = createHmac("sha256", process.env.DATABASE_URL!).update(`${window}:${partition}`).digest("hex");
+    const key = createHmac("sha256", process.env.DATABASE_URL!)
+      .update(scope ? `${scope}:${window}:${partition}` : `${window}:${partition}`).digest("hex");
     // The key is window-specific. A guarded upsert shares one quota across
     // function instances and avoids incrementing a counter that has hit its cap.
     const result = await db.execute<{ used: number }>(sql`
@@ -62,23 +62,21 @@ async function consumeQuota(request: Request) {
       INSERT INTO public.api_rate_windows (window_start, client_key, used)
       VALUES (${window}, ${key}, 1)
       ON CONFLICT (window_start, client_key) DO UPDATE SET used = api_rate_windows.used + 1
-        WHERE api_rate_windows.used < ${REST_LIMIT}
+        WHERE api_rate_windows.used < ${limit}
       RETURNING used
     `);
-    count = result.rows[0]?.used ?? REST_LIMIT + 1;
+    count = result.rows[0]?.used ?? limit + 1;
   } else {
     // The static fixture mode also behaves correctly on a single local server.
     if (process.env.VERCEL_ENV === "production") throw new Error("Public API quota storage is unavailable.");
-    if (localWindow !== window) {
-      localWindow = window;
-      localCount = 0;
-    }
-    count = ++localCount;
+    const state = localQuotas.get(scope);
+    count = state?.window === window ? state.count + 1 : 1;
+    localQuotas.set(scope, { window, count });
   }
 
   return {
-    allowed: count <= REST_LIMIT,
-    remaining: Math.max(0, REST_LIMIT - count),
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
     reset: window + REST_WINDOW - now,
   };
 }

@@ -52,6 +52,8 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0014_weekly_digest_subscribers.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0015_valuation_save_receipts.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0016_public_api_rate_windows.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0017_sunday_signal.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0018_distribution_counts.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -283,6 +285,32 @@ async function migrate() {
     throw new Error("Could not verify the public API quota counters.");
   }
   console.log("[amber-migrate] Verified public API quota counters.");
+
+  const [launchSchema] = await sql`
+    select
+      (select count(*)::int from information_schema.columns
+        where table_schema = 'public' and table_name = 'weekly_digest_subscribers' and (
+          (column_name in ('confirmation_expires_at', 'confirmed_at') and udt_name = 'timestamptz')
+          or (column_name = 'confirmation_token' and udt_name = 'uuid')
+        )) as confirmed_columns,
+      exists (select 1 from pg_index where indexrelid = to_regclass('public.weekly_digest_confirmation_idx')
+        and indisunique and indisvalid and indnkeyatts = 1
+        and pg_get_indexdef(indexrelid, 1, true) = 'confirmation_token') as confirmation_index,
+      (select count(*)::int from pg_constraint where contype = 'p' and convalidated and (
+        (conrelid = to_regclass('public.weekly_digest_issues') and pg_get_constraintdef(oid) = 'PRIMARY KEY (issue_date)')
+        or (conrelid = to_regclass('public.weekly_digest_deliveries') and pg_get_constraintdef(oid) = 'PRIMARY KEY (issue_date, subscriber_id)')
+        or (conrelid = to_regclass('public.distribution_counts') and pg_get_constraintdef(oid) = 'PRIMARY KEY (day, route_group, event, source_group)')
+      )) as primary_keys,
+      (select count(*)::int from pg_constraint where conrelid = to_regclass('public.weekly_digest_deliveries')
+        and contype = 'f' and convalidated and confdeltype = 'c'
+        and confrelid in (to_regclass('public.weekly_digest_issues'), to_regclass('public.weekly_digest_subscribers'))
+      ) as delivery_references
+  `;
+  if (launchSchema?.confirmed_columns !== 3 || !launchSchema.confirmation_index ||
+      launchSchema.primary_keys !== 3 || launchSchema.delivery_references !== 2) {
+    throw new Error("Could not verify Sunday Signal and distribution reporting schema.");
+  }
+  console.log("[amber-migrate] Verified Sunday Signal and distribution reporting.");
 }
 
 await migrate();
