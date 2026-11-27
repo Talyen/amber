@@ -198,6 +198,11 @@ export function LensReportHeader({
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
               {whyItMatters}
             </p>
+            {lensId === "hidden-dilution" && (
+              <Link href="/research/hidden-dilution" className="mt-2 inline-block text-sm font-medium text-[var(--amber)] underline-offset-4 hover:underline">
+                How stock comp changes cash flow at CrowdStrike, Palo Alto Networks, and Palantir
+              </Link>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
