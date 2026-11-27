@@ -22,6 +22,24 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/",
+        headers: [
+          {
+            key: "Vary",
+            value: "Accept",
+          },
+        ],
+      },
+      {
+        source: "/llms.txt",
+        headers: [
+          {
+            key: "Vary",
+            value: "Accept",
+          },
+        ],
+      },
     ];
   },
 };
