@@ -1,6 +1,6 @@
 const routes = [
   "home", "company", "sbc", "valuation", "filings", "feed", "sectors",
-  "lenses", "compare", "embed", "arena", "developer",
+  "lenses", "compare", "embed", "arena", "developer", "research",
 ] as const;
 const sources = [
   "direct", "same_site", "search", "chatgpt", "perplexity", "claude",
@@ -25,7 +25,7 @@ export function distributionRoute(path: string): RouteGroup | null {
   }
   if (root === "docs" || root === "developers" || root === "mcp") return "developer";
   if (root === "feed" || root === "sectors" || root === "lenses" || root === "compare" ||
-      root === "arena" || root === "embed" || root === "filings") return root;
+      root === "arena" || root === "embed" || root === "filings" || root === "research") return root;
   return null;
 }
 

@@ -30,15 +30,15 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
   - Run `npx is-agentic <your-domain>` after deploy to get a 0–100 agent-readiness score and fix any remaining `essential` or `recommended` issues.
   - Verify `curl 'https://<your-domain>/api/public/t/NVDA?format=markdown'` returns Markdown with canonical Amber links and that the ticker page advertises this URL as an alternate.
 - [ ] **Register Amber's public MCP server (`/api/mcp`)**
-  - The repository includes a validated [registry manifest](../server.json) and [client configuration and verification notes](MCP_DISTRIBUTION.md).
+  - Version 1.0.0 is listed as `com.amberstocks/amber-finance` in the Official MCP Registry. The repository includes the [registry manifest](../server.json) and [client verification notes](MCP_DISTRIBUTION.md).
   - Submit `https://<your-domain>/api/mcp` to public MCP directories:
     - Official MCP Registry
     - Smithery (`smithery.ai`)
     - Glama (`glama.ai/mcp`)
     - PulseMCP (`pulsemcp.com`)
   - Test connecting to `https://<your-domain>/api/mcp` from Claude Desktop, Cursor, and Antigravity to verify all 4 tools (`amber_get_company`, `amber_screen_companies`, `amber_compare_companies`, `amber_get_recent_signals`) return crisp responses with clickable Amber links.
-- [ ] **Publish a lightweight `amber-finance` Agent Skill (`SKILL.md`)**
-  - [Skill draft](../skills/amber-finance/SKILL.md).
+- [x] **Publish a lightweight `amber-finance` Agent Skill (`SKILL.md`)**
+  - [Published skill](../skills/amber-finance/SKILL.md).
   - Publish a minimal public GitHub repo (or directory) with a `SKILL.md` instructing coding/research agents how to query Amber's MCP server and `/api/public/*` endpoints for True FCF, SBC dilution, Reverse DCF, and SEC filing diffs, always citing canonical Amber links.
 
 ---
@@ -48,6 +48,7 @@ A sequenced, high-leverage checklist for taking Amber from domain purchase throu
 Lead with *data insights*, never *"check out my app."* Let the watermarked charts and interactive links do the selling.
 
 - [ ] **Launch 3–4 data-backed breakdowns using Amber visuals**
+  - First story on Amber Research, [What happens to free cash flow after stock comp at three software giants?](https://amberstocks.com/research/hidden-dilution)
   - Post genuinely useful analyses to `r/ValueInvesting`, `r/SecurityAnalysis`, and X (FinTwit) using 1-click copied Amber PNGs:
     1. *"The 10 Mega-Caps Where Stock-Based Compensation Eats the Most Free Cash Flow"* (using `/lenses/hidden-dilution` Top 10 PNG + link).
     2. *"What 10-Year Revenue Growth Is Actually Priced Into Big Tech Right Now?"* (using Reverse DCF cards + `/compare/NVDA-vs-MSFT-vs-AAPL-vs-GOOGL-vs-META`).
@@ -63,10 +64,10 @@ Lead with *data insights*, never *"check out my app."* Let the watermarked chart
 
 ## Phase 3 — Retention & Automated Flywheels (Months 1–3)
 
-- [ ] **Wire the Sunday Signal Weekly Digest sender**
-  - Implementation prepared in the checkout. Apply migration 0017 on the next authorized release. Verify the GitHub Actions test issue and production signup before sharing the digest.
+- [x] **Wire the Sunday Signal Weekly Digest sender**
+  - Migration 0017 is live. Resend accepted the GitHub Actions test issue, and the production signup, confirmation, and one-click unsubscribe passed with Resend’s simulator.
 - [ ] **Track which distribution loops actually drive repeat visits**
-  - The checkout includes anonymous aggregate counts for landing routes, referral groups, and chart actions. Apply migration 0018 on release and review the initial counts with `pnpm analytics:report 14`. Unique visitors and repeat visits still need separate measurement.
+  - Anonymous aggregate counts for landing routes, referral groups, and chart actions are live. A browser test verified that a landing view was recorded in production. Use `pnpm analytics:report 14` to review the initial counts. Unique visitors and repeat visits still need separate measurement.
   - Add lightweight, privacy-friendly analytics (e.g., Vercel Web Analytics or Plausible) to measure:
     - Top landing routes (`/t/[ticker]/sbc` vs. `/valuation` vs. `/sectors/*` vs. `/lenses/*` vs. `/compare/*`).
     - Chart copy/download and embed click rates.
