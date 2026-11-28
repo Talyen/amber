@@ -14,6 +14,8 @@ export interface CompareCompanyHistory {
   points: CompareHistoryPoint[];
 }
 
+export const COMPARE_HISTORY_YEARS = 5;
+
 type IndexedMetric = "revenue" | "dilutedShares";
 
 export function indexCompareHistory(
@@ -31,16 +33,15 @@ export function indexCompareHistory(
 }
 
 export function buildCompareCompanyHistory(
-  company: Pick<CompanySnapshot, "ticker" | "name" | "sector" | "annuals">
+  company: Pick<CompanySnapshot, "ticker" | "name" | "sector" | "annuals"> &
+    Partial<Pick<CompanySnapshot, "cik" | "sic" | "businessFacts">>
 ): CompareCompanyHistory {
   const equityLensOnly = isFinancialInstitution(company);
-  const computed = computeAnnualMetrics(company.annuals).filter(
-    (row) => row.fiscalYear !== "TTM"
-  );
+  const fiscalYears = company.annuals.filter((row) => row.fiscalYear !== "TTM").slice(-COMPARE_HISTORY_YEARS);
   return {
     ticker: company.ticker,
     name: company.name,
-    points: computed.slice(-5).map((row) => ({
+    points: computeAnnualMetrics(fiscalYears).map((row) => ({
       fiscalYear: row.fiscalYear,
       revenue: row.revenue,
       trueFcfMargin: equityLensOnly ? null : Number(row.trueFcfMargin.toFixed(1)),

@@ -1,11 +1,13 @@
 /** Send periodic filing alerts and watchlist digests to confirmed subscribers. */
+import { reconcileFilingInputs } from "../src/data/filing-supplements.ts";
+import { withValuationBusinessFacts } from "../src/data/valuation-business-facts.ts";
 import { isFreshPriceDate } from "../src/lib/market-price.ts";
-import { buildScenarioBasis, computeRevenueCagr } from "../src/lib/finance.ts";
+import { buildScenarioBasis, computeRevenueCagr, isScenarioLens } from "../src/lib/finance.ts";
 import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import {
   alertSubscriptions,
   annualFinancials,
@@ -30,10 +32,7 @@ import {
   computeThesisDrift,
   evaluateValuationTriggers,
   type PresetValuationEntry,
-  type SavedScenarioLens,
 } from "../src/lib/valuation-presets.ts";
-
-const MATERIALITY_RANK: Record<string, number> = { High: 0, Medium: 1, Watch: 2 };
 
 export async function dispatchFilingAlerts({
   databaseUrl = process.env.DATABASE_URL,
@@ -123,11 +122,13 @@ export async function dispatchFilingAlerts({
             eq(filingDiffs.ticker, item.ticker),
             eq(filingDiffs.accessionNumber, item.accession),
           ))
-          .limit(8);
+          .orderBy(
+            sql`case ${filingDiffs.materiality} when 'High' then 0 when 'Medium' then 1 when 'Watch' then 2 else 3 end`,
+            asc(filingDiffs.id),
+          )
+          .limit(3);
 
-        highlights = diffs
-          .sort((a, b) => (MATERIALITY_RANK[a.materiality] ?? 9) - (MATERIALITY_RANK[b.materiality] ?? 9))
-          .slice(0, 3);
+        highlights = diffs;
       } catch {
         highlights = [];
       }
@@ -188,17 +189,16 @@ export async function dispatchFilingAlerts({
       includeForm8k: userAlertPreferences.includeForm8k,
       includeValuationTriggers: userAlertPreferences.includeValuationTriggers,
       valuationIrrThreshold: userAlertPreferences.valuationIrrThreshold,
-      lastDigestSentAt: userAlertPreferences.lastDigestSentAt,
     })
     .from(userAlertPreferences)
     .innerJoin(user, eq(userAlertPreferences.userId, user.id))
     .where(and(
       eq(userAlertPreferences.watchlistDigest, true),
       eq(user.emailVerified, true),
+      or(isNull(userAlertPreferences.lastDigestSentAt), lte(userAlertPreferences.lastDigestSentAt, digestCooldown)),
     ));
 
   for (const sub of subscribers) {
-    if (sub.lastDigestSentAt && sub.lastDigestSentAt > digestCooldown) continue;
     try {
       const watchedRows = await db
         .select({ ticker: userWatchlists.ticker })
@@ -230,10 +230,14 @@ export async function dispatchFilingAlerts({
           const companyRows = await db
             .select({
               ticker: companies.ticker,
+              cik: companies.cik,
+              marketCap: companies.marketCap,
+              lastFilingPeriodEnd: companies.lastFilingPeriodEnd,
               price: companies.price,
               priceAsOf: companies.priceAsOf,
               lastFilingDate: companies.lastFilingDate,
               sector: companies.sector,
+              businessFacts: companies.businessFacts,
               cashAndEquiv: companies.cashAndEquiv,
               totalDebt: companies.totalDebt,
             })
@@ -252,6 +256,11 @@ export async function dispatchFilingAlerts({
               buybacks: annualFinancials.buybacks,
               operatingIncome: annualFinancials.operatingIncome,
               netIncome: annualFinancials.netIncome,
+              periodEndDate: annualFinancials.periodEndDate,
+              cashAndEquiv: annualFinancials.cashAndEquiv,
+              totalDebt: annualFinancials.totalDebt,
+              stockholdersEquity: annualFinancials.stockholdersEquity,
+              dividendsPaid: annualFinancials.dividendsPaid,
             })
             .from(annualFinancials)
             .where(inArray(annualFinancials.ticker, presetTickers))
@@ -272,10 +281,13 @@ export async function dispatchFilingAlerts({
               filingDateByTicker.set(company.ticker, company.lastFilingDate);
             }
             if (annuals?.length && isFreshPriceDate(company.priceAsOf)) {
+              const snapshot = reconcileFilingInputs(withValuationBusinessFacts({
+                ...company, annuals, lastFiling: { date: company.lastFilingDate, periodEnd: company.lastFilingPeriodEnd },
+              }));
               entriesByTicker.set(company.ticker, {
                 ticker: company.ticker,
-                revenueCagr: computeRevenueCagr(annuals),
-                scenarioBasis: buildScenarioBasis({ ...company, annuals }),
+                revenueCagr: computeRevenueCagr(snapshot.annuals),
+                scenarioBasis: buildScenarioBasis(snapshot),
               });
             }
           }
@@ -283,7 +295,7 @@ export async function dispatchFilingAlerts({
           const normalizedPresets = presetRows.map((p) => ({
             id: p.id,
             ticker: p.ticker,
-            lens: (p.lens === "ebit" || p.lens === "pe" ? p.lens : "fcf") as SavedScenarioLens,
+            lens: isScenarioLens(p.lens) ? p.lens : "fcf" as const,
             revGrowth: p.revGrowth,
             targetMargin: p.targetMargin,
             exitMultiple: p.exitMultiple,
@@ -345,17 +357,18 @@ export async function dispatchFilingAlerts({
           .where(and(
             inArray(filingDiffs.ticker, tickers),
             gte(filingDiffs.filingDate, digestCutoffDate),
+            or(
+              sub.includeForm8k ? eq(filingDiffs.filingType, "8-K") : undefined,
+              sub.includeFilingDiffs ? ne(filingDiffs.filingType, "8-K") : undefined,
+            ),
           ))
-          .orderBy(desc(filingDiffs.filingDate))
+          .orderBy(desc(filingDiffs.filingDate), asc(filingDiffs.id))
           .limit(20);
 
         for (const d of recentDiffs) {
-          const is8k = d.filingType === "8-K";
-          if (is8k && !sub.includeForm8k) continue;
-          if (!is8k && !sub.includeFilingDiffs) continue;
           items.push({
             ticker: d.ticker,
-            kind: is8k ? "8-K Event" : "10-K/10-Q Diff",
+            kind: d.filingType === "8-K" ? "8-K Event" : "10-K/10-Q Diff",
             date: d.filingDate,
             headline: `[${d.materiality}] ${d.headline}`,
             detail: d.summary,
@@ -378,7 +391,7 @@ export async function dispatchFilingAlerts({
             eq(insiderTrades.transactionType, "Buy"),
             gte(insiderTrades.filingDate, digestCutoffDate),
           ))
-          .orderBy(desc(insiderTrades.totalValue))
+          .orderBy(desc(insiderTrades.totalValue), desc(insiderTrades.filingDate), asc(insiderTrades.id))
           .limit(10);
 
         for (const b of recentBuys) {

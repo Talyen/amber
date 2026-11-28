@@ -169,3 +169,19 @@ test("comparison history keeps fiscal order, skips TTM, and falls back when annu
   });
   expect(series[1].points).toHaveLength(5);
 });
+
+test("database comparisons use the latest five fiscal periods and the filed share corrections", async ({ request }) => {
+  const response = await request.get("/api/compare-history?tickers=V");
+  expect(response.ok()).toBe(true);
+  const { series } = await response.json();
+  expect(series).toMatchObject([{
+    ticker: "V",
+    points: [
+      { fiscalYear: "FY22", dilutedShares: 2136 },
+      { fiscalYear: "FY23", dilutedShares: 2085 },
+      { fiscalYear: "FY24", dilutedShares: 2029 },
+      { fiscalYear: "FY25", dilutedShares: 1966 },
+      { fiscalYear: "FY26", dilutedShares: 1907 },
+    ],
+  }]);
+});

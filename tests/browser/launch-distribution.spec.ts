@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { Client } from "pg";
@@ -50,6 +51,81 @@ test("records completed chart exports and clicks from an embed", async ({ page, 
   );
   await page.getByRole("link", { name: /Interactive model/ }).click();
   expect((await embed).status()).toBe(204);
+});
+
+test("watchlist digests apply filing preferences before limiting recent results", async () => {
+  const client = new Client({ connectionString: process.env.AMBER_BROWSER_TEST_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(`
+      INSERT INTO "user" (id, name, email, email_verified)
+      VALUES ('filing-digest-subscriber', 'Fixture Subscriber', 'filing-digest@example.test', true);
+      INSERT INTO user_watchlists (id, user_id, ticker)
+      VALUES ('filing-digest-subscriber:AUDP', 'filing-digest-subscriber', 'AUDP');
+      INSERT INTO user_alert_preferences (user_id, watchlist_digest, include_filing_diffs,
+        include_form4_buys, include_form8k, include_valuation_triggers)
+      VALUES ('filing-digest-subscriber', true, true, false, false, false);
+      INSERT INTO filing_diffs (id, ticker, filing_type, filing_date, accession_number, section,
+        category, materiality, headline, summary, prior_excerpt, current_excerpt, signal_note)
+      SELECT 'digest-8k-' || n, 'AUDP', '8-K', (now() AT TIME ZONE 'UTC')::date::text,
+        'fixture', 'Item 2.02', 'Other', 'Medium', 'Company event ' || n, '', '', '', ''
+      FROM generate_series(1, 20) AS n;
+      INSERT INTO filing_diffs (id, ticker, filing_type, filing_date, accession_number, section,
+        category, materiality, headline, summary, prior_excerpt, current_excerpt, signal_note)
+      VALUES ('digest-eligible', 'AUDP', '10-Q', ((now() AT TIME ZONE 'UTC')::date - 1)::text,
+        'fixture', 'Item 2', 'Other', 'High', 'Quarterly filing belongs in digest', '', '', '', '');
+    `);
+
+    const dispatch = () => execFileSync(process.execPath, [
+      "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "--experimental-strip-types",
+      "--import", resolve("tests/browser/postgres-preload.mjs"), "--input-type=module", "-e",
+      'const { dispatchFilingAlerts } = await import("./scripts/send-filing-alerts.ts"); await dispatchFilingAlerts({ requireConfig: true });',
+    ], { env: {
+      ...process.env,
+      DATABASE_URL: "postgresql://fixture:fixture@db.amber-test.invalid/fixture",
+      RESEND_API_KEY: "amber-fixture-resend",
+      AMBER_PROD_URL: "https://amber.example",
+    } });
+    dispatch();
+    dispatch();
+    const { rows } = await client.query(`
+      SELECT message->>'html' AS html, attempts FROM fixture_resend_messages
+      WHERE idempotency_key LIKE 'watchlist-digest/filing-digest-subscriber/%'
+    `);
+    expect(rows).toEqual([{ html: expect.stringContaining("Quarterly filing belongs in digest"), attempts: 1 }]);
+    expect(rows[0].html).not.toContain("Company event");
+  } finally {
+    await client.end();
+  }
+});
+
+test("confirms signup after retrying a pending confirmation with no delivery receipt", async ({ request, baseURL }) => {
+  test.skip(process.env.AMBER_TEST_DIGEST_RESEND !== "1", "Run with the fixture Resend sender enabled.");
+  const email = "retry-confirmation@example.test";
+  const token = randomUUID();
+  const client = new Client({ connectionString: process.env.AMBER_BROWSER_TEST_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(`
+      INSERT INTO weekly_digest_subscribers (id, email, is_active, confirmation_token, confirmation_expires_at)
+      VALUES ('retry-confirmation', $1, false, $2, now() + interval '24 hours')
+    `, [email, token]);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await request.post("/api/digest-subscribe", { data: { email }, headers: { Origin: baseURL! } });
+      expect(response.status()).toBe(202);
+    }
+    const { rows } = await client.query(`
+      SELECT idempotency_key, message->>'text' AS text, attempts FROM fixture_resend_messages
+      WHERE message->'to'->>0 = $1
+    `, [email]);
+    expect(rows).toEqual([{
+      idempotency_key: `sunday-signal-confirm/${token}`,
+      text: expect.stringContaining(`/api/digest-confirm?token=${token}`),
+      attempts: 2,
+    }]);
+  } finally {
+    await client.end();
+  }
 });
 
 test("confirms signup, retries an unrecorded receipt with the same issue, and unsubscribes by POST", async ({ page, request }) => {

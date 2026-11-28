@@ -15,6 +15,7 @@ export interface CurrentCompanyPeerRow {
   ticker: string;
   name: string;
   sector: string;
+  valuationBusiness?: SearchIndexEntry["valuationBusiness"];
   marketCap: number;
   revenueCagr: number;
   trueFcfMargin: number | null;
@@ -40,9 +41,8 @@ export function SectorPeersTable({
 }: SectorPeersTableProps) {
   if (peers.length === 0) return null;
 
-  const isReitCompany = isReit({ sector: current.sector });
-  const isBankOrFin =
-    !isReitCompany && isFinancialInstitution({ ticker: current.ticker, sector: current.sector });
+  const isReitCompany = isReit(current);
+  const isBankOrFin = !isReitCompany && isFinancialInstitution(current);
 
   const compareTickers = [current.ticker, ...peers.slice(0, 3).map((p) => p.ticker)];
   const rows: Array<{

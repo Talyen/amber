@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { cache } from "react";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   annualFinancials,
@@ -11,12 +12,14 @@ import type { InsiderTradeItem } from "@/components/InsiderRadar";
 import insiderTradesJson from "@/data/generated/insider-trades.json";
 import {
   ALL_COMPANIES,
-  SEARCH_INDEX,
   getCompany as getStaticCompany,
+  getStaticSearchIndex,
   type SearchIndexEntry,
 } from "@/data/universe";
+import { reconcileFilingInputs } from "@/data/filing-supplements";
+import { withValuationBusinessFacts } from "@/data/valuation-business-facts";
 import { buildSearchIndexEntry, toPortfolioEntry, toSearchIndexEntry, type SearchIndexEntryWithBaseScenario } from "@/data/search-index";
-import { buildCompareCompanyHistory, type CompareCompanyHistory } from "@/lib/compare-history";
+import { buildCompareCompanyHistory, COMPARE_HISTORY_YEARS, type CompareCompanyHistory } from "@/lib/compare-history";
 import { normalizeCompanyName } from "@/lib/company-name";
 import { queryInsiderBuySummaries, queryMaterialEventSummaries } from "@/data/filing-summaries";
 import { periodicFilingType, type CompanySnapshot, type FilingDiffItem } from "@/lib/finance";
@@ -53,12 +56,13 @@ async function queryCompanyFromDb(
 
     if (annualRows.length === 0) return null;
 
-    return {
+    const snapshot: CompanySnapshot = {
       ticker: row.ticker,
       cik: row.cik,
       name: normalizeCompanyName(row.name),
       exchange: row.exchange === "NYSE" ? "NYSE" : "NASDAQ",
       sector: row.sector,
+      businessFacts: row.businessFacts,
       tagline: row.tagline,
       price: row.price,
       priceAsOf: row.priceAsOf,
@@ -110,6 +114,7 @@ async function queryCompanyFromDb(
         signalNote: d.signalNote,
       })),
     };
+    return reconcileFilingInputs(withValuationBusinessFacts(snapshot));
   } catch (err) {
     console.warn(`[amber-repo] Neon query failed for ${ticker}, using static snapshot:`, err);
     return null;
@@ -133,7 +138,7 @@ export async function getCompanySnapshot(
       }
       return res;
     },
-    ["amber-company-v4", ticker],
+    ["amber-company-v6", ticker],
     {
       revalidate: 3600,
       tags: ["companies", `ticker-${ticker}`],
@@ -155,30 +160,45 @@ export async function getCompareHistory(tickers: readonly string[]): Promise<Com
         async () => {
           const rows = await db
             .select({
-              name: companies.name,
-              sector: companies.sector,
-              fiscalYear: annualFinancials.fiscalYear,
-              revenue: annualFinancials.revenue,
-              operatingCashFlow: annualFinancials.operatingCashFlow,
-              capex: annualFinancials.capex,
-              sbc: annualFinancials.sbc,
-              buybacks: annualFinancials.buybacks,
-              dilutedShares: annualFinancials.dilutedShares,
+              company: {
+                name: companies.name,
+                sector: companies.sector,
+                cik: companies.cik,
+                businessFacts: companies.businessFacts,
+                price: companies.price,
+                priceAsOf: companies.priceAsOf,
+                cashAndEquiv: companies.cashAndEquiv,
+                totalDebt: companies.totalDebt,
+              },
+              lastFiling: { date: companies.lastFilingDate, periodEnd: companies.lastFilingPeriodEnd },
+              annual: {
+                fiscalYear: annualFinancials.fiscalYear,
+                periodEndDate: annualFinancials.periodEndDate,
+                revenue: annualFinancials.revenue,
+                operatingCashFlow: annualFinancials.operatingCashFlow,
+                capex: annualFinancials.capex,
+                sbc: annualFinancials.sbc,
+                buybacks: annualFinancials.buybacks,
+                dilutedShares: annualFinancials.dilutedShares,
+              },
             })
             .from(annualFinancials)
             .innerJoin(companies, eq(companies.ticker, annualFinancials.ticker))
-            .where(eq(annualFinancials.ticker, ticker))
-            .orderBy(asc(annualFinancials.sortOrder));
+            .where(and(eq(annualFinancials.ticker, ticker), ne(annualFinancials.fiscalYear, "TTM")))
+            .orderBy(desc(annualFinancials.sortOrder), desc(annualFinancials.id))
+            .limit(COMPARE_HISTORY_YEARS);
           if (rows.length === 0) throw new Error(`Comparison history unavailable for ${ticker}`);
 
-          return buildCompareCompanyHistory({
+          const { company, lastFiling } = rows[0];
+          return buildCompareCompanyHistory(reconcileFilingInputs(withValuationBusinessFacts({
+            ...company,
             ticker,
-            name: normalizeCompanyName(rows[0].name),
-            sector: rows[0].sector,
-            annuals: rows,
-          });
+            name: normalizeCompanyName(company.name),
+            lastFiling,
+            annuals: rows.reverse().map(({ annual }) => annual),
+          })));
         },
-        ["amber-compare-history-v2", ticker],
+        ["amber-compare-history-v4", ticker],
         { revalidate: 3600, tags: ["companies", `ticker-${ticker}`] }
       );
       try {
@@ -227,6 +247,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntryWithBaseScenari
           name: companies.name,
           exchange: companies.exchange,
           sector: companies.sector,
+          businessFacts: companies.businessFacts,
           price: companies.price,
           priceAsOf: companies.priceAsOf,
           marketCap: companies.marketCap,
@@ -234,6 +255,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntryWithBaseScenari
           totalDebt: companies.totalDebt,
           defaultDcf: companies.defaultDcf,
           lastFilingDate: companies.lastFilingDate,
+          lastFilingPeriodEnd: companies.lastFilingPeriodEnd,
         })
         .from(companies)
         .where(eq(companies.isActive, true)),
@@ -254,6 +276,8 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntryWithBaseScenari
           depreciationAmortization: annualFinancials.depreciationAmortization,
           goodwillIntangibles: annualFinancials.goodwillIntangibles,
           dividendsPaid: annualFinancials.dividendsPaid,
+          cashAndEquiv: annualFinancials.cashAndEquiv,
+          totalDebt: annualFinancials.totalDebt,
         })
         .from(annualFinancials)
         .innerJoin(companies, eq(annualFinancials.ticker, companies.ticker))
@@ -283,7 +307,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntryWithBaseScenari
           operatingIncome: a.operatingIncome ?? undefined,
           netIncome: a.netIncome ?? undefined,
         })),
-        lastFiling: { date: c.lastFilingDate },
+        lastFiling: { date: c.lastFilingDate, periodEnd: c.lastFilingPeriodEnd },
       }));
     }
 
@@ -296,7 +320,7 @@ async function querySearchIndexFromDb(): Promise<SearchIndexEntryWithBaseScenari
 
 async function getSearchIndexWithBaseScenarios(): Promise<SearchIndexEntryWithBaseScenario[]> {
   if (!process.env.DATABASE_URL) {
-    return SEARCH_INDEX;
+    return getStaticSearchIndex();
   }
 
   const cachedFetch = unstable_cache(
@@ -307,7 +331,7 @@ async function getSearchIndexWithBaseScenarios(): Promise<SearchIndexEntryWithBa
       }
       return res;
     },
-    ["amber-search-index-v7"],
+    ["amber-search-index-v9"],
     {
       revalidate: 3600,
       tags: ["companies"],
@@ -317,13 +341,13 @@ async function getSearchIndexWithBaseScenarios(): Promise<SearchIndexEntryWithBa
   try {
     return await cachedFetch();
   } catch {
-    return SEARCH_INDEX;
+    return getStaticSearchIndex();
   }
 }
 
-export async function getSearchIndex(): Promise<SearchIndexEntry[]> {
+export const getSearchIndex = cache(async (): Promise<SearchIndexEntry[]> => {
   return (await getSearchIndexWithBaseScenarios()).map(toSearchIndexEntry);
-}
+});
 
 export async function getPortfolioEntries() {
   return (await getSearchIndexWithBaseScenarios()).map(toPortfolioEntry);
@@ -498,221 +522,146 @@ export interface MarketFilingDiffItem {
   source: string;
 }
 
-function getStaticRecentFilingDiffs(limit: number): MarketFilingDiffItem[] {
-  const items: MarketFilingDiffItem[] = [];
-  for (const c of ALL_COMPANIES) {
-    for (const d of c.filingDiffs) {
-      items.push({
-        id: d.id,
-        ticker: c.ticker,
-        companyName: c.name,
-        sector: c.sector,
-        filingType: d.filingType,
-        filingDate: d.filingDate,
-        accessionNumber: d.accessionNumber,
-        section: d.section,
-        category: d.category,
-        materiality: d.materiality,
-        headline: d.headline,
-        summary: d.summary,
-        priorExcerpt: d.priorExcerpt,
-        currentExcerpt: d.currentExcerpt,
-        signalNote: d.signalNote,
-        source: d.section.toLowerCase().includes("item") ? "text-diff" : "xbrl",
-      });
-    }
-  }
-  const rank = { High: 0, Medium: 1, Watch: 2 };
-  return items
-    .sort(
-      (a, b) =>
-        b.filingDate.localeCompare(a.filingDate) ||
-        rank[a.materiality] - rank[b.materiality]
-    )
-    .slice(0, limit);
+const filingMaterialityRank = { High: 0, Medium: 1, Watch: 2 };
+
+function staticFilingDiffsForCompany(company: CompanySnapshot): MarketFilingDiffItem[] {
+  return company.filingDiffs.map((diff) => ({
+    ...diff,
+    ticker: company.ticker,
+    companyName: company.name,
+    sector: company.sector,
+    source: diff.section.toLowerCase().includes("item") ? "text-diff" : "xbrl",
+  }));
 }
 
-export async function getRecentFilingDiffs(
-  limit = 160
-): Promise<MarketFilingDiffItem[]> {
-  if (!process.env.DATABASE_URL) {
-    return getStaticRecentFilingDiffs(limit);
-  }
-
-  const cachedFetch = unstable_cache(
-    async () => {
-      const db = getDb();
-      if (!db) throw new Error("DB unavailable");
-
-      const rows = await db
-        .select({
-          id: filingDiffs.id,
-          ticker: filingDiffs.ticker,
-          companyName: companies.name,
-          sector: companies.sector,
-          filingType: filingDiffs.filingType,
-          filingDate: filingDiffs.filingDate,
-          accessionNumber: filingDiffs.accessionNumber,
-          section: filingDiffs.section,
-          category: filingDiffs.category,
-          materiality: filingDiffs.materiality,
-          headline: filingDiffs.headline,
-          summary: filingDiffs.summary,
-          priorExcerpt: filingDiffs.priorExcerpt,
-          currentExcerpt: filingDiffs.currentExcerpt,
-          signalNote: filingDiffs.signalNote,
-          source: filingDiffs.source,
-        })
-        .from(filingDiffs)
-        .innerJoin(companies, eq(filingDiffs.ticker, companies.ticker))
-        .orderBy(desc(filingDiffs.filingDate))
-        .limit(limit);
-
-      if (rows.length === 0) {
-        throw new Error("No filing diffs returned from DB");
-      }
-
-      return rows.map((r) => ({
-        ...r,
-        companyName: normalizeCompanyName(r.companyName),
-        materiality: (r.materiality === "High" || r.materiality === "Medium"
-          ? r.materiality
-          : "Watch") as MarketFilingDiffItem["materiality"],
-      }));
-    },
-    ["amber-recent-filing-diffs-v1", String(limit)],
-    { revalidate: 3600, tags: ["filings", "companies"] }
-  );
-
-  try {
-    return await cachedFetch();
-  } catch {
-    return getStaticRecentFilingDiffs(limit);
-  }
+function compareFilingDiffs(a: MarketFilingDiffItem, b: MarketFilingDiffItem): number {
+  return b.filingDate.localeCompare(a.filingDate) ||
+    filingMaterialityRank[a.materiality] - filingMaterialityRank[b.materiality] ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
-export async function getFilingDiffById(
-  rawId: string
-): Promise<MarketFilingDiffItem | null> {
-  const id = decodeURIComponent(rawId).trim();
-  if (!id) return null;
+let staticFilingDiffs: MarketFilingDiffItem[] | undefined;
+let staticFilingDiffsById: Map<string, MarketFilingDiffItem> | undefined;
 
+function getSortedStaticFilingDiffs(): MarketFilingDiffItem[] {
+  return staticFilingDiffs ??= ALL_COMPANIES.flatMap(staticFilingDiffsForCompany).sort(compareFilingDiffs);
+}
+
+function selectMarketFilingDiffs(db: NonNullable<ReturnType<typeof getDb>>) {
+  return db
+    .select({
+      id: filingDiffs.id,
+      ticker: filingDiffs.ticker,
+      companyName: companies.name,
+      sector: companies.sector,
+      filingType: filingDiffs.filingType,
+      filingDate: filingDiffs.filingDate,
+      accessionNumber: filingDiffs.accessionNumber,
+      section: filingDiffs.section,
+      category: filingDiffs.category,
+      materiality: filingDiffs.materiality,
+      headline: filingDiffs.headline,
+      summary: filingDiffs.summary,
+      priorExcerpt: filingDiffs.priorExcerpt,
+      currentExcerpt: filingDiffs.currentExcerpt,
+      signalNote: filingDiffs.signalNote,
+      source: filingDiffs.source,
+    })
+    .from(filingDiffs)
+    .innerJoin(companies, eq(filingDiffs.ticker, companies.ticker));
+}
+
+function toMarketFilingDiff(row: Omit<MarketFilingDiffItem, "materiality"> & { materiality: string }): MarketFilingDiffItem {
+  return {
+    ...row,
+    companyName: normalizeCompanyName(row.companyName),
+    materiality: row.materiality === "High" || row.materiality === "Medium" ? row.materiality : "Watch",
+  };
+}
+
+const filingDiffOrder = [
+  desc(filingDiffs.filingDate),
+  sql`case ${filingDiffs.materiality} when 'High' then 0 when 'Medium' then 1 else 2 end`,
+  asc(filingDiffs.id),
+];
+
+export async function getRecentFilingDiffs(limit = 160): Promise<MarketFilingDiffItem[]> {
   if (process.env.DATABASE_URL) {
+    const cachedFetch = unstable_cache(
+      async () => {
+        const db = getDb();
+        if (!db) throw new Error("DB unavailable");
+        const rows = await selectMarketFilingDiffs(db).orderBy(...filingDiffOrder).limit(limit);
+        if (rows.length === 0) throw new Error("No filing diffs returned from DB");
+        return rows.map(toMarketFilingDiff);
+      },
+      ["amber-recent-filing-diffs-v2", String(limit)],
+      { revalidate: 3600, tags: ["filings", "companies"] },
+    );
     try {
-      const db = getDb();
-      if (db) {
-        const rows = await db
-          .select({
-            id: filingDiffs.id,
-            ticker: filingDiffs.ticker,
-            companyName: companies.name,
-            sector: companies.sector,
-            filingType: filingDiffs.filingType,
-            filingDate: filingDiffs.filingDate,
-            accessionNumber: filingDiffs.accessionNumber,
-            section: filingDiffs.section,
-            category: filingDiffs.category,
-            materiality: filingDiffs.materiality,
-            headline: filingDiffs.headline,
-            summary: filingDiffs.summary,
-            priorExcerpt: filingDiffs.priorExcerpt,
-            currentExcerpt: filingDiffs.currentExcerpt,
-            signalNote: filingDiffs.signalNote,
-            source: filingDiffs.source,
-          })
-          .from(filingDiffs)
-          .innerJoin(companies, eq(filingDiffs.ticker, companies.ticker))
-          .where(eq(filingDiffs.id, id))
-          .limit(1);
-
-        if (rows[0]) {
-          const r = rows[0];
-          return {
-            ...r,
-            companyName: normalizeCompanyName(r.companyName),
-            materiality: (r.materiality === "High" || r.materiality === "Medium"
-              ? r.materiality
-              : "Watch") as MarketFilingDiffItem["materiality"],
-          };
-        }
-      }
+      return await cachedFetch();
     } catch {
-      // Fall back to static cache
+      // Keep the bundled filing feed available during database outages.
     }
   }
-
-  const staticAll = getStaticRecentFilingDiffs(2000);
-  return staticAll.find((d) => d.id === id) ?? null;
+  return getSortedStaticFilingDiffs().slice(0, limit);
 }
 
-export async function getFilingDiffsForTickers(
-  tickers: string[],
-  limit = 30
-): Promise<MarketFilingDiffItem[]> {
-  const normalized = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))];
+// The page and its metadata request the same, already decoded route parameter.
+export const getFilingDiffById = cache(async (id: string): Promise<MarketFilingDiffItem | null> => {
+  if (!id) return null;
+  try {
+    const db = getDb();
+    if (db) {
+      const [row] = await selectMarketFilingDiffs(db).where(eq(filingDiffs.id, id)).limit(1);
+      if (row) return toMarketFilingDiff(row);
+    }
+  } catch {
+    // Keep bundled permalinks available during database outages.
+  }
+
+  if (!staticFilingDiffsById) {
+    staticFilingDiffsById = new Map();
+    for (const company of ALL_COMPANIES) {
+      for (const diff of staticFilingDiffsForCompany(company)) {
+        const existing = staticFilingDiffsById.get(diff.id);
+        if (!existing || compareFilingDiffs(diff, existing) < 0) staticFilingDiffsById.set(diff.id, diff);
+      }
+    }
+  }
+  return staticFilingDiffsById.get(id) ?? null;
+});
+
+export async function getFilingDiffsForTickers(tickers: string[], limit = 30): Promise<MarketFilingDiffItem[]> {
+  const normalized = [...new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))].sort();
   if (normalized.length === 0) return [];
 
-  const staticFallback = () => {
-    const set = new Set(normalized);
-    return getStaticRecentFilingDiffs(500)
-      .filter((d) => set.has(d.ticker))
-      .slice(0, limit);
-  };
-
-  if (!process.env.DATABASE_URL) {
-    return staticFallback();
+  if (process.env.DATABASE_URL) {
+    const cachedFetch = unstable_cache(
+      async () => {
+        const db = getDb();
+        if (!db) throw new Error("DB unavailable");
+        const rows = await selectMarketFilingDiffs(db)
+          .where(inArray(filingDiffs.ticker, normalized))
+          .orderBy(...filingDiffOrder)
+          .limit(limit);
+        if (rows.length === 0) throw new Error("No ticker filing diffs returned from DB");
+        return rows.map(toMarketFilingDiff);
+      },
+      ["amber-ticker-filing-diffs-v2", normalized.join(","), String(limit)],
+      { revalidate: 3600, tags: ["filings", "companies"] },
+    );
+    try {
+      return await cachedFetch();
+    } catch {
+      // Use the bundled filings for these tickers when the live feed is unavailable.
+    }
   }
 
-  const key = [...normalized].sort().join(",");
-  const cachedFetch = unstable_cache(
-    async () => {
-      const db = getDb();
-      if (!db) throw new Error("DB unavailable");
-
-      const rows = await db
-        .select({
-          id: filingDiffs.id,
-          ticker: filingDiffs.ticker,
-          companyName: companies.name,
-          sector: companies.sector,
-          filingType: filingDiffs.filingType,
-          filingDate: filingDiffs.filingDate,
-          accessionNumber: filingDiffs.accessionNumber,
-          section: filingDiffs.section,
-          category: filingDiffs.category,
-          materiality: filingDiffs.materiality,
-          headline: filingDiffs.headline,
-          summary: filingDiffs.summary,
-          priorExcerpt: filingDiffs.priorExcerpt,
-          currentExcerpt: filingDiffs.currentExcerpt,
-          signalNote: filingDiffs.signalNote,
-          source: filingDiffs.source,
-        })
-        .from(filingDiffs)
-        .innerJoin(companies, eq(filingDiffs.ticker, companies.ticker))
-        .where(inArray(filingDiffs.ticker, normalized))
-        .orderBy(desc(filingDiffs.filingDate))
-        .limit(limit);
-
-      if (rows.length === 0) throw new Error("No trending diffs in DB");
-
-      return rows.map((r) => ({
-        ...r,
-        companyName: normalizeCompanyName(r.companyName),
-        materiality: (r.materiality === "High" || r.materiality === "Medium"
-          ? r.materiality
-          : "Watch") as MarketFilingDiffItem["materiality"],
-      }));
-    },
-    ["amber-ticker-filing-diffs-v1", key, String(limit)],
-    { revalidate: 3600, tags: ["filings", "companies"] }
-  );
-
-  try {
-    return await cachedFetch();
-  } catch {
-    return staticFallback();
-  }
+  return normalized.flatMap((ticker) => {
+    const company = getStaticCompany(ticker);
+    return company ? staticFilingDiffsForCompany(company) : [];
+  }).sort(compareFilingDiffs).slice(0, limit);
 }
 
 export async function getInsiderTradesForTickers(

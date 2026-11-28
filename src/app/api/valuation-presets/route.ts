@@ -1,3 +1,4 @@
+import { isScenarioLens } from "@/lib/finance";
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -25,7 +26,7 @@ function serializePreset(row: typeof userValuationPresets.$inferSelect) {
 
 function serializeHistoryRow(row: typeof userValuationHistory.$inferSelect) {
   const lens: SavedScenarioLens =
-    row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf";
+    isScenarioLens(row.lens) ? row.lens : "fcf";
   return {
     id: row.id,
     ticker: row.ticker,

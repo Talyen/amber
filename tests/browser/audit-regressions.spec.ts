@@ -318,3 +318,15 @@ test("Compare suppresses inapplicable cash flow consistently and exports the com
   await page.getByRole("menuitem", { name: "Export PNG card" }).click();
   expect((await png).suggestedFilename()).toBe("amber-compare-jpm-nvda.png");
 });
+
+test("Valuation Studio shows the range and opens a shared FFO scenario", async ({ page }) => {
+  await page.goto("/t/REG?tab=dcf&model=scenario");
+  await expect(page.getByRole("button", { name: "Funds From Operations", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Bear–bull range", { exact: false })).toBeVisible();
+  await expect(page.getByText(/% Modeled (Upside|Downside)/)).toBeVisible();
+
+  await page.goto("/t/REG?tab=dcf&model=scenario&lens=ffo&rev=7&m=30&exit=14.7");
+  await expect(page.getByText("Shared 5-Year Thesis", { exact: false })).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Exit Multiple (P/FFO)" })).toHaveValue("14.7");
+  await expect(page.getByText("Bear–bull range", { exact: false })).toHaveCount(0);
+});

@@ -1,4 +1,12 @@
 import { getReportedFfo } from "../data/reit-ffo.ts";
+import { getFilingEarningsShares, getFilingValuationShares, reconcileFilingInputs } from "../data/filing-supplements.ts";
+import { isFreshPriceDate } from "./market-price.ts";
+import {
+  classifyValuationBusiness,
+  type ValuationBusiness,
+  type ValuationBusinessFacts,
+  type ValuationBusinessInput,
+} from "./valuation-business.ts";
 
 export interface AnnualFinancials {
   fiscalYear: string; // e.g. "FY2021"
@@ -60,6 +68,8 @@ export interface CompanySnapshot {
   name: string;
   exchange: "NASDAQ" | "NYSE";
   sector: string;
+  sic?: number;
+  businessFacts?: ValuationBusinessFacts | null;
   tagline: string;
   priceAsOf?: string | null;
   price: number; // $
@@ -263,16 +273,23 @@ export interface FiveYearScenarioInputs {
   targetTrueFcfMarginPct: number; // Year-5 %
   exitMultiple: number; // EV / Year-5 True FCF
   hurdleRatePct?: number; // Default 10%
+  terminalGrowthPct?: number;
+  interimCashFlow?: (metric: number, revenueIncrease: number, yearGrowth: number) => number;
 }
 
 export interface FiveYearScenarioResult {
   yr5Rev: number;
   yr5TrueFcf: number;
+  yr5RecurringCashFlow: number;
   yr5TargetPrice: number;
   fairValueToday: number;
   upsidePct: number;
   totalMultiple: number;
   irrPct: number | null;
+  hurdleRatePct: number;
+  terminalValuePv: number;
+  terminalGrowthPct: number;
+  equityValueBeforeFloor: number;
 }
 
 /** Discount interim cash flows and terminal value on the same schedule used for IRR. */
@@ -281,21 +298,25 @@ export function computeFiveYearScenario(
 ): FiveYearScenarioResult {
   const years = 5;
   const r = (inputs.hurdleRatePct ?? 10) / 100;
-  const g = inputs.revGrowthPct / 100;
+  const growth = inputs.revGrowthPct / 100;
+  const terminalGrowth = (inputs.terminalGrowthPct ?? inputs.revGrowthPct) / 100;
   const startMargin = Math.max(-0.15, Math.min(0.6, inputs.currentTrueFcfMarginPct / 100));
   const endMargin = Math.max(0.01, Math.min(0.65, inputs.targetTrueFcfMarginPct / 100));
 
   let rev = inputs.baseRevenue;
-  const annualFlows: number[] = [];
+  let yr5TrueFcf = 0;
+  const cashFlows: number[] = [];
   for (let t = 1; t <= years; t++) {
-    rev *= 1 + g;
+    const yearGrowth = growth + (terminalGrowth - growth) * ((t - 1) / (years - 1));
+    const revenueIncrease = rev * yearGrowth;
+    rev += revenueIncrease;
     const margin = startMargin + (endMargin - startMargin) * (t / years);
-    annualFlows.push(rev * margin);
+    yr5TrueFcf = rev * margin;
+    cashFlows.push(inputs.interimCashFlow?.(yr5TrueFcf, revenueIncrease, yearGrowth) ?? yr5TrueFcf);
   }
 
-  const yr5TrueFcf = annualFlows[years - 1];
+  const yr5RecurringCashFlow = cashFlows[years - 1];
   const terminalValue = Math.max(0, yr5TrueFcf * inputs.exitMultiple);
-  const cashFlows = [...annualFlows];
   cashFlows[years - 1] += terminalValue;
   const presentValue = (discountFactor: number) => {
     let value = 0;
@@ -306,17 +327,19 @@ export function computeFiveYearScenario(
   };
 
   const shares = inputs.dilutedShares > 0 ? inputs.dilutedShares : 1;
-  const fairValueToday = Math.max(0, presentValue(1 / (1 + r)) + inputs.netCash) / shares;
+  const equityValueBeforeFloor = presentValue(1 / (1 + r)) + inputs.netCash;
+  const fairValueToday = Math.max(0, equityValueBeforeFloor) / shares;
   const upsidePct = ((fairValueToday - inputs.currentPrice) / Math.max(0.01, inputs.currentPrice)) * 100;
   const yr5TargetPrice = terminalValue / shares;
   const totalMultiple = (presentValue(1) + inputs.netCash) / (shares * Math.max(0.01, inputs.currentPrice));
 
   // The net cash/debt adjustment is at purchase in both calculations.
-  // With a positive net investment, projected flows can turn positive once,
-  // which gives a unique positive discount factor if the final flow is positive.
+  // Require a single cash-flow sign change before solving for one IRR.
+  const firstPositiveFlow = cashFlows.findIndex((flow) => flow > 0);
+  const uniqueIrr = firstPositiveFlow >= 0 && cashFlows.slice(firstPositiveFlow).every((flow) => flow >= 0);
   const netInvestment = inputs.currentPrice * shares - inputs.netCash;
   let irrPct: number | null = null;
-  if (inputs.currentPrice > 0 && netInvestment > 0 && cashFlows[years - 1] > 0) {
+  if (inputs.currentPrice > 0 && netInvestment > 0 && uniqueIrr && cashFlows[years - 1] > 0) {
     let low = 0;
     let high = 1;
     while (presentValue(high) < netInvestment && high < 1e64) high *= 2;
@@ -332,11 +355,16 @@ export function computeFiveYearScenario(
   return {
     yr5Rev: rev,
     yr5TrueFcf,
+    yr5RecurringCashFlow,
     yr5TargetPrice,
     fairValueToday,
     upsidePct,
     totalMultiple,
     irrPct,
+    hurdleRatePct: r * 100,
+    terminalValuePv: terminalValue / (1 + r) ** years,
+    terminalGrowthPct: terminalGrowth * 100,
+    equityValueBeforeFloor,
   };
 }
 
@@ -456,7 +484,11 @@ export function reverseDcfTargetMargin(targetFcfMargin: number, sbcDragPct: numb
   return clampReverseDcfTargetMargin(targetFcfMargin - sbcDragPct);
 }
 
-export type ScenarioLens = "fcf" | "ebit" | "pe";
+export type ScenarioLens = "fcf" | "ebit" | "pe" | "ffo";
+
+export function isScenarioLens(lens: unknown): lens is ScenarioLens {
+  return lens === "fcf" || lens === "ebit" || lens === "pe" || lens === "ffo";
+}
 
 export interface ScenarioAssumptions {
   lens: ScenarioLens;
@@ -468,59 +500,265 @@ export interface ScenarioAssumptions {
 export interface ScenarioBasis {
   price: number;
   dilutedShares: number;
+  earningsShares?: number;
   revenue: number;
   netCash: number;
   trueFcfMargin: number;
   operatingMargin: number | null;
   netMargin: number | null;
+  ffoMargin?: number | null;
   equityLensOnly: boolean;
+  model?: {
+    inputIssue: string | null;
+    enterpriseIssue: string | null;
+    reit: boolean;
+    earningsDefault: boolean;
+    earningsFallback: boolean;
+    growth: number;
+    steadyGrowth: number;
+    hurdle: number;
+    sustainableFcfMargin: number;
+    sustainableOperatingMargin: number;
+    sustainableNetMargin: number;
+    distributableEarnings: number;
+    returnOnEquity: number | null;
+    ffoPayout: number;
+    salesToCapital: number;
+    interestMargin: number;
+  };
 }
 
-export function buildScenarioBasis(company: Pick<CompanySnapshot,
-  "ticker" | "sector" | "price" | "cashAndEquiv" | "totalDebt"
-> & { annuals: ReadonlyArray<Pick<AnnualFinancials,
-  "fiscalYear" | "revenue" | "dilutedShares" | "operatingCashFlow" | "capex" | "sbc" | "operatingIncome" | "netIncome"
->> }): ScenarioBasis {
-  const latest = company.annuals.at(-1)!;
-  const latestFy = company.annuals.findLast((row) => row.fiscalYear !== "TTM") ?? latest;
-  return {
-    price: company.price,
-    dilutedShares: latest.dilutedShares,
-    revenue: latest.revenue,
-    netCash: company.cashAndEquiv - company.totalDebt,
-    trueFcfMargin: latest.revenue > 0
-      ? ((latest.operatingCashFlow - latest.capex - latest.sbc) / latest.revenue) * 100
-      : 0,
-    operatingMargin: latestFy.revenue > 0 && typeof latestFy.operatingIncome === "number"
-      ? (latestFy.operatingIncome / latestFy.revenue) * 100
-      : null,
-    netMargin: latestFy.revenue > 0 && typeof latestFy.netIncome === "number"
-      ? (latestFy.netIncome / latestFy.revenue) * 100
-      : null,
-    equityLensOnly: isFinancialInstitution(company),
+type ScenarioCompany = Pick<CompanySnapshot, "ticker" | "sector" | "price" | "cashAndEquiv" | "totalDebt" | "annuals"> &
+  Partial<Pick<CompanySnapshot, "cik" | "marketCap" | "priceAsOf" | "sic" | "businessFacts">> & {
+    lastFiling?: Partial<Pick<CompanySnapshot["lastFiling"], "date" | "periodEnd">>;
   };
+
+const DAY_MS = 86_400_000;
+const TAX_RATE = 0.25;
+
+function median(values: readonly number[]) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (!sorted.length) return undefined;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function metricMargin(row: AnnualFinancials, metric: "operatingIncome" | "netIncome") {
+  return row[metric] != null && row.revenue > 0 ? row[metric] / row.revenue * 100 : null;
+}
+
+function operatingCashMargin(row: AnnualFinancials, debt: number) {
+  // OCF usually includes cash interest. Estimate the after-tax addback on funded
+  // debt to put the cash flow on an enterprise basis. Earnings already expense SBC.
+  const interest = Math.max(0, debt) * 0.05 * (1 - TAX_RATE);
+  return (row.operatingCashFlow - row.capex - row.sbc + interest) / row.revenue * 100;
+}
+
+function annualGrowthRates(fiscal: readonly AnnualFinancials[], value: (row: AnnualFinancials) => number | null) {
+  return fiscal.slice(1).flatMap((row, index) => {
+    const prior = fiscal[index];
+    const periodDays = row.periodEndDate && prior.periodEndDate
+      ? (Date.parse(row.periodEndDate) - Date.parse(prior.periodEndDate)) / DAY_MS : null;
+    const years = fiscalYearsBetween(prior, row);
+    if (periodDays !== null && (periodDays < 330 || periodDays > 400) ||
+        periodDays === null && years != null && years !== 1) return [];
+    const from = value(prior);
+    const to = value(row);
+    if (!(from && from > 0 && to && to > 0)) return [];
+    const change = (to / from - 1) * 100;
+    // Breaks in business scope are unsuitable as a recurring growth assumption.
+    return change > 150 || change < -60 ? [] : [change];
+  });
+}
+
+export function buildScenarioBasis(raw: ScenarioCompany, now = Date.now()): ScenarioBasis {
+  const company = reconcileFilingInputs(raw);
+  const latest = company.annuals.at(-1);
+  const fiscal = company.annuals.filter((row) => row.fiscalYear !== "TTM");
+  const latestFy = fiscal.at(-1);
+  const recent = fiscal.slice(-3);
+  const business = getValuationBusiness(company);
+  const reit = business === "reit";
+  const financial = business === "financial";
+  const utility = business === "regulated-utility";
+  const financingExposed = business === "financing-exposed";
+  const earningsDefault = financial || utility || financingExposed;
+  const commodity = business === "commodity";
+  const cyclical = commodity || company.sector === "Semiconductors";
+  const steadyGrowth = commodity ? 1.5 : reit || financial || utility ? 2.5 : 3;
+
+  const revenue = latest?.revenue ?? 0;
+  const cash = company.cashAndEquiv;
+  const debt = company.totalDebt;
+  const shares = latest ? getFilingValuationShares(company, latest) : 0;
+  const marketShares = (company.marketCap ?? 0) / company.price;
+  const shareRatio = marketShares / shares;
+  const financialPeriod = latest?.periodEndDate ? Date.parse(latest.periodEndDate) : NaN;
+  const filingPeriod = company.lastFiling?.periodEnd ? Date.parse(company.lastFiling.periodEnd) : NaN;
+  const quoteDate = company.priceAsOf ? Date.parse(company.priceAsOf) : NaN;
+
+  let inputIssue: string | null = null;
+  if (![company.price, shares, revenue].every((number) => Number.isFinite(number) && number > 0)) {
+    inputIssue = "The quote, share count or revenue is unavailable.";
+  } else if (company.priceAsOf !== undefined && !isFreshPriceDate(company.priceAsOf, now)) {
+    inputIssue = "A recent dated closing price is unavailable.";
+  } else if (marketShares > 0 && (shareRatio > 1.5 || shareRatio < 2 / 3)) {
+    inputIssue = "The valuation share count does not reconcile to the listed security.";
+  } else if (Number.isFinite(quoteDate) && (!Number.isFinite(financialPeriod) ||
+    quoteDate - financialPeriod > 550 * DAY_MS || financialPeriod > quoteDate ||
+    (filingPeriod - financialPeriod > 125 * DAY_MS && !reit))) {
+    inputIssue = "The financial statements are too old or their reporting dates do not reconcile.";
+  }
+
+  const missingBalance = (cash === 0 && latest?.cashAndEquiv === null) || (debt === 0 && latest?.totalDebt === null);
+  let enterpriseIssue: string | null = null;
+  if (financingExposed) {
+    enterpriseIssue = "Consolidated cash flow includes lending or customer funds. The earnings model is available.";
+  } else if (!Number.isFinite(cash) || !Number.isFinite(debt) || cash < 0 || debt < 0 || missingBalance) {
+    enterpriseIssue = "Cash or debt could not be verified for the valuation.";
+  } else if (latest && (!Number.isFinite(latest.capex) || latest.capex <= 0)) {
+    enterpriseIssue = "Capital spending could not be verified for the valuation.";
+  } else if (latest && latest.totalDebt != null && latest.cashAndEquiv != null && (
+    Math.abs(debt - latest.totalDebt) > Math.max(0.12 * revenue, 0.5 * latest.totalDebt) ||
+    Math.abs(cash - latest.cashAndEquiv) > Math.max(0.12 * revenue, 0.5 * latest.cashAndEquiv)
+  )) {
+    enterpriseIssue = "Cash or debt does not reconcile to the latest financial period.";
+  } else if (recent.some((row) => row.revenue > 0 && (row.operatingIncome ?? 0) > row.revenue)) {
+    enterpriseIssue = "Historical revenue does not reconcile to operating earnings.";
+  }
+
+  const operatingMargin = (latest && metricMargin(latest, "operatingIncome")) ??
+    (latestFy ? metricMargin(latestFy, "operatingIncome") : null);
+  const netMargin = (latest && metricMargin(latest, "netIncome")) ??
+    (latestFy ? metricMargin(latestFy, "netIncome") : null);
+  const ffo = reit && latestFy ? getReportedFfo(company.cik, latestFy.periodEndDate) : undefined;
+  const ffoPerShare = ffo?.perShare ?? (ffo?.commonFfo && latestFy ? ffo.commonFfo / latestFy.dilutedShares : null);
+  const ffoMargin = ffoPerShare && revenue > 0 ? ffoPerShare * shares / revenue * 100 : null;
+  const interestMargin = revenue > 0 ? Math.max(0, debt) * 0.05 * (1 - TAX_RATE) / revenue * 100 : 0;
+  const trueFcfMargin = latest && revenue > 0
+    ? (latest.operatingCashFlow - latest.capex - latest.sbc) / revenue * 100 : 0;
+
+  const rates = annualGrowthRates(fiscal.slice(-4), (row) => {
+    if (reit && row.dilutedShares > 10) {
+      const reported = getReportedFfo(company.cik, row.periodEndDate);
+      return reported?.perShare ?? (reported?.commonFfo ? reported.commonFfo / row.dilutedShares : null);
+    }
+    if (earningsDefault) return row.netIncome ?? null;
+    return row.revenue;
+  });
+  // Blend the latest comparable year with a three-year median and a mature
+  // baseline. Cyclical industries put more weight on mid-cycle growth.
+  const typicalGrowth = median(rates) ?? steadyGrowth;
+  const recentGrowth = rates.at(-1) ?? typicalGrowth;
+  const growthEstimate = Math.max(-10, Math.min(45, cyclical || earningsDefault || reit
+    ? recentGrowth * 0.25 + typicalGrowth * 0.25 + steadyGrowth * 0.5
+    : recentGrowth * 0.55 + typicalGrowth * 0.35 + steadyGrowth * 0.1));
+
+  const observedCashMargins = recent.filter((row) => row.revenue > 0 && row.capex > 0)
+    .map((row) => operatingCashMargin(row, row.totalDebt ?? debt));
+  const currentCashMargin = trueFcfMargin + interestMargin;
+  const historicalCashMargin = median(observedCashMargins) ?? currentCashMargin;
+  const sustainableFcfMargin = historicalCashMargin * (cyclical ? 0.8 : 0.6) +
+    currentCashMargin * (cyclical ? 0.2 : 0.4);
+  const sustainableOperatingMargin = median(recent.flatMap((row) => metricMargin(row, "operatingIncome") ?? [])) ??
+    operatingMargin ?? 0;
+  const medianEarnings = median(recent.flatMap((row) => row.netIncome ?? []));
+  const currentEarnings = netMargin !== null ? netMargin * revenue / 100 : medianEarnings ?? 0;
+  const blendedNetMargin = revenue > 0
+    ? (currentEarnings * 0.6 + (medianEarnings ?? currentEarnings) * 0.4) / revenue * 100 : 0;
+  const fiscalNetMargins = recent.flatMap((row) => metricMargin(row, "netIncome") ?? []);
+  const normalizedNetMargin = median(fiscalNetMargins) ?? 0;
+  const sustainableNetMargin = fiscalNetMargins.length >= 2 && (netMargin ?? 0) > 0 && normalizedNetMargin > 0
+    ? normalizedNetMargin : blendedNetMargin;
+  const returnOnEquity = median(recent.flatMap((row) => row.stockholdersEquity && row.stockholdersEquity > 0 &&
+    row.netIncome != null ? [row.netIncome / row.stockholdersEquity] : [])) ?? null;
+  const earningsFallback = missingBalance && !commodity && (netMargin ?? 0) > 0 &&
+    (latest?.operatingCashFlow ?? 0) > 0 &&
+    recent.length >= 3 && recent.every((row) => (row.netIncome ?? 0) > 0) &&
+    returnOnEquity !== null && returnOnEquity > 0;
+  const growth = Math.round(financial && returnOnEquity !== null && returnOnEquity > 0
+    ? Math.min(growthEstimate, returnOnEquity * 100) : growthEstimate);
+  // Common equity receives cash through repurchases as well as dividends.
+  // The projection separately limits payouts to earnings left after reinvestment.
+  const reportedPayout = median(recent.flatMap((row) => row.netIncome && row.netIncome > 0 &&
+    row.dividendsPaid != null
+    ? [(row.dividendsPaid + (Number.isFinite(row.buybacks) ? Math.max(0, row.buybacks) : 0)) / row.netIncome]
+    : []));
+  const distributableEarnings = reportedPayout ?? (financial ? 0.45 : utility ? 0.55 : 0.4);
+  const ffoPayout = ffoPerShare && latestFy?.dividendsPaid != null && shares > 0
+    ? latestFy.dividendsPaid / (ffoPerShare * shares) : 0.65;
+
+  return {
+    price: company.price, dilutedShares: shares, revenue, netCash: cash - debt,
+    earningsShares: latest ? getFilingEarningsShares(company, latest) : undefined,
+    trueFcfMargin, operatingMargin, netMargin, ffoMargin, equityLensOnly: financial || reit,
+    model: {
+      inputIssue, enterpriseIssue, reit, earningsDefault, earningsFallback, growth, steadyGrowth,
+      hurdle: utility ? 8.5 : reit ? 9 : commodity ? 11.5 : financial ? 10.5 : 10,
+      sustainableFcfMargin, sustainableOperatingMargin, sustainableNetMargin,
+      distributableEarnings, returnOnEquity, ffoPayout, salesToCapital: cyclical ? 1 : 2, interestMargin,
+    },
+  };
+}
+
+export function scenarioStartingMargin(basis: ScenarioBasis, lens: ScenarioLens): number | null {
+  switch (lens) {
+    case "pe": return basis.netMargin;
+    case "ebit": return basis.operatingMargin;
+    case "ffo": return basis.ffoMargin ?? null;
+    case "fcf": return basis.trueFcfMargin + (basis.model?.interestMargin ?? 0);
+  }
+}
+
+export function scenarioLensAvailable(basis: ScenarioBasis, lens: ScenarioLens): boolean {
+  const margin = scenarioStartingMargin(basis, lens);
+  if (margin === null || !Number.isFinite(margin)) return false;
+  if (lens === "ffo") return margin > 0;
+  if (lens === "pe") return margin > 0 || (basis.model?.sustainableNetMargin ?? 0) > 0;
+  return !basis.equityLensOnly && (lens === "fcf" || margin > 0);
+}
+
+export function scenarioInputIssue(basis: ScenarioBasis, lens: ScenarioLens): string | null {
+  const model = basis.model;
+  return model?.inputIssue ?? (lens === "fcf" || lens === "ebit" ? model?.enterpriseIssue : null) ?? null;
 }
 
 export function computeScenarioProjection(
   basis: ScenarioBasis,
   { lens, revGrowth, targetMargin, exitMultiple }: ScenarioAssumptions,
 ): FiveYearScenarioResult | null {
-  const currentMargin = lens === "pe" ? basis.netMargin
-    : lens === "ebit" ? basis.operatingMargin : basis.trueFcfMargin;
-  if ((basis.equityLensOnly && lens !== "pe") || currentMargin === null ||
-    (lens !== "fcf" && currentMargin <= 2) || !Number.isFinite(currentMargin) ||
-    ![basis.price, basis.dilutedShares, basis.revenue].every((n) => Number.isFinite(n) && n > 0)) {
-    return null;
-  }
+  const currentMargin = scenarioStartingMargin(basis, lens);
+  const model = basis.model;
+  if (scenarioInputIssue(basis, lens) || !scenarioLensAvailable(basis, lens) || currentMargin === null ||
+    ![basis.price, basis.dilutedShares, basis.revenue, targetMargin, exitMultiple].every((n) => Number.isFinite(n) && n > 0) ||
+    !Number.isFinite(revGrowth) || revGrowth <= -100) return null;
+  const isEquity = lens === "pe" || lens === "ffo";
+  const interimCashFlow = model && ((metric: number, revenueIncrease: number, yearGrowth: number) => {
+    if (lens === "ebit") {
+      return metric - Math.max(0, metric) * TAX_RATE - Math.max(0, revenueIncrease) / model.salesToCapital;
+    }
+    if (lens === "ffo") return Math.max(0, metric) * Math.max(0, Math.min(1, model.ffoPayout));
+    if (lens === "pe") {
+      const retention = model.returnOnEquity && model.returnOnEquity > 0
+        ? Math.max(0, yearGrowth / model.returnOnEquity) : 0;
+      const payout = Math.max(0, Math.min(1 - retention, model.distributableEarnings));
+      return Math.max(0, metric) * payout;
+    }
+    return metric;
+  });
+
   return computeFiveYearScenario({
     currentPrice: basis.price,
-    dilutedShares: basis.dilutedShares,
+    dilutedShares: lens === "pe" ? basis.earningsShares ?? basis.dilutedShares : basis.dilutedShares,
     baseRevenue: basis.revenue,
     currentTrueFcfMarginPct: currentMargin,
-    netCash: lens === "pe" ? 0 : basis.netCash,
+    netCash: isEquity ? 0 : basis.netCash,
     revGrowthPct: revGrowth,
     targetTrueFcfMarginPct: targetMargin,
     exitMultiple,
+    hurdleRatePct: model?.hurdle,
+    terminalGrowthPct: model ? Math.min(revGrowth, 0) * 0.25 + model.steadyGrowth : undefined,
+    interimCashFlow,
   });
 }
 
@@ -528,55 +766,103 @@ export function getScenarioDefaults(
   company: Pick<CompanySnapshot, "annuals" | "defaultDcf">,
   basis: ScenarioBasis,
 ) {
-  const revGrowth = Math.max(1, Math.min(24, Math.round(computeRevenueCagr(company.annuals))));
-  const operatingMargin = basis.operatingMargin ?? 0;
-  const hasEbit = !basis.equityLensOnly && operatingMargin > 2;
-  const hasPe = (basis.netMargin ?? 0) > 2;
-  const capexPctRev = basis.revenue > 0 ? (company.annuals.at(-1)!.capex / basis.revenue) * 100 : 0;
-  const defaultLens: ScenarioLens = basis.equityLensOnly ? "pe"
-    : hasEbit && capexPctRev >= 10 && operatingMargin > Math.max(2, basis.trueFcfMargin * 1.6)
-      ? "ebit" : "fcf";
-  const roundedMargin = (margin: number, min: number, max: number) =>
-    Math.max(min, Math.min(max, Math.round(margin * 2) / 2));
+  const model = basis.model;
+  const revGrowth = model?.growth ?? Math.max(1, Math.min(24, Math.round(computeRevenueCagr(company.annuals))));
+  const hasEbit = scenarioLensAvailable(basis, "ebit") && !scenarioInputIssue(basis, "ebit");
+  const hasPe = scenarioLensAvailable(basis, "pe");
+  const hasFfo = scenarioLensAvailable(basis, "ffo");
+  const defaultLens: ScenarioLens = model?.reit ? "ffo" : model?.earningsDefault || model?.earningsFallback || basis.equityLensOnly
+    ? "pe" : "fcf";
+  const steadyGrowth = (model?.steadyGrowth ?? 3) / 100;
+  const hurdle = (model?.hurdle ?? 10) / 100;
+  const steadyValueMultiple = (1 + steadyGrowth) / (hurdle - steadyGrowth);
+  const sustainablePayout = model?.returnOnEquity && model.returnOnEquity > steadyGrowth
+    ? 1 - steadyGrowth / model.returnOnEquity : 0.65;
+  const roundMargin = (margin: number) => Math.max(1, Math.min(55, Math.round(margin * 2) / 2));
+  const roundMultiple = (multiple: number) => Math.max(5, Math.round(multiple * 10) / 10);
+  const normalizedFcf = model?.sustainableFcfMargin ?? company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct;
+  const normalizedEbit = model?.sustainableOperatingMargin ?? basis.operatingMargin ?? 0;
+  const normalizedEarnings = model?.sustainableNetMargin ?? basis.netMargin ?? 0;
+
   return {
-    revGrowth, defaultLens, hasEbit, hasPe,
+    revGrowth, defaultLens, hasEbit, hasPe, hasFfo,
     byLens: {
+      fcf: { margin: roundMargin(normalizedFcf), multiple: roundMultiple(steadyValueMultiple) },
       ebit: {
-        margin: roundedMargin(operatingMargin * 1.05, 3, 55),
-        multiple: revGrowth >= 12 ? 20 : revGrowth >= 7 ? 16 : 13,
+        margin: roundMargin(normalizedEbit),
+        multiple: roundMultiple(steadyValueMultiple * Math.max(0,
+          1 - TAX_RATE - steadyGrowth / ((model?.salesToCapital ?? 2) * Math.max(0.02, normalizedEbit / 100)))),
       },
-      pe: {
-        margin: roundedMargin((basis.netMargin ?? 0) * 1.05, 2, 50),
-        multiple: revGrowth >= 12 ? 24 : revGrowth >= 7 ? 20 : 15,
-      },
-      fcf: {
-        margin: roundedMargin(company.defaultDcf.targetFcfMargin - company.defaultDcf.sbcDragPct, 1, 55),
-        multiple: company.defaultDcf.terminalMultiple,
-      },
+      pe: { margin: roundMargin(normalizedEarnings), multiple: roundMultiple(steadyValueMultiple * sustainablePayout) },
+      ffo: { margin: roundMargin(basis.ffoMargin ?? 0), multiple: roundMultiple(steadyValueMultiple * 0.85) },
+    },
+  };
+}
+
+export function scenarioPresetAssumptions(
+  lens: ScenarioLens,
+  defaults: Pick<ReturnType<typeof getScenarioDefaults>, "byLens" | "revGrowth">,
+  kind: "bear" | "base" | "bull",
+): ScenarioAssumptions {
+  const { margin, multiple } = defaults.byLens[lens];
+  const revGrowth = defaults.revGrowth;
+  if (kind === "base") return { lens, revGrowth, targetMargin: margin, exitMultiple: multiple };
+  const change = kind === "bull" ? 1 : -1;
+  return {
+    lens,
+    revGrowth: Math.min(45, Math.max(-10, Math.round(revGrowth + change * Math.max(3, Math.abs(revGrowth) * 0.25)))),
+    targetMargin: Math.min(55, Math.max(1, Math.round(margin * (1 + change * 0.2) * 2) / 2)),
+    exitMultiple: Math.min(45, Math.max(5, Math.round(multiple * (1 + change * 0.2) * 10) / 10)),
+  };
+}
+
+export function evaluateBaseCaseValuation(
+  company: Pick<CompanySnapshot, "annuals" | "defaultDcf">,
+  basis: ScenarioBasis,
+) {
+  const defaults = getScenarioDefaults(company, basis);
+  const assumptions = scenarioPresetAssumptions(defaults.defaultLens, defaults, "base");
+  const { lens, revGrowth, targetMargin, exitMultiple } = assumptions;
+  const model = basis.model;
+  const issue = scenarioInputIssue(basis, lens) ??
+    (lens === "ffo" && !defaults.hasFfo ? "Issuer-reported funds from operations are unavailable." : null) ??
+    (lens === "fcf" && model && model.sustainableFcfMargin <= 0 ? "Reported cash flows do not establish a profitable base case." : null) ??
+    (lens === "pe" && model && model.sustainableNetMargin <= 0 ? "Reported earnings do not establish a profitable base case." : null);
+  if (issue) return { valuation: null, issue };
+
+  const projection = computeScenarioProjection(basis, assumptions);
+  if (!projection || !Number.isFinite(projection.fairValueToday)) {
+    return { valuation: null, issue: "The available fundamentals do not support a base-case valuation." };
+  }
+  if (projection.equityValueBeforeFloor <= 0) {
+    return { valuation: null, issue: "The base-case cash flows do not cover the claims ahead of common equity." };
+  }
+  const sensitivities = (["bear", "bull"] as const).map((kind) =>
+    computeScenarioProjection(basis, scenarioPresetAssumptions(lens, defaults, kind))?.fairValueToday ?? projection.fairValueToday);
+  return {
+    issue: null,
+    valuation: {
+      lens,
+      fairValue: Number(projection.fairValueToday.toFixed(2)),
+      upsidePct: Number(projection.upsidePct.toFixed(1)),
+      fairValueLow: Number(Math.min(projection.fairValueToday, ...sensitivities).toFixed(2)),
+      fairValueHigh: Number(Math.max(projection.fairValueToday, ...sensitivities).toFixed(2)),
+      revGrowthPct: revGrowth,
+      targetMarginPct: targetMargin,
+      exitMultiple,
     },
   };
 }
 
 export function computeBaseCaseValuation(
-  company: Pick<CompanySnapshot, "ticker" | "sector" | "price" | "cashAndEquiv" | "totalDebt" | "annuals" | "defaultDcf">,
+  company: ScenarioCompany & Pick<CompanySnapshot, "defaultDcf">,
   basis = buildScenarioBasis(company),
 ) {
-  const { revGrowth, defaultLens: lens, byLens } = getScenarioDefaults(company, basis);
-  const { margin, multiple } = byLens[lens];
-  const scenario = computeScenarioProjection(basis, { lens, revGrowth, targetMargin: margin, exitMultiple: multiple });
-  if (!scenario) return null;
-  return {
-    lens,
-    fairValue: Number(scenario.fairValueToday.toFixed(2)),
-    upsidePct: Number(scenario.upsidePct.toFixed(1)),
-    revGrowthPct: revGrowth,
-    targetMarginPct: margin,
-    exitMultiple: multiple,
-  };
+  return evaluateBaseCaseValuation(company, basis).valuation;
 }
 
 export function computeCompanyValuation(
-  company: EnterpriseValueInputs & Pick<CompanySnapshot, "ticker" | "sector" | "annuals" | "defaultDcf">
+  company: EnterpriseValueInputs & ValuationBusinessCompany & Pick<CompanySnapshot, "annuals" | "defaultDcf">
 ) {
   const series = computeAnnualMetrics(company.annuals);
   const latest = series[series.length - 1];
@@ -588,7 +874,7 @@ export function computeCompanyValuation(
     latest,
     enterpriseValue,
     netDilutionCagr: computeNetDilutionCagr(company.annuals),
-    reverseDcf: isFinancialInstitution(company) ? null : solveReverseDcf({
+    reverseDcf: isFinancialInstitution(company) || getValuationBusiness(company) === "financing-exposed" ? null : solveReverseDcf({
       enterpriseValue,
       baseRevenue: latest.revenue,
       waccPct: wacc,
@@ -620,48 +906,27 @@ export function formatPct(value: number | null | undefined, showSign = false, de
   return `${sign}${value.toFixed(decimals)}%`;
 }
 
-export const FINANCIAL_INSTITUTION_TICKERS = new Set([
-  "JPM",
-  "GS",
-  "MS",
-  "BAC",
-  "WFC",
-  "C",
-  "AXP",
-  "BX",
-  "KKR",
-  "BLK",
-  "SCHW",
-  "COF",
-  "USB",
-  "PNC",
-  "TFC",
-  "AMP",
-  "CB",
-  "PGR",
-  "TRV",
-  "MET",
-  "PRU",
-  "AIG",
-  "ALL",
-]);
+type ValuationBusinessCompany = ValuationBusinessInput & {
+  cik?: string;
+  valuationBusiness?: ValuationBusiness;
+};
 
-export function isFinancialInstitution(
-  company: Pick<CompanySnapshot, "ticker" | "sector">
-): boolean {
-  return (
-    FINANCIAL_INSTITUTION_TICKERS.has(company.ticker) ||
-    company.sector === "Financials" ||
-    company.sector === "Real Estate & REITs"
-  );
+export function getValuationBusiness(company: ValuationBusinessCompany): ValuationBusiness {
+  if (company.valuationBusiness) return company.valuationBusiness;
+  return classifyValuationBusiness(company);
 }
 
-export function isReit(company: Pick<CompanySnapshot, "sector">): boolean {
-  return company.sector === "Real Estate & REITs";
+export function isFinancialInstitution(company: ValuationBusinessCompany): boolean {
+  const business = getValuationBusiness(company);
+  return business === "financial" || business === "reit";
+}
+
+export function isReit(company: ValuationBusinessCompany): boolean {
+  return getValuationBusiness(company) === "reit";
 }
 
 export function matchesReitPriceToFfo(
-  company: Pick<CompanySnapshot, "sector"> & { priceToFfo?: number | null },
+  company: ValuationBusinessCompany & { priceToFfo?: number | null },
   max: number
 ): boolean {
   const multiple = company.priceToFfo;
@@ -687,8 +952,8 @@ export interface FinancialSectorMetrics {
 }
 
 export function computeFinancialSectorMetrics(
-  company: Pick<CompanySnapshot, "marketCap" | "annuals" | "sector"> &
-    Partial<Pick<CompanySnapshot, "cik" | "price">>
+  company: ValuationBusinessCompany & Pick<CompanySnapshot, "marketCap" | "annuals"> &
+    Partial<Pick<CompanySnapshot, "price">>
 ): FinancialSectorMetrics {
   const fyOnly = company.annuals.filter((a) => a.fiscalYear !== "TTM");
   const latestWithEquity =

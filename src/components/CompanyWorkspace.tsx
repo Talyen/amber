@@ -30,6 +30,7 @@ import {
   computeShareholderYieldMetrics,
   formatCurrencyCompact,
   formatPct,
+  getValuationBusiness,
   isFinancialInstitution as checkFinancialInstitution,
   isReit as checkIsReit,
 } from "@/lib/finance";
@@ -200,6 +201,7 @@ export function CompanyWorkspace({
   }, [series, latest]);
   const isFinancialInstitution = checkFinancialInstitution(company);
   const isReitCompany = checkIsReit(company);
+  const valuationBusiness = getValuationBusiness(company);
   const financialMetrics = useMemo(
     () => (isFinancialInstitution ? computeFinancialSectorMetrics(company) : null),
     [company, isFinancialInstitution]
@@ -208,7 +210,14 @@ export function CompanyWorkspace({
     () => computeShareholderYieldMetrics(company),
     [company]
   );
-  const sectorValuationMultiple = isReitCompany ? financialMetrics?.priceToFfo : financialMetrics?.priceToTbv;
+  const operatingEarningsMultiple = useMemo(
+    () => !reverseDcf && !isFinancialInstitution ? computeFinancialSectorMetrics(company).peRatio : null,
+    [company, reverseDcf, isFinancialInstitution]
+  );
+  const sectorValuationMultiple = isReitCompany ? financialMetrics?.priceToFfo
+    : isFinancialInstitution ? financialMetrics?.priceToTbv : operatingEarningsMultiple;
+  const valuationMetricLabel = reverseDcf ? "Priced-In Growth"
+    : isReitCompany ? "Price / FFO" : isFinancialInstitution ? "Price / Tangible Book" : "Price / Earnings";
   const evToTrueFcf =
     reverseDcf && latest.trueFcf > 0 ? enterpriseValue / latest.trueFcf : null;
   const openMarketBuys = useMemo(
@@ -706,7 +715,7 @@ export function CompanyWorkspace({
             <div className="flex items-center justify-between gap-1 text-[11px] text-[var(--text-secondary)]">
               <span className="inline-flex items-center gap-1">
                 <span>
-                  {reverseDcf ? "Priced-In Growth" : isReitCompany ? "Price / FFO" : "Price / Tangible Book"}
+                  {valuationMetricLabel}
                 </span>
                 {reverseDcf && (
                   <MetricHint
@@ -932,6 +941,7 @@ export function CompanyWorkspace({
                       ticker: company.ticker,
                       name: company.name,
                       sector: company.sector,
+                      valuationBusiness,
                       marketCap: company.marketCap,
                       revenueCagr: briefing.revenueCagr,
                       trueFcfMargin: isFinancialInstitution ? null : latest.trueFcfMargin,
@@ -1030,7 +1040,7 @@ export function CompanyWorkspace({
                     </div>
                     <p className="text-xs text-[var(--text-muted)]">
                       {!reverseDcf || valuationMode === "scenario"
-                        ? "Set your own 5-year assumptions to estimate expected return."
+                        ? "Set your own five-year assumptions to see the return they imply."
                         : "See the 10-year revenue growth already baked into today's price."}
                     </p>
                   </div>

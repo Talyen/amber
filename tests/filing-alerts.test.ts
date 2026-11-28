@@ -148,10 +148,10 @@ test("a failed digest recipient does not block later recipients or turn the job 
     if (query.includes('from "user_alert_preferences"')) {
       return result([
         "user_id", "email", "email_verified", "include_filing_diffs", "include_form4_buys",
-        "include_form8k", "include_valuation_triggers", "valuation_irr_threshold", "last_digest_sent_at",
+        "include_form8k", "include_valuation_triggers", "valuation_irr_threshold",
       ], [
-        ["first", "first@example.test", true, true, false, false, false, 15, null],
-        ["second", "second@example.test", true, true, false, false, false, 15, null],
+        ["first", "first@example.test", true, true, false, false, false, 15],
+        ["second", "second@example.test", true, true, false, false, false, 15],
       ]);
     }
     if (query.includes('from "user_watchlists"')) return result(["ticker"], [["NVDA"]]);

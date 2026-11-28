@@ -54,6 +54,7 @@ async function migrate() {
     sql.query(readFileSync(new URL("../drizzle/0016_public_api_rate_windows.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0017_sunday_signal.sql", import.meta.url), "utf8")),
     sql.query(readFileSync(new URL("../drizzle/0018_distribution_counts.sql", import.meta.url), "utf8")),
+    sql.query(readFileSync(new URL("../drizzle/0019_valuation_business_facts.sql", import.meta.url), "utf8")),
   ]);
 
   const [index] = await sql`
@@ -311,6 +312,15 @@ async function migrate() {
     throw new Error("Could not verify Sunday Signal and distribution reporting schema.");
   }
   console.log("[amber-migrate] Verified Sunday Signal and distribution reporting.");
+
+  const [businessFactsColumn] = await sql`
+    select data_type, is_nullable from information_schema.columns
+    where table_schema = 'public' and table_name = 'companies' and column_name = 'business_facts'
+  `;
+  if (businessFactsColumn?.data_type !== "jsonb" || businessFactsColumn?.is_nullable !== "YES") {
+    throw new Error("Could not verify company valuation business facts.");
+  }
+  console.log("[amber-migrate] Verified company valuation business facts.");
 }
 
 await migrate();

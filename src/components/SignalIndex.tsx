@@ -829,11 +829,11 @@ export function SignalIndex({
             <td data-label="Price" className="font-mono-num text-[var(--text-secondary)]">
               {typeof c.price === "number" ? `$${c.price.toFixed(2)}` : "—"}
             </td>
-            <td data-label="Fair Value" className="font-mono-num font-medium text-[var(--text-primary)]">
+            <td data-label="Fair Value" title={c.fairValueIssue} className="font-mono-num font-medium text-[var(--text-primary)]">
               {typeof c.fairValue === "number" ? `$${c.fairValue.toFixed(2)}` : "—"}
             </td>
             <td
-              data-label="Est. Upside"
+              data-label="Modeled Upside / Downside"
               className={`font-mono-num font-semibold ${
                 (c.fairValueUpsidePct ?? 0) >= 0
                   ? "text-[var(--positive)]"

@@ -1,21 +1,26 @@
 import {
   buildScenarioBasis,
-  computeBaseCaseValuation,
+  evaluateBaseCaseValuation,
   computeCompanyValuation,
   computeFinancialSectorMetrics,
   computeRevenueCagr,
   computeShareholderYieldMetrics,
+  getValuationBusiness,
   type CompanySnapshot,
   type ScenarioAssumptions,
   type ScenarioBasis,
 } from "../lib/finance.ts";
+import { reconcileFilingInputs } from "./filing-supplements.ts";
 import { normalizeCompanyName } from "../lib/company-name.ts";
+import type { ValuationBusiness } from "../lib/valuation-business.ts";
+import { withValuationBusinessFacts } from "./valuation-business-facts.ts";
 
 export interface SearchIndexEntry {
   ticker: string;
   name: string;
   exchange: CompanySnapshot["exchange"];
   sector: string;
+  valuationBusiness?: ValuationBusiness;
   price?: number;
   marketCap: number;
   revenue: number;
@@ -31,6 +36,9 @@ export interface SearchIndexEntry {
   scenarioBasis: ScenarioBasis;
   fairValue?: number;
   fairValueUpsidePct?: number;
+  fairValueLow?: number;
+  fairValueHigh?: number;
+  fairValueIssue?: string;
   dividendYieldPct?: number;
   shareholderYieldPct?: number;
   priceToTbv?: number | null;
@@ -59,12 +67,12 @@ export type CommandSearchEntry = ReturnType<typeof toCommandSearchEntry>;
 
 export function toExploreEntry({
   ticker, name, sector, price, marketCap, revenue, revenueCagr, trueFcf, trueFcfMargin,
-  sbcPctRevenue, netDilutionCagr, impliedCagr, scenarioBasis, fairValue, fairValueUpsidePct,
+  sbcPctRevenue, netDilutionCagr, impliedCagr, scenarioBasis, fairValue, fairValueUpsidePct, fairValueIssue,
   shareholderYieldPct, priceToTbv, rotcePct, priceToFfo,
 }: SearchIndexEntry) {
   return {
     ticker, name, sector, price, marketCap, revenue, revenueCagr, trueFcf, trueFcfMargin,
-    sbcPctRevenue, netDilutionCagr, impliedCagr, scenarioBasis, fairValue, fairValueUpsidePct,
+    sbcPctRevenue, netDilutionCagr, impliedCagr, scenarioBasis, fairValue, fairValueUpsidePct, fairValueIssue,
     shareholderYieldPct, priceToTbv, rotcePct, priceToFfo,
   };
 }
@@ -90,6 +98,8 @@ type SearchIndexCompany = Pick<
   | "name"
   | "exchange"
   | "sector"
+  | "sic"
+  | "businessFacts"
   | "price"
   | "priceAsOf"
   | "marketCap"
@@ -97,12 +107,13 @@ type SearchIndexCompany = Pick<
   | "totalDebt"
   | "annuals"
   | "defaultDcf"
-> & { lastFiling: Pick<CompanySnapshot["lastFiling"], "date"> };
+> & { lastFiling: Pick<CompanySnapshot["lastFiling"], "date"> & Partial<Pick<CompanySnapshot["lastFiling"], "periodEnd">> };
 
-export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexEntryWithBaseScenario {
+export function buildSearchIndexEntry(raw: SearchIndexCompany, now?: number): SearchIndexEntryWithBaseScenario {
+  const company = reconcileFilingInputs(withValuationBusinessFacts(raw));
   const { latest, netDilutionCagr, reverseDcf } = computeCompanyValuation(company);
-  const scenarioBasis = buildScenarioBasis(company);
-  const baseCase = computeBaseCaseValuation(company, scenarioBasis);
+  const scenarioBasis = buildScenarioBasis(company, now);
+  const { valuation: baseCase, issue } = evaluateBaseCaseValuation(company, scenarioBasis);
   const revenueCagr = computeRevenueCagr(company.annuals);
   const shareholderYield = computeShareholderYieldMetrics(company);
   const sectorMetrics = computeFinancialSectorMetrics(company);
@@ -112,6 +123,7 @@ export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexE
     name: normalizeCompanyName(company.name),
     exchange: company.exchange,
     sector: company.sector,
+    valuationBusiness: getValuationBusiness(company),
     price: company.price,
     priceAsOf: company.priceAsOf ?? null,
     scenarioBasis,
@@ -134,6 +146,9 @@ export function buildSearchIndexEntry(company: SearchIndexCompany): SearchIndexE
     impliedCagr: reverseDcf ? Number(reverseDcf.impliedRevenueCagrPct.toFixed(1)) : null,
     fairValue: baseCase?.fairValue,
     fairValueUpsidePct: baseCase?.upsidePct,
+    fairValueLow: baseCase?.fairValueLow,
+    fairValueHigh: baseCase?.fairValueHigh,
+    fairValueIssue: issue ?? undefined,
     dividendYieldPct: Number(shareholderYield.dividendYieldPct.toFixed(2)),
     shareholderYieldPct: Number(shareholderYield.totalShareholderYieldPct.toFixed(2)),
     priceToTbv:

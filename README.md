@@ -45,7 +45,50 @@ Set `AMBER_TEST_POSTGRES_URL` to a disposable local Postgres server and put `psq
 The nightly job screens up to 900 Nasdaq and NYSE issuers from the SEC ticker directory, prioritizing tracked companies and using one listing per issuer:
 - **Industrial / Tech / Consumer / Energy:** Requires recent USD financials, identifiable cash CapEx (including E&P oil & gas capital spending), shares outstanding, and a valid closing price.
 - **Financials, Insurers & REITs (`SIC 6000–6799`):** Validated via stockholders' equity and net income, extracting Goodwill/Intangibles for Bank P/TBV & ROTCE and Depreciation & Amortization for REIT FFO.
-- Issuer-specific filing values missing from SEC Company Facts are recorded in [`scripts/filing-supplements.ts`](scripts/filing-supplements.ts) with their source and reporting period.
+- Issuer-specific filing values missing from SEC Company Facts are recorded in [`src/data/filing-supplements.ts`](src/data/filing-supplements.ts) with their source and reporting period.
+
+## Valuation Backtests
+
+Use `pnpm backtest:valuation` to compare one economic hypothesis with a frozen version of the valuation engine. Once you have a historical panel, the replay runs offline and uses the same issuer, formation date, and realized outcome for each pair of forecasts.
+
+```bash
+pnpm backtest:valuation pin revised
+# Edit one valuation assumption, or pass --source to replay a separate copy of src/.
+pnpm backtest:valuation run cyclical-margin --baseline revised --panel /path/to/panel.json \
+  --change 'Estimate mid-cycle cash margins over a longer history for cyclical businesses' \
+  --metric cash-flow-per-share
+```
+
+Each trial saves the hypothesis, primary metric, engine source hashes, changed files, panel hash, coverage and scores under `.valuation-backtest/`. Remove discarded candidates and their individual outputs after review. Retain the adopted model, its evidence, reusable input panels, and records of which validation sets have been used. Use `--store` to point at a shared ledger if more than one person is iterating. The report includes five-year fundamental forecast errors, three-, five-, and seven-year return checks, and a fixed 10% annual return forecast as a calibration baseline. It also compares the highest-ranked fifth by fair value relative to the formation price with the eligible cohort, SPY, and a sector-weighted peer comparison. Cohorts can overlap. Read their results as diagnostics and check sample size and forecast coverage by sector, industry, and business situation.
+
+The archive used for the initial research spans June 2017 through June 2026, including outcomes, and is development data. Keep an independent set with an untouched formation-to-outcome window and have a custodian supply its date range and SHA-256 before the trial. After choosing a candidate, use the reserved panel once. The command checks overlapping date ranges, hashes, and the recorded candidate, metric, scorer and runtime. It can enforce this within the ledger. Protecting the panel and knowing whether anyone has inspected it outside the ledger depend on how the panel is handled. A result can guide development while independent validation is still pending.
+
+```bash
+pnpm backtest:valuation reserve earlier-era --sha256 "$PANEL_SHA256" --from "$FIRST_CLOSE" --through "$LAST_OUTCOME"
+# Register the run before opening the validation panel.
+pnpm backtest:valuation validate cyclical-margin --reservation earlier-era --panel /path/to/sealed-panel.json
+```
+
+Panels wrap observations in a `panel` array. Each observation has a `formation` date, `snapshot` with the formation quote and historical financials, and `results` keyed by horizon in years. Results include the outcome date, total-return multipliers for the stock and SPY, and optional realized fundamentals. Fiscal periods and outcomes use `YYYY-MM-DD`. Where available, include `annuals[].filedAt` so the scorer checks publication against the formation close. Supply equally treated acquisitions, bankruptcies, delistings, splits and dividends when extending the universe. Price and market capitalization support share-count reconciliation and return scoring. The replay checks for changes in forecasts when the price and capitalization double together and when a ticker is substituted. Sector and filing-based inputs remain fixed in those checks.
+
+Optional `snapshot.filedFundamentals` accepts a `reportedAt` date before the formation quote, a filing citation in `source`, and a four-digit `sic` code. Use the same units as the annual statements for currency amounts, percentages such as `105` for 105%, and boe for production and reserves. Missing fields stay missing. The scorer reports how many observations have each input. Additional outcomes can supply net income, funds from operations or tangible common equity for per-share forecast checks. Per-share errors are scaled by formation revenue per share or, for the tangible book metric, by formation tangible book per share.
+
+| Business | Formation data to collect | Fundamental forecast to test |
+| --- | --- | --- |
+| Banks | Tangible common equity, deposits, net charge-offs, CET1 capital and risk-weighted assets | Earnings and tangible book per share, with distributions constrained by capital needs |
+| Early-stage companies | Revenue and gross profit, recurring revenue and retention where relevant, customer concentration, burn, cash and share issuance | Sales and sustainable cash flow per share under different funding and dilution outcomes |
+| Oil and gas producers | Production, proved reserves, sustaining capex, debt and cash flow across commodity cycles | Sustainable production and cash generation after replacement spending |
+| REITs | Reported funds from operations, capital spending and financing obligations | Funds from operations per share and cash available for distributions |
+
+These are inputs and underwriting hypotheses for future trials. The historical archive has limited sector-specific inputs and early-stage or delisted coverage. Use the report to identify the coverage you need before relying on a result for any of these groups.
+
+### Valuation references
+
+- Use discounted cash flow to the firm for operating businesses. Project operating profit after tax and deduct the reinvestment needed to support growth. Check that terminal growth, return on new capital, and terminal cash flow agree. [CFA Institute free cash flow valuation](https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/free-cash-flow-valuation) · [Damodaran on the determinants of growth](https://pages.stern.nyu.edu/~adamodar/New_Home_Page/valquestions/growth.htm)
+- Use residual income as a reference for banks. Start with tangible common equity, then value expected common earnings above the equity capital charge. Cross-check the outcome with free cash flow to equity after required regulatory capital reinvestment where the data supports it. [CFA Institute residual income valuation](https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/residual-income-valuation) · [Damodaran on financial service firms](https://stern.nyu.edu/~adamodar/pdfiles/papers/finfirm09.pdf)
+- Underwrite oil and gas with mid-cycle economics and the costs of replacing production. For young businesses, model how sales, cash burn, and capital needs affect shareholder outcomes across survival and dilution scenarios. Use Nareit-defined FFO to standardize REIT operating comparisons and reconcile it to cash available for distribution. [Commodity valuation](https://pages.stern.nyu.edu/~adamodar/pdfiles/papers/commodity.pdf) · [Young-company valuation](https://pages.stern.nyu.edu/~adamodar/New_Home_Page/littlebook/younggrowthvaluedrivers.htm) · [Nareit FFO standard](https://www.reit.com/glossary/funds-operation-ffo)
+
+Use these frameworks to define what a forecast needs to explain. Check forecast accuracy and realized returns separately on independent historical data.
 
 ## Production Releases
 

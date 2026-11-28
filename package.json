@@ -15,6 +15,8 @@
     "ingest:8k": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-8k.ts",
     "ingest:proxy": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-proxy.ts",
     "ingest:form4": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ingest-form4.ts",
+    "audit:valuations": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/compare-valuations.ts",
+    "backtest:valuation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/valuation-backtest.ts",
     "sync:prices": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/sync-prices.ts",
     "send:alerts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/send-filing-alerts.ts",
     "send:digest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/send-sunday-signal.ts",
@@ -47,6 +49,7 @@
     "eslint": "^10.15.0",
     "eslint-config-next": "^16.4.6",
     "pg": "^8.23.1",
+    "saxes": "^6.0.0",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3"
   }

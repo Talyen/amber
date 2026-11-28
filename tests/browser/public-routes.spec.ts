@@ -1,5 +1,16 @@
 import { expect, test } from "@playwright/test";
 
+test("ticker signals can find older bundled filings and open their permalinks", async ({ request }) => {
+  const response = await request.get("/api/public/signals?ticker=BR&type=diffs&limit=2");
+  expect(response.ok()).toBe(true);
+  const { filing_diffs: diffs } = await response.json();
+  expect(diffs).toEqual(expect.arrayContaining([expect.objectContaining({ ticker: "BR", id: "br-xbrl-sbc" })]));
+  const permalink = await request.get(new URL(diffs[0].url).pathname);
+  expect(permalink.status()).toBe(200);
+  expect(await permalink.text()).toContain(diffs[0].headline);
+  expect((await request.get("/filings/unknown-%25-filing")).status()).toBe(404);
+});
+
 test("public company formats are cache-safe and bank cash-flow metrics are unavailable", async ({ request }) => {
   const path = "/api/public/t/JPM";
   const json = await request.get(path, { headers: { Accept: "application/json" } });

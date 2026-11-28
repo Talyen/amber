@@ -1,4 +1,4 @@
-import { computeScenarioProjection, type ScenarioBasis, type ScenarioLens } from "./finance.ts";
+import { computeScenarioProjection, isScenarioLens, scenarioStartingMargin, type ScenarioBasis, type ScenarioLens } from "./finance.ts";
 
 export type SavedScenarioLens = ScenarioLens;
 
@@ -133,7 +133,7 @@ export function normalizeValuationPresetInput(raw: unknown): Omit<SavedValuation
   const obj = raw as Record<string, unknown>;
   const ticker = typeof obj.ticker === "string" ? obj.ticker.trim().toUpperCase() : "";
   if (!/^[A-Z0-9.-]{1,10}$/.test(ticker)) return null;
-  const lens = obj.lens === "fcf" || obj.lens === "ebit" || obj.lens === "pe" ? obj.lens : "fcf";
+  const lens = isScenarioLens(obj.lens) ? obj.lens : "fcf";
   const revGrowth = readNumber(obj.revGrowth);
   const targetMargin = readNumber(obj.targetMargin);
   const exitMultiple = readNumber(obj.exitMultiple);
@@ -236,14 +236,9 @@ export function computeThesisDrift(
       ? Number(entry.revenueCagr.toFixed(1))
       : null;
 
-  const rawActualMargin =
-    preset.lens === "fcf"
-      ? entry.scenarioBasis.equityLensOnly
-        ? null
-        : entry.scenarioBasis.trueFcfMargin
-      : preset.lens === "ebit"
-        ? entry.scenarioBasis.operatingMargin
-        : entry.scenarioBasis.netMargin;
+  const rawActualMargin = preset.lens === "fcf"
+    ? entry.scenarioBasis.equityLensOnly ? null : entry.scenarioBasis.trueFcfMargin
+    : scenarioStartingMargin(entry.scenarioBasis, preset.lens);
   const actualMarginPct =
     typeof rawActualMargin === "number" && Number.isFinite(rawActualMargin)
       ? Number(rawActualMargin.toFixed(1))
@@ -273,7 +268,7 @@ export function computeThesisDrift(
         : "on_track";
 
   const marginLabel =
-    preset.lens === "fcf" ? "True FCF" : preset.lens === "ebit" ? "EBIT" : "Net";
+    { fcf: "True FCF", ebit: "EBIT", pe: "Net", ffo: "FFO" }[preset.lens];
 
   let summary: string;
   if (status === "trailing") {

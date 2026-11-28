@@ -18,10 +18,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
-import { FILING_SUPPLEMENTS } from "./filing-supplements.ts";
+import { FILING_SUPPLEMENTS } from "../src/data/filing-supplements.ts";
 import { writeCompanyData } from "./write-company-data.ts";
 import { PILOT_TICKERS } from "../src/data/pilot-tickers.ts";
+import { readValuationBusinessFacts } from "./sec-business-facts.ts";
+import { secFilingInstanceUrl } from "./sec-business-instance.ts";
 import { normalizeCompanyName } from "../src/lib/company-name.ts";
+import { classifyValuationBusiness } from "../src/lib/valuation-business.ts";
 import {
   DEFAULT_USD_PER_UNIT,
   detectReportingCurrency,
@@ -117,6 +120,7 @@ export const ADR_SHARE_RATIO: Record<string, number> = {
   SNY: 0.5, // Sanofi: each U.S. depositary share represents half an ordinary share.
   NVS: 1,
   TM: 10,
+  MFG: 0.2,
   HMC: 3,
   BP: 6,
   TTE: 1,
@@ -227,6 +231,7 @@ const CAPEX_TAGS = [
   "PaymentsToAcquireOtherProductiveAssets",
   "PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets",
   "PaymentsToAcquireOilAndGasPropertyAndEquipment",
+  "PaymentsToAcquireOilAndGasProperties",
   "PaymentsToExploreAndDevelopOilAndGasProperties",
   "PaymentsToAcquireMachineryAndEquipment",
   "PaymentsForCapitalImprovements",
@@ -325,6 +330,7 @@ interface SecRecentFilings {
   filingDate: string[];
   reportDate: string[];
   accessionNumber: string[];
+  primaryDocument?: string[];
 }
 
 async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling) {
@@ -351,7 +357,8 @@ async function fetchLatestPeriodicFiling(cik: string, fallback: PeriodicFiling) 
       latest.periodEnd > fallback.periodEnd ||
       (latest.periodEnd === fallback.periodEnd && latest.date >= fallback.date)
     ) ? latest : fallback;
-    return { filing, sic: Number(sic) || undefined };
+    const index = recent.accessionNumber.indexOf(filing.accessionNumber);
+    return { filing, sic: Number(sic) || undefined, primaryDocument: recent.primaryDocument?.[index] };
   } catch {
     return { filing: fallback };
   }
@@ -562,7 +569,9 @@ function balanceSheetByPeriod(
   ]);
   const allDebt = series(["DebtAndCapitalLeaseObligations"]);
   const longTerm = series(["LongTermDebt"]);
-  const noncurrent = series(["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations", "ConvertibleDebtNoncurrent"]);
+  const noncurrent = series([
+    "LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations", "ConvertibleDebtNoncurrent", "LongTermNotesPayable",
+  ]);
   const due = series(["LongTermDebtCurrent", "ConvertibleDebtCurrent"]);
   const borrowings = series(["ShortTermBorrowings", "CommercialPaper"]);
   const current = series(["DebtCurrent"]);
@@ -688,8 +697,6 @@ const ALLOWLISTED_FINTECH = new Set([
   "BX",
   "KKR",
 ]);
-
-const BANK_TICKERS = new Set(["JPM", "GS", "MS", "BAC", "WFC"]);
 
 export function inferSector(name: string, ticker = ""): string {
   const meta = CURATED_META[ticker];
@@ -991,7 +998,7 @@ export async function ingestCandidate(
 
   try {
     const facts = await fetchCompanyFacts(candidate.cik);
-    const supplements = FILING_SUPPLEMENTS[candidate.cik];
+    const supplements = FILING_SUPPLEMENTS[candidate.cik.padStart(10, "0")];
     const reportingCurrency = detectReportingCurrency(facts, REVENUE_TAGS);
     const fxScale = getUsdConversionRate(reportingCurrency, fxRates);
 
@@ -1160,9 +1167,9 @@ export async function ingestCandidate(
     const latestShares = latestDilutedShares?.val ?? latestReportedShares?.val ?? 0;
 
     const annuals: AnnualFinancials[] = periods.map((end) => {
-      const rev = (revMap.get(end)?.val ?? 0) / 1e6;
-      const ocf = (ocfMap.get(end)?.val ?? 0) / 1e6;
       const supplement = supplements?.[end];
+      const rev = supplement?.revenue ?? (revMap.get(end)?.val ?? 0) / 1e6;
+      const ocf = (ocfMap.get(end)?.val ?? 0) / 1e6;
       const capex = supplement?.capex ?? Math.abs(capexMap.get(end)?.val ?? 0) / 1e6;
       const sbc = Math.abs(sbcMap.get(end)?.val ?? 0) / 1e6;
       const buybacks = Math.abs(buybackMap.get(end)?.val ?? 0) / 1e6;
@@ -1345,13 +1352,14 @@ export async function ingestCandidate(
           periodEndDate: revQ.window.end,
           revenue: ttmRev,
           operatingCashFlow: ttmOcf,
-          capex: ttmCapex,
+          capex: ttmSupplement?.capex ?? ttmCapex,
           sbc: ttmSbc,
           buybacks: ttmBuybacks,
-          dilutedShares:
+          dilutedShares: ttmSupplement?.dilutedShares ?? (
             latestDilutedShares?.end === revQ.window.end
               ? normalizeShareCountToMillions(latestDilutedShares.val, candidate.ticker)
-              : latestAnnual.dilutedShares,
+              : latestAnnual.dilutedShares
+          ),
           grossProfit: ttmGp,
           rdExpense: ttmRd,
           sgaExpense: ttmSga,
@@ -1390,16 +1398,8 @@ export async function ingestCandidate(
     const computed = computeAnnualMetrics(normalizedAnnuals);
     const latestComputed = computed[computed.length - 1];
 
-    // Strict XBRL sanity guardrail: reject anomalous unit mismatches unless curated
-    if (
-      !curated && !BANK_TICKERS.has(candidate.ticker) &&
-      (latestComputed.revenue < 200 ||
-        latestComputed.trueFcfMargin > 80 ||
-        latestComputed.trueFcfMargin < -120 ||
-        latestComputed.sbcPctRevenue > 90)
-    ) {
-      return null;
-    }
+    // Check for unit mismatches before applying a business-specific cash flow check.
+    if (!curated && (latestComputed.revenue < 200 || latestComputed.sbcPctRevenue > 90)) return null;
 
     const dilutionCagr = computeNetDilutionCagr(normalizedAnnuals);
 
@@ -1413,7 +1413,17 @@ export async function ingestCandidate(
     const defaultDcf =
       curated?.defaultDcf ?? computeGroundedDefaultDcf(normalizedAnnuals);
 
-    const { filing: lastFiling, sic } = await fetchLatestPeriodicFiling(candidate.cik, revQ?.filing ?? financialFiling);
+    const { filing: lastFiling, sic, primaryDocument } = await fetchLatestPeriodicFiling(candidate.cik, revQ?.filing ?? financialFiling);
+    const businessFacts = await readValuationBusinessFacts(facts.facts, sic, lastFiling, candidate.cik, async () => {
+      const url = secFilingInstanceUrl(candidate.cik, lastFiling.accessionNumber, primaryDocument);
+      if (!url) return;
+      const response = await fetchSec(url);
+      if (response.ok) return await response.text();
+    });
+    if (!curated && (latestComputed.trueFcfMargin > 80 || latestComputed.trueFcfMargin < -120)) {
+      const business = classifyValuationBusiness({ sector: "", sic, businessFacts });
+      if (business !== "financial" && business !== "reit" && business !== "financing-exposed") return null;
+    }
 
     const baseSnapshot: Omit<EdgarSnapshot, "filingDiffs"> = {
       ticker: candidate.ticker,
@@ -1439,6 +1449,7 @@ export async function ingestCandidate(
       marketCap,
       marketCapShares,
       sic,
+      businessFacts,
       cashAndEquiv: balanceSupplement?.cashAndEquiv ?? balance.cashAndEquiv ?? 0,
       totalDebt: balanceSupplement?.totalDebt ?? balance.totalDebt ?? 0,
       lastFiling,

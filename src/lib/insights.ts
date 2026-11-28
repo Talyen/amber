@@ -392,8 +392,7 @@ export const DISCOVERY_LENSES: DiscoveryLens[] = [
       c.trueFcfMargin >= 8 &&
       c.trueFcfMargin <= 75 &&
       typeof c.fairValueUpsidePct === "number" &&
-      c.fairValueUpsidePct >= 15 &&
-      c.fairValueUpsidePct <= 150,
+      c.fairValueUpsidePct >= 15,
     sort: (a, b) => (b.fairValueUpsidePct ?? -999) - (a.fairValueUpsidePct ?? -999),
   },
   {

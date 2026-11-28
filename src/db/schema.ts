@@ -1,4 +1,5 @@
 import { sql, type SQLWrapper } from "drizzle-orm";
+import type { ValuationBusinessFacts } from "../lib/valuation-business.ts";
 import {
   pgTable,
   text,
@@ -66,6 +67,7 @@ export const companies = pgTable("companies", {
   defaultDcf: jsonb("default_dcf").$type<DefaultDcfJson>().notNull(),
   priceHistory: jsonb("price_history").$type<AnnualPricePointJson[]>(),
   quarterlyFinancials: jsonb("quarterly_financials").$type<QuarterlyFinancialJson[]>(),
+  businessFacts: jsonb("business_facts").$type<ValuationBusinessFacts>(),
   isActive: boolean("is_active").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()

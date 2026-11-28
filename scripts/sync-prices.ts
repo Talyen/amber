@@ -20,6 +20,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { companies as companiesTable } from "../src/db/schema.ts";
 import { isFreshPriceDate, meetsQuoteCoverage, MIN_QUOTE_COVERAGE } from "../src/lib/market-price.ts";
+import { listedShareCount, splitAdjustedValuationShares } from "../src/data/filing-supplements.ts";
 import type { EdgarSnapshot } from "./ingest-edgar.ts";
 
 interface YahooChartResponse {
@@ -163,7 +164,11 @@ async function run() {
 
   for (const { company, closes } of refreshed) {
     const last = closes.at(-1)!;
-    const latestShares = company.marketCapShares ?? company.annuals.at(-1)?.dilutedShares ?? 0;
+    const latest = company.annuals.at(-1);
+    const shares = listedShareCount(company.ticker, company.marketCapShares ?? latest?.dilutedShares ?? 0);
+    const latestShares = splitAdjustedValuationShares(
+      { ticker: company.ticker, priceAsOf: last.date }, shares, latest?.periodEndDate,
+    );
 
     company.price = last.price;
     company.priceAsOf = last.date;
@@ -195,7 +200,7 @@ async function run() {
               price: c.price,
               priceAsOf: c.priceAsOf,
               // A fallback's shares may be stale. Reprice the last persisted market cap.
-              marketCap: c.edgarFallback ? sql`case when ${companiesTable.price} > 0
+              marketCap: c.edgarFallback && c.ticker !== "SNDK" ? sql`case when ${companiesTable.price} > 0
                 then round(${companiesTable.marketCap} * ${c.price} / ${companiesTable.price})
                 else ${companiesTable.marketCap} end` : c.marketCap,
               priceHistory: c.edgarFallback ? undefined : c.priceHistory ?? null,

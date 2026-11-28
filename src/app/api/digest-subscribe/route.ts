@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     if (!(await consumeQuota(request, "digest-signup", 5)).allowed) {
       return reply(429, { error: "Too many signup requests. Try again in a minute." });
     }
-    const { rows } = await db.execute(sql`
+    const { rows: [created] } = await db.execute<{ confirmation_token: string }>(sql`
       INSERT INTO weekly_digest_subscribers
         (id, email, is_active, confirmation_token, confirmation_expires_at)
       VALUES (${randomUUID()}, ${email}, false, ${token}::uuid, now() + interval '24 hours')
@@ -44,12 +44,19 @@ export async function POST(request: Request) {
         confirmation_expires_at = excluded.confirmation_expires_at
       WHERE (weekly_digest_subscribers.confirmed_at IS NULL OR NOT weekly_digest_subscribers.is_active)
         AND (weekly_digest_subscribers.confirmation_expires_at IS NULL
-          OR weekly_digest_subscribers.confirmation_expires_at <= now() + interval '23 hours')
-      RETURNING id
+          OR weekly_digest_subscribers.confirmation_expires_at <= now())
+      RETURNING confirmation_token
     `);
-    if (rows.length) {
-      const url = digestActionUrl(SITE_URL, "confirm", token);
-      await sendAlertEmail(apiKey, `sunday-signal-confirm/${token}`, {
+    // Retry with the same link and delivery key when an earlier send failed or lost its reply.
+    const pending = created ?? (await db.execute<{ confirmation_token: string }>(sql`
+      SELECT confirmation_token FROM weekly_digest_subscribers
+      WHERE email = ${email} AND (confirmed_at IS NULL OR NOT is_active)
+        AND confirmation_token IS NOT NULL AND confirmation_expires_at > now()
+    `)).rows[0];
+    if (pending) {
+      const pendingToken = pending.confirmation_token;
+      const url = digestActionUrl(SITE_URL, "confirm", pendingToken);
+      await sendAlertEmail(apiKey, `sunday-signal-confirm/${pendingToken}`, {
         from: process.env.ALERT_FROM_EMAIL || defaultAlertSender,
         to: [email],
         subject: "Confirm your Sunday Signal subscription",

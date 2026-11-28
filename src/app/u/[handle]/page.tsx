@@ -12,7 +12,7 @@ import {
 import { getSearchIndex } from "@/data/repository";
 import { TopNav } from "@/components/TopNav";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
-import { formatPct } from "@/lib/finance";
+import { formatPct, isScenarioLens } from "@/lib/finance";
 import {
   computePresetExpectedReturn,
   type SavedScenarioLens,
@@ -89,7 +89,7 @@ export default async function InvestorProfilePage({
           publishedTheses = rows.map((row) => {
             const entry = byTicker.get(row.ticker);
             const lens: SavedScenarioLens =
-              row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf";
+              isScenarioLens(row.lens) ? row.lens : "fcf";
             const proj = entry
               ? computePresetExpectedReturn(
                   {

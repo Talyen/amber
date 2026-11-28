@@ -43,6 +43,7 @@ export default async function setupPostgres() {
     await client.connect();
     await client.query(readFixtureSchema());
     await client.query("DROP TABLE weekly_digest_deliveries, weekly_digest_issues, weekly_digest_subscribers, distribution_counts, user_valuation_saves, api_rate_windows");
+    await client.query("ALTER TABLE companies DROP COLUMN business_facts");
     for (let pass = 0; pass < 2; pass++) {
       execFileSync("pnpm", ["db:migrate"], {
         env: {
@@ -79,12 +80,21 @@ export default async function setupPostgres() {
         cash_and_equiv, total_debt, last_filing_type, last_filing_date, last_filing_period_end,
         last_filing_accession, default_dcf, is_active)
       VALUES ('AUDP', '1234567', 'Audit Fixture', 'NASDAQ', 'Semiconductors', '', 100, 10000,
-        10, 0, '10-K', '2026-01-15', '2025-12-31', 'fixture', '{}', false);
+        10, 0, '10-K', '2026-01-15', '2025-12-31', 'fixture', '{}', false),
+      ('V', '1403161', 'Visa', 'NYSE', 'Financials', '', 300, 500000,
+        10, 0, '10-K', '2026-11-15', '2026-09-30', 'fixture', '{}', false);
       INSERT INTO annual_financials (id, ticker, fiscal_year, sort_order, revenue, operating_cash_flow,
         capex, sbc, buybacks, diluted_shares)
       VALUES ('AUDP:FY25', 'AUDP', 'FY25', 2, 2000, 550, 100, 70, 0, 105),
              ('AUDP:TTM', 'AUDP', 'TTM', 3, 3000, 650, 100, 90, 0, 110),
              ('AUDP:FY24', 'AUDP', 'FY24', 1, 1000, 250, 50, 30, 0, 100);
+      INSERT INTO annual_financials (id, ticker, fiscal_year, sort_order, period_end_date,
+        revenue, operating_cash_flow, capex, sbc, buybacks, diluted_shares)
+      SELECT 'V:FY' || year, 'V', 'FY' || year, year, (2000 + year) || '-09-30',
+        1000, 250, 50, 30, 0, 1500 FROM generate_series(20, 26) AS year;
+      INSERT INTO annual_financials (id, ticker, fiscal_year, sort_order, revenue, operating_cash_flow,
+        capex, sbc, buybacks, diluted_shares)
+      VALUES ('V:TTM', 'V', 'TTM', 27, 2000, 500, 100, 60, 0, 1100);
       UPDATE companies SET price_as_of = current_date WHERE ticker IN ('NVDA', 'AAPL');
       UPDATE companies SET price_as_of = current_date - 30 WHERE ticker = 'MSFT';
       UPDATE companies SET price_as_of = '2026-01-15' WHERE ticker = 'AUDP';

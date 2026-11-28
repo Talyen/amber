@@ -1,3 +1,4 @@
+import { isScenarioLens } from "@/lib/finance";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
 
     const theses: MarketCommunityThesisItem[] = rows.flatMap((row) => {
       if (!row.handle) return [];
-      const lens = row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf";
+      const lens = isScenarioLens(row.lens) ? row.lens : "fcf";
       const entry = byTicker.get(row.ticker);
       const updatedAt = row.updatedAt.toISOString();
       const proj = entry
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
           {
             ...row,
             handle: row.handle,
-            lens: row.lens === "ebit" || row.lens === "pe" ? row.lens : "fcf",
+            lens: isScenarioLens(row.lens) ? row.lens : "fcf",
             updatedAt: row.updatedAt.toISOString(),
           },
         ]

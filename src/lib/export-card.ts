@@ -908,12 +908,9 @@ export function exportScenarioThesisCard(
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  const lensLabel =
-    assumptions.lens === "pe"
-      ? "Earnings (P/E)"
-      : assumptions.lens === "ebit"
-        ? "Operating (EBIT)"
-        : "True FCF";
+  const lensLabel = {
+    pe: "Earnings (P/E)", ffo: "Funds From Operations", ebit: "Operating (EBIT)", fcf: "Free Cash Flow",
+  }[assumptions.lens];
 
   ctx.fillStyle = theme.amber;
   ctx.font = '600 13px "JetBrains Mono", ui-monospace, monospace';
@@ -943,15 +940,15 @@ export function exportScenarioThesisCard(
 
   const kpis = [
     {
-      label: "EXPECTED 5Y IRR",
+      label: "5Y SCENARIO IRR",
       value: irr !== null ? `${formatPct(irr, true)}/yr` : "—",
-      sub: `${projection.upsidePct >= 0 ? "+" : ""}${projection.upsidePct.toFixed(0)}% 5Y total return`,
+      sub: `${projection.upsidePct >= 0 ? "+" : ""}${projection.upsidePct.toFixed(0)}% modeled price gap`,
       color: irrColor,
     },
     {
-      label: "5-YEAR TARGET PRICE",
+      label: "5-YEAR EXIT VALUE / SHARE",
       value: `$${projection.yr5TargetPrice.toFixed(2)}`,
-      sub: `Today's fair value (10% hurdle): $${projection.fairValueToday.toFixed(2)}`,
+      sub: `Today's fair value (${projection.hurdleRatePct.toFixed(1)}%): $${projection.fairValueToday.toFixed(2)}`,
       color: theme.textPrimary,
     },
     {

@@ -120,6 +120,7 @@ async function run() {
       name: c.name,
       exchange: c.exchange,
       sector: c.sector,
+      businessFacts: c.businessFacts ?? null,
       tagline: c.tagline,
       price: c.price,
       priceAsOf: c.priceAsOf ?? null,
@@ -185,6 +186,10 @@ async function run() {
         name: sql`excluded.name`,
         exchange: sql`excluded.exchange`,
         sector: sql`excluded.sector`,
+        businessFacts: sql`case when ${companies.cik} = excluded.cik
+          then nullif(coalesce(${companies.businessFacts}, '{}'::jsonb) ||
+            coalesce(excluded.business_facts, '{}'::jsonb), '{}'::jsonb)
+          else excluded.business_facts end`,
         tagline: sql`excluded.tagline`,
         cashAndEquiv: sql`excluded.cash_and_equiv`,
         totalDebt: sql`excluded.total_debt`,

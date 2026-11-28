@@ -230,9 +230,9 @@ describe("Amber finance engine", () => {
   });
 
   it("computes Financials & REIT valuation metrics (P/B, ROE, P/E, Book Value/Share)", () => {
-    assert.equal(isFinancialInstitution({ ticker: "JPM", sector: "Fintech & Data" }), true);
-    assert.equal(isFinancialInstitution({ ticker: "PLD", sector: "Real Estate & REITs" }), true);
-    assert.equal(isFinancialInstitution({ ticker: "NVDA", sector: "Semiconductors" }), false);
+    assert.equal(isFinancialInstitution({ sic: 6021, sector: "Fintech & Data" }), true);
+    assert.equal(isFinancialInstitution({ sic: 6798, sector: "Industrials" }), true);
+    assert.equal(isFinancialInstitution({ sic: 3674, sector: "Semiconductors" }), false);
 
     const metrics = computeFinancialSectorMetrics({
       sector: "Financials",

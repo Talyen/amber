@@ -8,6 +8,11 @@ import {
   buildScenarioBasis,
   computeScenarioProjection,
   getScenarioDefaults,
+  evaluateBaseCaseValuation,
+  scenarioInputIssue,
+  scenarioLensAvailable,
+  scenarioPresetAssumptions,
+  scenarioStartingMargin,
   formatCurrencyCompact,
   formatPct,
 } from "@/lib/finance";
@@ -36,9 +41,16 @@ function progressPct(value: number, min: number, max: number): string {
   return `${(((value - min) / (max - min)) * 100).toFixed(1)}%`;
 }
 
-const GROWTH_RANGE = { min: -5, max: 45 };
+const GROWTH_RANGE = { min: -10, max: 45 };
 const MARGIN_RANGE = { min: 1, max: 55 };
-const MULTIPLE_RANGE = { min: 8, max: 45 };
+const MULTIPLE_RANGE = { min: 5, max: 45 };
+const LENSES = {
+  fcf: { label: "Cash Flow", margin: "Year-5 Cash Flow Margin", multiple: "EV / FCF", metric: "Year-5 Free Cash Flow" },
+  ebit: { label: "Operating Earnings", margin: "Year-5 EBIT Margin", multiple: "EV / EBIT", metric: "Year-5 EBIT" },
+  pe: { label: "Earnings (P/E)", margin: "Year-5 Net Margin", multiple: "P/E", metric: "Year-5 Net Income" },
+  ffo: { label: "Funds From Operations", margin: "Year-5 FFO / Revenue", multiple: "P/FFO", metric: "Year-5 FFO" },
+};
+const SCENARIO_LENSES = Object.keys(LENSES) as ValuationLens[];
 
 function readScenarioInput(
   params: URLSearchParams,
@@ -56,32 +68,40 @@ export function ScenarioBuilder(props: ScenarioBuilderProps) {
   const userId = session?.user?.id;
   const basis = useMemo(() => buildScenarioBasis(props.company), [props.company]);
   const defaults = useMemo(() => getScenarioDefaults(props.company, basis), [props.company, basis]);
-  if ((basis.equityLensOnly && !defaults.hasPe) ||
-    ![basis.price, basis.dilutedShares, basis.revenue].every((n) => Number.isFinite(n) && n > 0)) {
+  const base = useMemo(() => evaluateBaseCaseValuation(props.company, basis), [props.company, basis]);
+  const availableLenses = useMemo(() => SCENARIO_LENSES.filter((lens) =>
+    scenarioLensAvailable(basis, lens) && !scenarioInputIssue(basis, lens)), [basis]);
+  const initialLens = availableLenses.includes(defaults.defaultLens) ? defaults.defaultLens : availableLenses[0];
+  if (!initialLens) {
     return <p className="rounded-xl border border-[var(--border)] p-4 text-sm text-[var(--text-secondary)]">
-      A five-year scenario is unavailable for the reported fundamentals.
+      {base.issue ?? "A five-year scenario is unavailable for the reported fundamentals."}
     </p>;
   }
-  return <ScenarioSession basis={basis} defaults={defaults} key={userId ? `account:${userId}` : "guest"} {...props} userId={userId} />;
+  return <ScenarioSession {...props} basis={basis} defaults={defaults} base={base} availableLenses={availableLenses}
+    initialLens={initialLens} userId={userId} key={userId ? `account:${userId}` : "guest"} />;
 }
 
 function ScenarioSession({
   company,
   basis,
   defaults,
+  base,
+  availableLenses,
+  initialLens,
   userId,
 }: ScenarioBuilderProps & {
   basis: ReturnType<typeof buildScenarioBasis>;
   defaults: ReturnType<typeof getScenarioDefaults>;
+  base: ReturnType<typeof evaluateBaseCaseValuation>;
+  availableLenses: ValuationLens[];
+  initialLens: ValuationLens;
   userId?: string;
 }) {
   const [communityTheses, setCommunityTheses] = useState<CommunityThesisItem[]>([]);
   const [showCommunityTheses, setShowCommunityTheses] = useState(false);
   const [communityStatus, setCommunityStatus] = useState<"loading" | "loaded" | "failed">("loading");
   const [thesisHistory, setThesisHistory] = useState<ThesisHistoryEntry[]>([]);
-  const { hasEbit, hasPe, defaultLens, byLens, revGrowth: histGrowth } = defaults;
-  const isFinancials = basis.equityLensOnly;
-  const defaultsForLens = (lens: ValuationLens) => byLens[lens];
+  const { defaultLens, byLens, revGrowth: baseGrowth } = defaults;
 
   useEffect(() => {
     if (!showCommunityTheses) return;
@@ -104,13 +124,13 @@ function ScenarioSession({
     return () => controller.abort();
   }, [company.ticker, showCommunityTheses]);
 
-  const [lens, setLens] = useState<ValuationLens>(defaultLens);
-  const lensDefaults = defaultsForLens(lens);
-  const currentMargin = lens === "pe" ? basis.netMargin : lens === "ebit" ? basis.operatingMargin : basis.trueFcfMargin;
+  const [lens, setLens] = useState<ValuationLens>(initialLens);
+  const lensDefaults = byLens[lens];
+  const currentMargin = scenarioStartingMargin(basis, lens);
   const baseMargin = lensDefaults.margin;
   const baseMultiple = lensDefaults.multiple;
 
-  const [revGrowth, setRevGrowth] = useState(histGrowth);
+  const [revGrowth, setRevGrowth] = useState(baseGrowth);
   const [targetMargin, setTargetMargin] = useState(baseMargin);
   const [exitMultiple, setExitMultiple] = useState(baseMultiple);
   const [thesisNote, setThesisNote] = useState("");
@@ -125,13 +145,12 @@ function ScenarioSession({
   const editedThesis = useRef(false);
   const [unavailableSharedLens, setUnavailableSharedLens] = useState(false);
   const supportsLens = useCallback((candidate: string | null): candidate is ValuationLens =>
-    (candidate === "fcf" && !isFinancials) || (candidate === "ebit" && hasEbit) || (candidate === "pe" && hasPe),
-  [hasEbit, hasPe, isFinancials]);
+    availableLenses.some((lens) => lens === candidate), [availableLenses]);
 
   const applySavedThesis = useCallback((preset: SavedValuationPreset) => {
     setThesisNote(preset.thesisNote ?? "");
     setIsPublicThesis(preset.isPublic === true);
-    if (!supportsLens(preset.lens)) {
+    if (!availableLenses.includes(preset.lens)) {
       setUnavailableSharedLens(true);
       return;
     }
@@ -141,7 +160,8 @@ function ScenarioSession({
     setTargetMargin(preset.targetMargin);
     setExitMultiple(preset.exitMultiple);
     setActivePreset("custom");
-  }, [supportsLens]);
+  }, [availableLenses, setThesisNote, setIsPublicThesis, setUnavailableSharedLens, setLens, setRevGrowth,
+    setTargetMargin, setExitMultiple, setActivePreset]);
 
   // Hydrate shared thesis query params (?tab=dcf&lens=fcf&rev=15&m=28&exit=22)
   useEffect(() => {
@@ -327,72 +347,38 @@ function ScenarioSession({
   function switchLens(nextLens: ValuationLens) {
     editedThesis.current = true;
     setLens(nextLens);
-    const d = defaultsForLens(nextLens);
-    setRevGrowth(histGrowth);
-    setTargetMargin(d.margin);
-    setExitMultiple(d.multiple);
-    setActivePreset("base");
+    setRevGrowth(baseGrowth);
+    setTargetMargin(byLens[nextLens].margin);
+    setExitMultiple(byLens[nextLens].multiple);
+    setActivePreset(nextLens === defaultLens ? "base" : "custom");
   }
 
   function applyPreset(kind: "bear" | "base" | "bull") {
     editedThesis.current = true;
+    const next = scenarioPresetAssumptions(lens, defaults, kind);
     setActivePreset(kind);
-    if (kind === "bear") {
-      setRevGrowth(Math.max(0, Math.round(histGrowth * 0.55)));
-      setTargetMargin(
-        Number(Math.max(1, Math.round(baseMargin * 0.8 * 2) / 2).toFixed(1))
-      );
-      setExitMultiple(Math.max(10, Math.round(baseMultiple * 0.72)));
-    } else if (kind === "base") {
-      setRevGrowth(histGrowth);
-      setTargetMargin(baseMargin);
-      setExitMultiple(baseMultiple);
-    } else {
-      setRevGrowth(Math.min(45, Math.round(histGrowth * 1.3 + 2)));
-      setTargetMargin(
-        Number(Math.min(55, Math.round(baseMargin * 1.2 * 2) / 2).toFixed(1))
-      );
-      setExitMultiple(Math.min(42, Math.round(baseMultiple * 1.22)));
-    }
+    setRevGrowth(next.revGrowth);
+    setTargetMargin(next.targetMargin);
+    setExitMultiple(next.exitMultiple);
   }
 
   const projection = useMemo(() => computeScenarioProjection(basis, {
     lens, revGrowth, targetMargin, exitMultiple,
   })!, [basis, lens, revGrowth, targetMargin, exitMultiple]);
 
-  const modelStrip = useMemo(() => {
-    const labels = { fcf: "True FCF", ebit: "EBIT", pe: "P/E" };
-    const lenses: ValuationLens[] = ["fcf", "ebit", "pe"];
-    return lenses.flatMap((id) => {
-      const { margin, multiple } = byLens[id];
-      const result = computeScenarioProjection(basis, {
-        lens: id, revGrowth: histGrowth, targetMargin: margin, exitMultiple: multiple,
-      });
-      return result ? [{ id, label: labels[id], fairValue: result.fairValueToday, upsidePct: result.upsidePct }] : [];
-    });
-  }, [basis, byLens, histGrowth]);
+  const modelStrip = useMemo(() => availableLenses.flatMap((id) => {
+    const result = computeScenarioProjection(basis, scenarioPresetAssumptions(id, defaults, "base"));
+    return result && result.fairValueToday > 0
+      ? [{ id, label: LENSES[id].label, fairValue: result.fairValueToday }] : [];
+  }), [basis, availableLenses, defaults]);
 
-  const verdict =
-    projection.upsidePct >= 12
-      ? {
-          label: `${Math.round(projection.upsidePct)}% Undervalued`,
-          badge: "Undervalued",
-          color: "text-[var(--positive)]",
-          pill: "bg-[var(--surface-subtle)] text-[var(--positive)] ring-1 ring-inset ring-[var(--border-strong)]",
-        }
-      : projection.upsidePct <= -12
-        ? {
-            label: `${Math.abs(Math.round(projection.upsidePct))}% Overvalued`,
-            badge: "Overvalued",
-            color: "text-[var(--negative)]",
-            pill: "bg-[var(--surface-subtle)] text-[var(--negative)] ring-1 ring-inset ring-[var(--border-strong)]",
-          }
-        : {
-            label: "Roughly Fairly Valued",
-            badge: "Fairly Priced",
-            color: "text-[var(--amber)]",
-            pill: "bg-[var(--amber-soft)] text-[var(--amber)] ring-1 ring-inset ring-[var(--amber-border)]",
-          };
+  const showBaseIssue = activePreset === "base" && base.issue !== null;
+  const isDefault = activePreset === "base" && lens === defaultLens;
+  const verdict = projection.equityValueBeforeFloor <= 0
+    ? { label: "Common equity not covered", color: "text-[var(--negative)]" }
+    : projection.upsidePct >= 0
+      ? { label: `${Math.round(projection.upsidePct)}% Modeled Upside`, color: "text-[var(--positive)]" }
+      : { label: `${Math.round(Math.abs(projection.upsidePct))}% Modeled Downside`, color: "text-[var(--negative)]" };
 
   const barMax = Math.max(company.price, projection.fairValueToday) * 1.15;
   const pricePosPct = Math.min(100, (company.price / barMax) * 100);
@@ -430,14 +416,14 @@ function ScenarioSession({
               Your 5-Year Thesis
             </h2>
             <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Pick a preset or drag 3 simple sliders to see your expected annual return.
+              Choose a preset or adjust the assumptions to see the annual return they imply.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={handleSaveThesis}
-              disabled={!canSave}
+              disabled={!canSave || showBaseIssue}
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] cursor-pointer disabled:cursor-wait disabled:opacity-60"
             >
               {saveStatus === "saved" ? (
@@ -450,6 +436,7 @@ function ScenarioSession({
             <button
               type="button"
               onClick={handleCopyThesisLink}
+              disabled={showBaseIssue}
               title="Copy shareable link so others can stress-test your assumptions"
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--amber-border)] bg-[var(--amber-soft)] px-2.5 text-[11px] font-semibold text-[var(--amber)] transition-opacity hover:opacity-90 cursor-pointer"
             >
@@ -484,6 +471,7 @@ function ScenarioSession({
                 setCopiedCard(res === "copied" ? "copied" : "downloaded");
                 window.setTimeout(() => setCopiedCard("idle"), 1800);
               }}
+              disabled={showBaseIssue}
               title="Copy 5-Year Valuation Thesis card PNG to clipboard"
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--amber-border)] hover:text-[var(--amber)] cursor-pointer"
             >
@@ -520,48 +508,26 @@ function ScenarioSession({
           </p>
         )}
 
-        {/* Valuation Methodology Selector */}
-        {(hasEbit || hasPe) && (
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-              <span>Valuation Model</span>
-              {isFinancials && lens === "pe" && (
-                <span className="text-[var(--amber)]">
-                  Auto-selected (Financials)
-                </span>
-              )}
-              {defaultLens === "ebit" && lens === "ebit" && (
-                <span className="text-[var(--amber)]">
-                  Auto-selected (heavy growth CapEx)
-                </span>
-              )}
-            </div>
-            <div className="inline-flex w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] p-0.5 text-xs">
-              {(
-                [
-                  { id: "fcf" as const, label: "True FCF", enabled: !isFinancials },
-                  { id: "ebit" as const, label: "Operating (EBIT)", enabled: hasEbit },
-                  { id: "pe" as const, label: "Earnings (P/E)", enabled: hasPe },
-                ]
-              )
-                .filter((m) => m.enabled)
-                .map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => switchLens(m.id)}
-                    className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors cursor-pointer ${
-                      lens === m.id
-                        ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-            </div>
+        <div className="mt-4">
+          <span className="text-[11px] text-[var(--text-muted)]">Valuation model</span>
+          <div className="mt-1 flex flex-wrap rounded-lg border border-[var(--border)] bg-[var(--bg)] p-0.5 text-xs">
+            {availableLenses.map((model) => (
+              <button
+                key={model}
+                type="button"
+                aria-pressed={lens === model}
+                onClick={() => switchLens(model)}
+                className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors cursor-pointer ${
+                  lens === model
+                    ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {LENSES[model].label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
         {/* Bear / Base / Bull Presets */}
         <div className="mt-4 grid grid-cols-3 gap-2">
@@ -592,10 +558,10 @@ function ScenarioSession({
                 htmlFor="sc-growth"
                 className="font-medium text-[var(--text-primary)]"
               >
-                5Y Rev Growth
+                Year-1 Growth
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
-                {formatPct(revGrowth, true, 0)}
+                {formatPct(revGrowth, true, Number.isInteger(revGrowth) ? 0 : 1)}
               </span>
             </div>
             <input
@@ -617,8 +583,8 @@ function ScenarioSession({
               }
             />
             <div className="font-mono-num mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
-              <span>-5%</span>
-              <span>Hist: {formatPct(histGrowth, true, 0)}</span>
+              <span>−10%</span>
+              <span>Year-5 pace {formatPct(projection.terminalGrowthPct, true)}</span>
               <span>+45%</span>
             </div>
           </div>
@@ -630,11 +596,7 @@ function ScenarioSession({
                 htmlFor="sc-margin"
                 className="font-medium text-[var(--text-primary)]"
               >
-                {lens === "ebit"
-                  ? "Yr-5 EBIT %"
-                  : lens === "pe"
-                    ? "Yr-5 Net Margin"
-                    : "Yr-5 True FCF %"}
+                {LENSES[lens].margin}
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {formatPct(targetMargin, false, 1)}
@@ -672,11 +634,7 @@ function ScenarioSession({
                 htmlFor="sc-mult"
                 className="font-medium text-[var(--text-primary)]"
               >
-                {lens === "ebit"
-                  ? "Exit Multiple (EV/EBIT)"
-                  : lens === "pe"
-                    ? "Exit Multiple (P/E)"
-                    : "Exit Multiple (EV/FCF)"}
+                Exit Multiple ({LENSES[lens].multiple})
               </label>
               <span className="font-mono-num font-semibold text-[var(--amber)]">
                 {exitMultiple}x
@@ -686,11 +644,11 @@ function ScenarioSession({
               id="sc-mult"
               type="range"
               {...MULTIPLE_RANGE}
-              step={1}
+              step={0.1}
               value={exitMultiple}
               onChange={(e) => {
                 editedThesis.current = true;
-                setExitMultiple(parseInt(e.target.value, 10));
+                setExitMultiple(parseFloat(e.target.value));
                 setActivePreset("custom");
               }}
               className="amber-range"
@@ -701,9 +659,9 @@ function ScenarioSession({
               }
             />
             <div className="font-mono-num mt-1 flex justify-between text-[10px] text-[var(--text-muted)]">
-              <span>8x (Value)</span>
-              <span>22x (Quality)</span>
-              <span>45x (Premium)</span>
+              <span>5×</span>
+              <span>Base {baseMultiple}×</span>
+              <span>45×</span>
             </div>
           </div>
         </div>
@@ -739,17 +697,18 @@ function ScenarioSession({
         </div>
       </section>
 
-      {/* Right: Clear Fair Value & Undervalued / Overvalued Output */}
+      {showBaseIssue ? (
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 lg:col-span-7">
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">Base case unavailable</h2>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">{base.issue}</p>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">Adjust the assumptions to explore a custom scenario.</p>
+        </section>
+      ) : (
       <section className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 lg:col-span-7">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-medium text-[var(--text-secondary)]">
-              Estimated Fair Value Today (at 10%/yr target return)
-            </span>
-            <span
-              className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${verdict.pill}`}
-            >
-              {verdict.badge}
+              Fair value today at a {projection.hurdleRatePct.toFixed(1).replace(/\.0$/, "")}% hurdle
             </span>
           </div>
 
@@ -776,6 +735,17 @@ function ScenarioSession({
               </strong>
             </span>
           </div>
+
+          {isDefault && base.valuation && (
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">
+              Bear–bull range ${base.valuation.fairValueLow.toFixed(2)}–${base.valuation.fairValueHigh.toFixed(2)}
+            </p>
+          )}
+          {basis.model?.earningsFallback && lens === "pe" && (
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">
+              Earnings model used because the cash and debt inputs could not be verified.
+            </p>
+          )}
 
           {/* Visual Fair Value vs. Current Price Comparison Bars */}
           <div className="mt-5 space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
@@ -828,7 +798,7 @@ function ScenarioSession({
             </div>
             <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--text-muted)]">5Y Target</span>
+              <span className="text-[var(--text-muted)]">5Y Scenario Exit</span>
               <strong className="font-mono-num text-[var(--amber)]">
                 ${projection.yr5TargetPrice.toFixed(2)}
               </strong>
@@ -840,7 +810,7 @@ function ScenarioSession({
             </div>
             <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)]" aria-hidden="true" />
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--text-muted)]">Fair Value (10%)</span>
+              <span className="text-[var(--text-muted)]">Fair Value Today</span>
               <strong className={`font-mono-num ${verdict.color}`}>
                 ${projection.fairValueToday.toFixed(2)}
               </strong>
@@ -876,13 +846,13 @@ function ScenarioSession({
 
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-4 sm:grid-cols-4">
           <div>
-            <div className="text-[11px] text-[var(--text-muted)]">Expected Return / yr</div>
+            <div className="text-[11px] text-[var(--text-muted)]">Scenario IRR / yr</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
               {projection.irrPct === null ? "—" : formatPct(projection.irrPct, true)}
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-[var(--text-muted)]">Year-5 Share Price</div>
+            <div className="text-[11px] text-[var(--text-muted)]">Year-5 Exit Value / Share</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--amber)]">
               ${projection.yr5TargetPrice.toFixed(2)}
             </div>
@@ -894,13 +864,14 @@ function ScenarioSession({
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-[var(--text-muted)]">{lens === "ebit" ? "Year-5 EBIT" : lens === "pe" ? "Year-5 Net Income" : "Year-5 True FCF"}</div>
+            <div className="text-[11px] text-[var(--text-muted)]">{LENSES[lens].metric}</div>
             <div className="font-mono-num mt-0.5 text-base font-semibold text-[var(--text-primary)]">
               {formatCurrencyCompact(projection.yr5TrueFcf)}
             </div>
           </div>
         </div>
       </section>
+      )}
     </div>
 
       <ThesisHistoryPanel

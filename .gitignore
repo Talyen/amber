@@ -34,3 +34,6 @@ next-env.d.ts
 # Playwright reports
 /test-results/
 /playwright-report/
+
+# Historical valuation research
+/.valuation-backtest/
