@@ -52,6 +52,7 @@ Lead with *data insights*, never *"check out my app."* Let the watermarked chart
 - [ ] **Launch 3–4 data-backed breakdowns using Amber visuals**
   - Two stories on Amber Research
     - [What happens to free cash flow after stock comp at three software giants?](https://amberstocks.com/research/hidden-dilution)
+      - [Draft and chart from the November 27 screen](launch/hidden-dilution.md).
     - [The buyback cannibals shrinking their share counts fastest](https://amberstocks.com/research/buyback-cannibals)
   - Post genuinely useful analyses to `r/ValueInvesting`, `r/SecurityAnalysis`, and X (FinTwit) using 1-click copied Amber PNGs:
     1. *"The 10 Mega-Caps Where Stock-Based Compensation Eats the Most Free Cash Flow"* (using `/lenses/hidden-dilution` Top 10 PNG + link).
